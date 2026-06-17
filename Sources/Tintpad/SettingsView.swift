@@ -162,27 +162,22 @@ struct GeneralSettingsView: View {
                 Toggle("Also open editor when launching an agent", isOn: store.bind(\.alsoOpenEditor))
             }
 
-            Section("Worktrees") {
-                LabeledContent("Worktree root") {
-                    HStack {
-                        Text(store.settings.worktreeRoot ?? "Sibling of repo")
-                            .font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
-                            .lineLimit(1).truncationMode(.middle)
-                        Button("Choose…") { chooseWorktreeRoot() }
-                        if store.settings.worktreeRoot != nil {
-                            Button("Reset") { store.settings.worktreeRoot = nil; store.save() }
+            Section {
+                DisclosureGroup("Advanced") {
+                    LabeledContent("Worktree root") {
+                        HStack {
+                            Text(store.settings.worktreeRoot ?? "Sibling of repo")
+                                .font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
+                                .lineLimit(1).truncationMode(.middle)
+                            Button("Choose…") { chooseWorktreeRoot() }
+                            if store.settings.worktreeRoot != nil {
+                                Button("Reset") { store.settings.worktreeRoot = nil; store.save() }
+                            }
                         }
                     }
+                    Toggle("Confirm before launching a dangerous (YOLO) mode",
+                           isOn: store.bind(\.confirmDangerousModes))
                 }
-                Text("Where ⌃W creates new worktrees. Default places them next to the repo.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-
-            Section("Safety") {
-                Toggle("Confirm before launching a dangerous (YOLO) mode",
-                       isOn: store.bind(\.confirmDangerousModes))
-                Text("When on, dangerous modes require a second ⏎ in the palette before launching.")
-                    .font(.caption).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
@@ -246,14 +241,13 @@ struct AppearanceSettingsView: View {
                 .pickerStyle(.segmented)
             }
 
-            Section("Palette") {
-                slider("Width", value: store.bind(\.panelWidth), range: 480...860, unit: "pt", snap: 10)
-            }
-
-            Section("Frecency") {
-                slider("Half-life", value: store.bind(\.frecencyHalfLifeDays), range: 3...90, unit: "d", snap: 1)
-                Text("How fast a repo's ranking decays. Shorter = recency wins; longer = frequency wins.")
-                    .font(.caption).foregroundStyle(.secondary)
+            Section {
+                DisclosureGroup("Advanced") {
+                    slider("Palette width", value: store.bind(\.panelWidth), range: 480...860, unit: "pt", snap: 10)
+                    slider("Frecency half-life", value: store.bind(\.frecencyHalfLifeDays), range: 3...90, unit: "d", snap: 1)
+                    Text("Half-life controls how fast a repo's ranking decays. Shorter = recency wins; longer = frequency wins.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
         }
         .formStyle(.grouped)

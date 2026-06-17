@@ -298,9 +298,12 @@ struct PaletteView: View {
     @ObservedObject private var model: PaletteModel
     @FocusState private var searchFocused: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var scheme
     @State private var hovered: Int?
     @State private var shown = false
     private let corner: CGFloat = 18
+
+    private var isDark: Bool { scheme == .dark }
 
     /// The model is owned by the controller (created + monitored at launch) so
     /// the very first summon is already warm.
@@ -320,16 +323,19 @@ struct PaletteView: View {
             footer
         }
         .background {
-            // Glass, but with a strong dark scrim so text stays high-contrast
-            // over bright backgrounds behind the panel.
-            ZStack { GlassBackground(); Color.black.opacity(0.5) }
+            // Adaptive glass + a scrim (darken in dark mode, lighten in light)
+            // so text keeps high contrast over whatever's behind the panel.
+            ZStack {
+                GlassBackground(material: isDark ? .hudWindow : .popover)
+                (isDark ? Color.black : Color.white).opacity(isDark ? 0.42 : 0.55)
+            }
         }
         .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: corner, style: .continuous)
                 .strokeBorder(
                     LinearGradient(
-                        colors: [.white.opacity(0.22), .white.opacity(0.05), .white.opacity(0.02)],
+                        colors: [.primary.opacity(0.22), .primary.opacity(0.05), .primary.opacity(0.02)],
                         startPoint: .top, endPoint: .bottom),
                     lineWidth: 1)
         }
@@ -353,7 +359,7 @@ struct PaletteView: View {
     }
 
     private var hairline: some View {
-        Rectangle().fill(Color.white.opacity(0.07)).frame(height: 1)
+        Rectangle().fill(Color.primary.opacity(0.07)).frame(height: 1)
     }
 
     private var confirmBanner: some View {
@@ -389,7 +395,7 @@ struct PaletteView: View {
             TextField(searchPlaceholder, text: $model.query)
                 .textFieldStyle(.plain)
                 .font(.system(size: 18, weight: .regular))
-                .foregroundStyle(.white.opacity(0.95))
+                .foregroundStyle(.primary.opacity(0.95))
                 .focused($searchFocused)
         }
         .padding(.horizontal, 18).padding(.vertical, 14)
@@ -420,7 +426,7 @@ struct PaletteView: View {
                 .foregroundStyle(accent)
             Text("Type a one-off prompt to hand \(repo.name) to \(model.activeAgent(for: repo)?.name ?? "the agent"). Press ↵ to launch, esc to cancel.")
                 .font(.system(size: 12.5))
-                .foregroundStyle(.white.opacity(0.5))
+                .foregroundStyle(.primary.opacity(0.5))
             Spacer()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -434,11 +440,11 @@ struct PaletteView: View {
                 .foregroundStyle(accent)
             Text("Creates an isolated checkout of \(repo.name) on a new branch, then launches the agent there.")
                 .font(.system(size: 12.5, weight: .regular))
-                .foregroundStyle(.white.opacity(0.5))
+                .foregroundStyle(.primary.opacity(0.5))
             if let path = model.worktreePreviewPath() {
                 Text("→ \(displayPath(path))")
                     .font(.system(size: 11.5, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.4))
+                    .foregroundStyle(.primary.opacity(0.4))
                     .lineLimit(1).truncationMode(.middle)
             }
             Spacer()
@@ -486,7 +492,7 @@ struct PaletteView: View {
         Text(title.uppercased())
             .font(.system(size: 10, weight: .semibold))
             .tracking(0.6)
-            .foregroundStyle(.white.opacity(0.3))
+            .foregroundStyle(.primary.opacity(0.3))
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 3)
     }
@@ -496,7 +502,7 @@ struct PaletteView: View {
              ? "No repos yet — ⌘R to scan, or add roots in Settings"
              : "No match for “\(model.query)”")
             .font(.system(size: 13, weight: .regular))
-            .foregroundStyle(.white.opacity(0.3))
+            .foregroundStyle(.primary.opacity(0.3))
             .padding(.vertical, 40)
     }
 
@@ -523,30 +529,30 @@ struct PaletteView: View {
                 HStack(spacing: 7) {
                     Text(repo.name)
                         .font(.system(size: 13.5, weight: .semibold))
-                        .foregroundStyle(.white.opacity(selected ? 1 : 0.85))
+                        .foregroundStyle(.primary.opacity(selected ? 1 : 0.85))
                     if repo.pinned {
                         Image(systemName: "pin.fill").font(.system(size: 8)).foregroundStyle(accent.opacity(0.8))
                     }
                 }
                 Text(displayPath(repo.path))
                     .font(.system(size: 11, weight: .regular))
-                    .foregroundStyle(.white.opacity(selected ? 0.4 : 0.3))
+                    .foregroundStyle(.primary.opacity(selected ? 0.4 : 0.3))
                     .lineLimit(1).truncationMode(.head)
             }
             Spacer(minLength: 12)
             if selected, let agent {
                 Text(agent.name)
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.55))
+                    .foregroundStyle(.primary.opacity(0.55))
             }
             if showMode, let mode { modeChip(mode) }
         }
         .padding(.horizontal, 10).padding(.vertical, 7)
         .background {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(.white.opacity(selected ? 0.10 : (hovered ? 0.05 : 0)))
+                .fill(.primary.opacity(selected ? 0.10 : (hovered ? 0.05 : 0)))
                 .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(.white.opacity(selected ? 0.08 : 0), lineWidth: 1))
+                    .strokeBorder(.primary.opacity(selected ? 0.08 : 0), lineWidth: 1))
         }
     }
 
@@ -555,7 +561,7 @@ struct PaletteView: View {
         return Text(mode.name.uppercased())
             .font(.system(size: 9.5, weight: .bold))
             .tracking(0.4)
-            .foregroundStyle(mode.isDangerous ? dangerTint : .white.opacity(0.7))
+            .foregroundStyle(mode.isDangerous ? dangerTint : .primary.opacity(0.7))
             .padding(.horizontal, 7).padding(.vertical, 3)
             .background(color.opacity(mode.isDangerous ? 0.16 : 0.10), in: Capsule())
     }
@@ -596,7 +602,7 @@ struct PaletteView: View {
         if let status = model.status {
             Text(status)
                 .font(.system(size: 11))
-                .foregroundStyle(.white.opacity(0.55))
+                .foregroundStyle(.primary.opacity(0.55))
                 .lineLimit(1).truncationMode(.middle)
         } else if let repo = model.selectedRepo {
             HStack(spacing: 9) {
@@ -610,7 +616,7 @@ struct PaletteView: View {
                     Label(branch, systemImage: "arrow.triangle.branch")
                         .labelStyle(.titleAndIcon)
                         .font(.system(size: 11))
-                        .foregroundStyle(.white.opacity(0.4))
+                        .foregroundStyle(.primary.opacity(0.4))
                         .lineLimit(1)
                 }
             }
@@ -633,16 +639,16 @@ private struct FooterButton: View {
             HStack(spacing: 5) {
                 Text(key)
                     .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(danger ? dangerTint : .white.opacity(0.85))
+                    .foregroundStyle(danger ? dangerTint : .primary.opacity(0.85))
                     .frame(minWidth: 15)
                     .padding(.horizontal, 5).padding(.vertical, 2)
-                    .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+                    .background(.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
                 Text(label)
                     .font(.system(size: 11))
-                    .foregroundStyle(danger ? dangerTint.opacity(0.9) : .white.opacity(0.5))
+                    .foregroundStyle(danger ? dangerTint.opacity(0.9) : .primary.opacity(0.5))
             }
             .padding(.horizontal, 7).padding(.vertical, 4)
-            .background(Capsule().fill(.white.opacity(hovering ? 0.06 : 0)))
+            .background(Capsule().fill(.primary.opacity(hovering ? 0.06 : 0)))
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)

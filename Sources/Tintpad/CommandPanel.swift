@@ -34,7 +34,6 @@ final class CommandPanel: NSPanel {
         backgroundColor = .clear
         isOpaque = false
         hasShadow = true   // native window shadow follows the rounded glass content
-        appearance = NSAppearance(named: .darkAqua)   // palette stays dark glass regardless of theme
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
         animationBehavior = .utilityWindow
     }
@@ -97,6 +96,7 @@ final class CommandPanelController: NSObject {
     func show() {
         let panel = panel ?? makePanel()
         self.panel = panel
+        panel.appearance = AppStore.shared.settings.appearance.nsAppearance  // follow theme
         center(panel)
         // Activate so the search field becomes first responder and accepts
         // typing; focus returns to the prior app via NSApp.hide on close.
