@@ -392,6 +392,7 @@ struct PaletteView: View {
                 }
             }
             .foregroundStyle(accent)
+            .accessibilityHidden(true)
             TextField(searchPlaceholder, text: $model.query)
                 .textFieldStyle(.plain)
                 .font(.system(size: 18, weight: .regular))
@@ -495,7 +496,7 @@ struct PaletteView: View {
         Text(title.uppercased())
             .font(.system(size: 10, weight: .semibold))
             .tracking(0.6)
-            .foregroundStyle(.primary.opacity(0.3))
+            .foregroundStyle(.primary.opacity(0.45))
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 3)
     }
@@ -505,7 +506,7 @@ struct PaletteView: View {
              ? "No repos yet — ⌘R to scan, or add roots in Settings"
              : "No match for “\(model.query)”")
             .font(.system(size: 13, weight: .regular))
-            .foregroundStyle(.primary.opacity(0.3))
+            .foregroundStyle(.primary.opacity(0.5))
             .padding(.vertical, 40)
     }
 
@@ -527,7 +528,9 @@ struct PaletteView: View {
                 .frame(width: 2.5)
                 .padding(.vertical, 3)
                 .opacity(selected ? 1 : 0)
+                .accessibilityHidden(true)
             AgentBrandIcon(agent: agent, tint: agentTint, selected: selected)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 7) {
                     Text(repo.name)
@@ -535,11 +538,12 @@ struct PaletteView: View {
                         .foregroundStyle(.primary.opacity(selected ? 1 : 0.85))
                     if repo.pinned {
                         Image(systemName: "pin.fill").font(.system(size: 8)).foregroundStyle(accent.opacity(0.8))
+                            .accessibilityHidden(true)
                     }
                 }
                 Text(displayPath(repo.path))
                     .font(.system(size: 11, weight: .regular))
-                    .foregroundStyle(.primary.opacity(selected ? 0.4 : 0.3))
+                    .foregroundStyle(.primary.opacity(selected ? 0.5 : 0.42))
                     .lineLimit(1).truncationMode(.head)
             }
             Spacer(minLength: 12)
