@@ -21,6 +21,13 @@ enum BrandImages {
     static let claude = tinted("claude", NSColor(srgbRed: 0.851, green: 0.459, blue: 0.337, alpha: 1)) // #D97757
     static let codex  = tinted("codex",  NSColor(srgbRed: 0.063, green: 0.639, blue: 0.498, alpha: 1)) // #10A37F
 
+    /// The full-color app icon, for in-app use (onboarding, About).
+    static let appIcon: Image? = {
+        guard let url = Bundle.module.url(forResource: "appicon", withExtension: "png"),
+              let ns = NSImage(contentsOf: url) else { return nil }
+        return Image(nsImage: ns)
+    }()
+
     private static func tinted(_ name: String, _ color: NSColor) -> Image? {
         guard let url = Bundle.module.url(forResource: name, withExtension: "png"),
               let src = NSImage(contentsOf: url) else { return nil }

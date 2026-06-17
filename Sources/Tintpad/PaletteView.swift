@@ -15,6 +15,8 @@ final class PaletteModel: ObservableObject {
     @Published var status: String?
     @Published var selectedPromptID: UUID?
     @Published var worktreeRepo: Repo?
+    /// When set, the search field captures a one-off prompt for this repo.
+    @Published var promptRepo: Repo?
 
     fileprivate var pendingDangerous: PendingLaunch?
 
@@ -86,6 +88,10 @@ final class PaletteModel: ObservableObject {
         pendingDangerous = nil
         agentOverrideID = nil
         modeOverrideID = nil
+        worktreeRepo = nil
+        promptRepo = nil
+        selectedPromptID = nil
+        query = ""
         if store.repos.isEmpty { store.runAutoDiscovery() }
     }
 
@@ -109,6 +115,7 @@ final class PaletteModel: ObservableObject {
             return true
         }
         if mods.contains(.command), chars == "p" { cyclePrompt(); return true }
+        if mods.contains(.command), chars == "l" { enterPromptMode(); return true }
         if mods.contains(.control), chars == "w" { enterWorktreeMode(); return true }
         return false
     }
@@ -205,15 +212,36 @@ final class PaletteModel: ObservableObject {
         } catch { status = "⚠ \(error)" }
     }
 
+    // MARK: - Prompt mode
+
+    func enterPromptMode() {
+        guard let repo = selectedRepo else { return }
+        guard store.allows(.promptLibrary) else { status = ProFeature.promptLibrary.blurb; return }
+        promptRepo = repo
+        query = ""
+    }
+
+    func exitPromptMode() { promptRepo = nil; query = "" }
+
+    private func launchWithTypedPrompt() {
+        guard let repo = promptRepo, let agent = activeAgent(for: repo) else { return }
+        let prompt = query.trimmingCharacters(in: .whitespaces)
+        let mode = resolveMode(agent: agent, repo: repo, modifiers: [])
+        if mode.isDangerous && !store.allows(.yoloMode) { status = ProFeature.yoloMode.blurb; return }
+        perform(repo: repo, agent: agent, mode: mode, prompt: prompt.isEmpty ? nil : prompt)
+    }
+
     // MARK: - Actions
 
     func handleEscape() {
         if pendingDangerous != nil { clearTransient(); return }
         if worktreeRepo != nil { exitWorktreeMode(); return }
+        if promptRepo != nil { exitPromptMode(); return }
         onClose()
     }
 
     func handleReturn(modifiers mods: NSEvent.ModifierFlags) {
+        if promptRepo != nil { launchWithTypedPrompt(); return }
         if worktreeRepo != nil { createWorktreeAndLaunch(); return }
         if let pending = pendingDangerous {
             pendingDangerous = nil
@@ -254,10 +282,11 @@ final class PaletteModel: ObservableObject {
         catch { status = "⚠ no editor detected — set one in Settings" }
     }
 
-    private func perform(repo: Repo, agent: Agent, mode: RunMode) {
+    private func perform(repo: Repo, agent: Agent, mode: RunMode, prompt: String? = nil) {
         do {
             let outcome = try LaunchService.launchAgent(
-                repo: repo, agent: agent, mode: mode, prompt: selectedPrompt?.text, store: store)
+                repo: repo, agent: agent, mode: mode,
+                prompt: prompt ?? selectedPrompt?.text, store: store)
             if let note = outcome.note { status = note } else { onClose() }
         } catch { status = "⚠ \(error)" }
     }
@@ -344,12 +373,10 @@ struct PaletteView: View {
 
     private var searchField: some View {
         HStack(spacing: 11) {
-            Image(systemName: model.worktreeRepo == nil ? "magnifyingglass" : "arrow.triangle.branch")
+            Image(systemName: searchIcon)
                 .font(.system(size: 14))
-                .foregroundStyle(model.worktreeRepo == nil ? .white.opacity(0.3) : accent)
-            TextField(model.worktreeRepo == nil
-                      ? "Search a repo…"
-                      : "New branch in \(model.worktreeRepo!.name)…", text: $model.query)
+                .foregroundStyle(model.worktreeRepo == nil && model.promptRepo == nil ? .white.opacity(0.3) : accent)
+            TextField(searchPlaceholder, text: $model.query)
                 .textFieldStyle(.plain)
                 .font(.system(size: 18, weight: .regular))
                 .foregroundStyle(.white.opacity(0.95))
@@ -358,14 +385,42 @@ struct PaletteView: View {
         .padding(.horizontal, 18).padding(.vertical, 14)
     }
 
+    private var searchIcon: String {
+        if model.worktreeRepo != nil { return "arrow.triangle.branch" }
+        if model.promptRepo != nil { return "text.bubble" }
+        return "magnifyingglass"
+    }
+
+    private var searchPlaceholder: String {
+        if let wt = model.worktreeRepo { return "New branch in \(wt.name)…" }
+        if let pr = model.promptRepo { return "Prompt for \(pr.name)… (↵ to launch)" }
+        return "Search a repo…"
+    }
+
     // MARK: - Results
 
     @ViewBuilder private var resultList: some View {
         if let wt = model.worktreeRepo {
             worktreePanel(wt)
+        } else if let pr = model.promptRepo {
+            promptPanel(pr)
         } else {
             repoResults
         }
+    }
+
+    private func promptPanel(_ repo: Repo) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Starting prompt", systemImage: "text.bubble")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(accent)
+            Text("Type a one-off prompt to hand \(repo.name) to \(model.activeAgent(for: repo)?.name ?? "the agent"). Press ↵ to launch, esc to cancel.")
+                .font(.system(size: 12.5))
+                .foregroundStyle(.white.opacity(0.5))
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(20)
     }
 
     private func worktreePanel(_ repo: Repo) -> some View {
@@ -510,12 +565,15 @@ struct PaletteView: View {
             } else if model.worktreeRepo != nil {
                 FooterButton(key: "↵", label: "create + launch") { model.handleReturn(modifiers: []) }
                 FooterButton(key: "esc", label: "back") { model.handleEscape() }
+            } else if model.promptRepo != nil {
+                FooterButton(key: "↵", label: "launch with prompt") { model.handleReturn(modifiers: []) }
+                FooterButton(key: "esc", label: "back") { model.handleEscape() }
             } else {
                 FooterButton(key: "↵", label: "launch") { model.handleReturn(modifiers: []) }
                 FooterButton(key: "⇥", label: "agent") { model.cycleAgent() }
                 FooterButton(key: "⇧⇥", label: "mode") { model.cycleMode() }
+                FooterButton(key: "⌘L", label: "prompt") { model.enterPromptMode() }
                 FooterButton(key: "⌘↵", label: "editor") { model.handleReturn(modifiers: .command) }
-                FooterButton(key: "⌘,", label: "settings") { model.openSettings() }
             }
             Spacer(minLength: 12)
             statusOrPreview

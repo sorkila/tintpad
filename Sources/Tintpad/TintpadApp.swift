@@ -66,5 +66,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Ask for notification permission so headless dispatch can notify on done.
         DispatchService.shared.requestAuthorization()
+
+        // First-run onboarding.
+        if !AppStore.shared.settings.hasOnboarded {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                OnboardingWindowController.shared.show()
+            }
+        }
     }
 }

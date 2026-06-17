@@ -145,13 +145,35 @@ struct Settings: Codable {
     var worktreeRoot: String?
     /// Pro license key (Ed25519-signed); nil = free tier.
     var licenseKey: String?
+    /// First-run onboarding completed.
+    var hasOnboarded: Bool = false
+
+    init() {}
+
+    /// Tolerant decode: any missing key falls back to its default, so adding a
+    /// new setting never invalidates an existing store.json (which would reseed).
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        func g<T: Decodable>(_ k: CodingKeys, _ d: T) -> T { (try? c.decode(T.self, forKey: k)) ?? d }
+        preferredTerminalBundleID = try? c.decode(String.self, forKey: .preferredTerminalBundleID)
+        preferredEditorID = try? c.decode(String.self, forKey: .preferredEditorID)
+        worktreeRoot = try? c.decode(String.self, forKey: .worktreeRoot)
+        licenseKey = try? c.decode(String.self, forKey: .licenseKey)
+        rootScanFolders = g(.rootScanFolders, [])
+        tintAccent = g(.tintAccent, .orange)
+        frecencyHalfLifeDays = g(.frecencyHalfLifeDays, 30)
+        confirmDangerousModes = g(.confirmDangerousModes, true)
+        appearance = g(.appearance, .dark)
+        panelWidth = g(.panelWidth, 640)
+        alsoOpenEditor = g(.alsoOpenEditor, false)
+        hasOnboarded = g(.hasOnboarded, false)
+    }
 
     static func defaults() -> Settings {
         let home = NSHomeDirectory()
-        return Settings(rootScanFolders: [
-            "\(home)/Documents/Repositories",
-            "\(home)/Developer",
-        ])
+        var s = Settings()
+        s.rootScanFolders = ["\(home)/Documents/Repositories", "\(home)/Developer"]
+        return s
     }
 }
 
