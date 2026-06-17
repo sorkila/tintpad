@@ -47,10 +47,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         AppAppearance.apply(AppStore.shared.settings.appearance)
 
-        // Pre-warm the login-shell PATH now, once. Its lazy init spawns `zsh -lic`
-        // and waitUntilExit() pumps the run loop; if that first init happens
-        // during SwiftUI rendering it re-enters and trips dispatch_once (crash).
-        _ = ShellEnvironment.resolvedPath
+        // Pre-warm the login-shell PATH off the main thread. Doing it on a
+        // background queue avoids both blocking launch on a slow shell rc and the
+        // dispatch_once reentrancy that bit us when the first init ran during a
+        // SwiftUI layout pass (waitUntilExit pumps the run loop).
+        DispatchQueue.global(qos: .userInitiated).async { _ = ShellEnvironment.resolvedPath }
         panelController.warm()   // install key monitor before the first summon
         HotkeyManager.configureSpikeDefaultIfNeeded()
         HotkeyManager.onSummon { [weak self] in

@@ -96,21 +96,20 @@ Add GitHub Actions: `swift build` + `swift test` on push; optional release job.
 
 ---
 
-## Plan
+## Plan & status
 
-### Phase 1 — Pre-release hardening (small, high value)
-1. **S1**: shell-quote all interpolated template variables.
-2. **S2**: strip control chars / newlines from prompt + interpolated values; escape for AppleScript.
-3. **Q1**: timeout + off-main the PATH pre-warm (and bound git/clone).
-4. Add focused tests for the new sanitization (extends Q5).
+### Phase 1 — Pre-release hardening — ✅ DONE
+1. **S1** ✅ every interpolated template variable is now sanitized + single-quoted (`CommandTemplate.quote`).
+2. **S2** ✅ control chars/newlines stripped (`CommandTemplate.sanitize`); `appleScriptEscape` also neutralizes newlines.
+3. **Q1** ✅ PATH probe has a 4s timeout; pre-warm moved off the main thread.
+4. ✅ injection tests added (quote-break, single-quote escaping, newline stripping) — 14 tests green.
 
-### Phase 2 — Release security (blocking distribution)
-5. **S4/S5**: Developer-ID sign + notarize, Sparkle `generate_keys` + signed appcast + embedded framework (per `docs/RELEASE.md`).
+### Phase 2 — Release security — ⏳ needs Developer ID / accounts
+5. **S4/S5**: sign + notarize, Sparkle `generate_keys` + signed appcast + embedded framework (per `docs/RELEASE.md`). Cannot complete without the cert/notary account.
 
-### Phase 3 — Quality & maintainability
-6. **Q2**: injectable `Launcher`; deterministic launch tests.
-7. **Q4** dispatch-log rotation; **Q3** surface swallowed errors.
-8. **Q6** VoiceOver labels; **Q7** CI workflow.
+### Phase 3 — Quality & maintainability — ✅ mostly done
+6. **Q2** — pure command-building (the injection surface) is now unit-tested deterministically; a full injectable `Launcher` for end-to-end launch tests remains as a nice-to-have.
+7. **Q4** ✅ dispatch logs rotate (keep last 30). **Q3** partial — resume failures beep; broader surfacing still TODO.
+8. **Q6** ✅ VoiceOver labels on palette rows + search field. **Q7** ✅ GitHub Actions CI (`build` + `test`).
 
-Recommended next step: implement **Phase 1 (S1, S2, Q1)** now — it's a couple of focused,
-well-testable changes that close the only real injection vectors.
+Remaining: Phase 2 (release creds), full `Launcher` DI, broader error surfacing.

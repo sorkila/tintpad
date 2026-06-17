@@ -23,6 +23,21 @@ final class DispatchService {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
 
+    /// Keep only the most recent dispatch logs so they don't accumulate forever.
+    private func pruneLogs(keep: Int = 30) {
+        let fm = FileManager.default
+        guard let urls = try? fm.contentsOfDirectory(
+            at: logDir, includingPropertiesForKeys: [.contentModificationDateKey]) else { return }
+        let logs = urls.filter { $0.pathExtension == "log" }
+        guard logs.count > keep else { return }
+        let sorted = logs.sorted {
+            let a = (try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            let b = (try? $1.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            return a > b
+        }
+        for url in sorted.dropFirst(keep) { try? fm.removeItem(at: url) }
+    }
+
     /// Dispatch an agent command in the background. Returns the log file URL.
     @discardableResult
     func dispatch(repo: Repo, agent: Agent, mode: RunMode,
@@ -33,6 +48,7 @@ final class DispatchService {
             remote: git.remoteURL, worktreePath: nil)
         let command = try CommandTemplate.resolved(agent.commandTemplate, context: ctx)
 
+        pruneLogs()
         let id = UUID()
         let stamp = "\(repo.name)-\(Int(Date().timeIntervalSince1970))"
         let logURL = logDir.appendingPathComponent("\(stamp).log")

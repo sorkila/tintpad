@@ -397,6 +397,7 @@ struct PaletteView: View {
                 .font(.system(size: 18, weight: .regular))
                 .foregroundStyle(.primary.opacity(0.95))
                 .focused($searchFocused)
+                .accessibilityLabel("Search repositories")
         }
         .padding(.horizontal, 18).padding(.vertical, 14)
     }
@@ -554,6 +555,17 @@ struct PaletteView: View {
                 .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .strokeBorder(.primary.opacity(selected ? 0.08 : 0), lineWidth: 1))
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityText(repo: repo, agent: agent, mode: mode))
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+    }
+
+    private func accessibilityText(repo: Repo, agent: Agent?, mode: RunMode?) -> String {
+        var parts = [repo.name]
+        if let agent { parts.append(agent.name) }
+        if let mode { parts.append("\(mode.name) mode") }
+        if repo.pinned { parts.append("pinned") }
+        return parts.joined(separator: ", ")
     }
 
     private func modeChip(_ mode: RunMode) -> some View {

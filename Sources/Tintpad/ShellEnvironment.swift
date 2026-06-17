@@ -72,9 +72,13 @@ enum ShellEnvironment {
         } catch {
             return nil
         }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
+        // Bound the wait: a slow/hung shell rc must not block forever (we fall
+        // back to the probe directories instead).
+        let deadline = Date().addingTimeInterval(4)
+        while process.isRunning && Date() < deadline { usleep(20_000) }
+        if process.isRunning { process.terminate(); return nil }
 
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
         guard let raw = String(data: data, encoding: .utf8) else { return nil }
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed

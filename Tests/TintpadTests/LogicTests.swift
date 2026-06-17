@@ -47,9 +47,36 @@ final class CommandTemplateTests: XCTestCase {
         XCTAssertEqual(out, "claude 'fix bug'")
     }
 
-    func testRepoNameAndPath() {
+    func testRepoNameAndPathQuoted() {
         let out = CommandTemplate.preview("cd {repoPath} # {repoName}", context: ctx(mode: .defaultMode(), prompt: nil))
-        XCTAssertEqual(out, "cd '/Users/me/acme' # acme")
+        XCTAssertEqual(out, "cd '/Users/me/acme' # 'acme'")
+    }
+
+    // S1: an adversarial repo/branch name cannot escape the single-quoted argument.
+    func testInjectionViaRepoNameNeutralized() {
+        var repo = Repo(path: "/x", name: "$(rm -rf ~); echo pwned")
+        let c = CommandTemplate.Context(repo: repo, mode: .defaultMode(), prompt: nil, branch: nil, remote: nil)
+        let out = CommandTemplate.preview("claude {repoName}", context: c)
+        XCTAssertEqual(out, "claude '$(rm -rf ~); echo pwned'")
+        XCTAssertFalse(out.contains("') ") || out.contains("';"))  // no quote-break
+        _ = repo
+    }
+
+    func testSingleQuoteInValueEscaped() {
+        let c = CommandTemplate.Context(repo: Repo(path: "/x", name: "x"),
+                                        mode: .defaultMode(), prompt: "it's fine", branch: nil, remote: nil)
+        let out = CommandTemplate.preview("claude {prompt}", context: c)
+        XCTAssertEqual(out, "claude 'it'\\''s fine'")
+    }
+
+    // S2: newlines/control chars are stripped so they can't submit early or break AppleScript.
+    func testNewlinesStrippedFromPrompt() {
+        let c = CommandTemplate.Context(repo: Repo(path: "/x", name: "x"),
+                                        mode: .defaultMode(), prompt: "line1\nrm -rf ~\ttab", branch: nil, remote: nil)
+        let out = CommandTemplate.preview("claude {prompt}", context: c)
+        XCTAssertFalse(out.contains("\n"))
+        XCTAssertFalse(out.contains("\t"))
+        XCTAssertEqual(out, "claude 'line1 rm -rf ~ tab'")
     }
 }
 

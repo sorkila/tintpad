@@ -240,6 +240,8 @@ struct WarpAdapter: TerminalAdapter {
 private func appleScriptEscape(_ s: String) -> String {
     s.replacingOccurrences(of: "\\", with: "\\\\")
      .replacingOccurrences(of: "\"", with: "\\\"")
+     .replacingOccurrences(of: "\r", with: " ")
+     .replacingOccurrences(of: "\n", with: " ")
 }
 
 enum AppleScriptRunner {

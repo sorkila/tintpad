@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: macos-15   # bump to macos-26 once available (the project targets the latest SDK)
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Swift version
+        run: swift --version
+
+      - name: Build
+        run: swift build
+
+      - name: Test
+        run: swift test
+
+  # GUI smoke test (Scripts/uitest.sh) is intentionally not run in CI — it needs
+  # Accessibility + Automation TCC grants that headless runners can't provide.
