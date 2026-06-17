@@ -68,9 +68,15 @@
   .demo .row.sel{background:rgba(255,255,255,.06)}
   .demo .bar{width:2px;align-self:stretch;background:var(--accent);border-radius:2px;margin:5px 0;opacity:0;transition:opacity .18s}
   .demo .row.sel .bar{opacity:1}
-  .demo .tile{width:27px;height:27px;border-radius:7px;display:grid;place-items:center;flex:none}
+  .demo .tile{width:28px;height:28px;border-radius:7px;display:grid;place-items:center;flex:none;
+    box-shadow:inset 0 0 0 .5px rgba(255,255,255,.07)}
   .demo .tile i{width:16px;height:16px;display:block;background:currentColor;
-    -webkit-mask:var(--m) center/contain no-repeat;mask:var(--m) center/contain no-repeat}
+    -webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+    -webkit-mask-position:center;mask-position:center}
+  .demo .tile.claude{background:rgba(224,135,92,.18);color:#e58a5e}
+  .demo .tile.claude i{-webkit-mask-image:url(assets/claude.png);mask-image:url(assets/claude.png)}
+  .demo .tile.codex{background:rgba(28,199,159,.16);color:#22cda2}
+  .demo .tile.codex i{-webkit-mask-image:url(assets/codex.png);mask-image:url(assets/codex.png)}
   .demo .nm{font-size:13.5px;font-weight:600}
   .demo .pt{font-size:11px;color:var(--faint);font-family:var(--mono)}
   .demo .rt{margin-left:auto;display:flex;align-items:center;gap:9px;font-size:11px;color:var(--dim)}
@@ -138,22 +144,19 @@
         <div class="rows" id="rows">
           <div class="row sel">
             <span class="bar"></span>
-            <span class="tile" style="background:rgba(201,106,74,.16);color:#d9885f">
-              <i style="--m:url(assets/claude.png)"></i></span>
+            <span class="tile claude"><i></i></span>
             <span><div class="nm">delta-api</div><div class="pt">~/repos/delta-api</div></span>
             <span class="rt"><span class="agent">Claude Code</span><span class="chip yolo">YOLO</span></span>
           </div>
           <div class="row">
             <span class="bar"></span>
-            <span class="tile" style="background:rgba(21,154,124,.16);color:#19b48f">
-              <i style="--m:url(assets/codex.png)"></i></span>
+            <span class="tile codex"><i></i></span>
             <span><div class="nm">delta-worker</div><div class="pt">~/repos/delta-worker</div></span>
             <span class="rt"><span class="agent">Codex</span></span>
           </div>
           <div class="row">
             <span class="bar"></span>
-            <span class="tile" style="background:rgba(201,106,74,.16);color:#d9885f">
-              <i style="--m:url(assets/claude.png)"></i></span>
+            <span class="tile claude"><i></i></span>
             <span><div class="nm">delta-infra</div><div class="pt">~/work/delta-infra</div></span>
             <span class="rt"><span class="agent">Claude Code</span></span>
           </div>
