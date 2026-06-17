@@ -9,6 +9,8 @@ final class AppStore: ObservableObject {
 
     @Published var repos: [Repo] = []
     @Published var agents: [Agent] = []
+    @Published var prompts: [PromptTemplate] = []
+    @Published var sessions: [Session] = []
     @Published var settings: Settings = .defaults()
 
     private let fileURL: URL
@@ -33,12 +35,16 @@ final class AppStore: ObservableObject {
             let seeded = StoreDocument.seeded()
             repos = seeded.repos
             agents = seeded.agents
+            prompts = seeded.prompts
+            sessions = seeded.sessions
             settings = seeded.settings
             persist()   // write directly; save() is suppressed while loading
             return
         }
         repos = doc.repos
         agents = doc.agents.isEmpty ? AgentSeed.defaults : doc.agents
+        prompts = doc.prompts
+        sessions = doc.sessions
         settings = doc.settings
     }
 
@@ -48,7 +54,8 @@ final class AppStore: ObservableObject {
     }
 
     private func persist() {
-        let doc = StoreDocument(version: 1, repos: repos, agents: agents, settings: settings)
+        let doc = StoreDocument(version: 1, repos: repos, agents: agents,
+                                prompts: prompts, sessions: sessions, settings: settings)
         guard let data = try? JSONEncoder.tintpad.encode(doc) else { return }
         try? data.write(to: fileURL, options: .atomic)
     }
@@ -114,6 +121,32 @@ final class AppStore: ObservableObject {
         save()
     }
 
+    // MARK: - Licensing / entitlements
+
+    var licenseInfo: LicenseManager.LicenseInfo? { LicenseManager.verify(settings.licenseKey) }
+    var isPro: Bool { licenseInfo != nil }
+
+    func allows(_ feature: ProFeature) -> Bool {
+        if isPro { return true }
+        if case .unlimitedAgents = feature { return agents.count < FreeTier.maxAgents }
+        return false
+    }
+
+    /// Validates and stores a license key. Returns true if accepted.
+    @discardableResult
+    func applyLicense(_ key: String) -> Bool {
+        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard LicenseManager.verify(trimmed) != nil else { return false }
+        settings.licenseKey = trimmed
+        save()
+        return true
+    }
+
+    func clearLicense() {
+        settings.licenseKey = nil
+        save()
+    }
+
     /// A SwiftUI binding to a settings field that persists on every write.
     func bind<T>(_ keyPath: WritableKeyPath<Settings, T>) -> Binding<T> {
         Binding(
@@ -121,6 +154,37 @@ final class AppStore: ObservableObject {
             set: { self.settings[keyPath: keyPath] = $0; self.save() }
         )
     }
+
+    // MARK: - Prompt library
+
+    func addPrompt(_ p: PromptTemplate) { prompts.append(p); save() }
+    func removePrompt(_ id: UUID) { prompts.removeAll { $0.id == id }; save() }
+    func updatePrompt(_ p: PromptTemplate) {
+        guard let i = prompts.firstIndex(where: { $0.id == p.id }) else { return }
+        prompts[i] = p; save()
+    }
+
+    // MARK: - Sessions
+
+    private let maxSessions = 50
+
+    /// Record a launch as a session (newest first, de-duped by repo+agent+mode).
+    func recordSession(repo: Repo, agent: Agent, mode: RunMode, prompt: String?, now: Date = Date()) {
+        let session = Session(
+            repoID: repo.id, repoPath: repo.path, repoName: repo.name,
+            agentID: agent.id, agentName: agent.name,
+            modeID: mode.id, modeName: mode.name,
+            prompt: prompt, date: now
+        )
+        sessions.removeAll { $0.repoID == repo.id && $0.agentID == agent.id && $0.modeID == mode.id }
+        sessions.insert(session, at: 0)
+        if sessions.count > maxSessions { sessions.removeLast(sessions.count - maxSessions) }
+        save()
+    }
+
+    var lastSession: Session? { sessions.first }
+
+    func clearSessions() { sessions.removeAll(); save() }
 
     // MARK: - Discovery
 

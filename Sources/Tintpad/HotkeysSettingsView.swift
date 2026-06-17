@@ -12,6 +12,11 @@ struct HotkeysSettingsView: View {
                     caption: "Open the command palette from anywhere.",
                     name: .summon
                 )
+                HotkeyRow(
+                    title: "Resume last session",
+                    caption: "Instantly re-launch your most recent repo + agent + mode.",
+                    name: .resumeLast
+                )
             } header: {
                 Text("Global shortcuts")
             } footer: {

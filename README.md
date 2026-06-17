@@ -7,7 +7,9 @@ in under two seconds, without the mouse.
 Native Swift/SwiftUI menu-bar (accessory) app. Local-only, no accounts.
 Distributed direct (Developer ID + notarization), not the Mac App Store.
 
-## Status: Phase 1 (MVP)
+## Status: Phase 2 (v1)
+
+Phase 1 (MVP):
 
 | Capability | State |
 |---|---|
@@ -17,9 +19,27 @@ Distributed direct (Developer ID + notarization), not the Mac App Store.
 | Run-mode selection: per-agent default, per-repo override, launch modifiers | ✅ |
 | Dangerous-mode confirm + warning tint | ✅ |
 | Terminal handoff to 7 terminals | ✅ |
-| First-class Settings (General/Hotkeys/Repos/Agents/Appearance/About) | ✅ |
-| JSON persistence + tint design system | ✅ |
+| First-class Settings + tint design system + JSON persistence | ✅ |
+
+Phase 2 (v1):
+
+| Capability | State |
+|---|---|
+| Open-in-editor (⌘↵) — VS Code / Cursor / Zed / Sublime / JetBrains | ✅ |
+| Prompt library — saved prompts, ⌘P to attach at launch | ✅ |
+| Recent sessions + quick-resume (instant resume-last hotkey) | ✅ |
+| Pro licensing — Ed25519 offline verification + feature gating | ✅ |
+| Per-repo presets (agent + mode + pin) | ✅ |
 | Notarized DMG + Homebrew cask | ⏳ scaffolded (`Scripts/package.sh`, needs Developer ID) |
+| Sparkle auto-update, GTM launch | ⏳ Phase 3 / non-code |
+
+### Pro vs Free
+
+Free: core launch flow forever, up to 3 agents, Safe/Default modes, default tint.
+Pro (one-time unlock): unlimited agents, YOLO modes, prompt library, per-repo
+presets, custom tints. Licenses are Ed25519-signed and verified offline (no
+phone-home). The signing key lives only in `secrets/` (gitignored); the public
+key is embedded in `LicenseManager.swift`.
 
 ## Architecture
 
@@ -68,9 +88,11 @@ To sign + notarize, set `SIGN_IDENTITY` and `NOTARY_PROFILE` and re-run the scri
 | ⌥⌘Space | Summon (spike default; change in Settings → Hotkeys) |
 | ↑ / ↓ | Navigate |
 | ⏎ | Launch default agent + mode |
-| ⌥⏎ | Launch YOLO (dangerous; second ⏎ confirms) |
+| ⌘⏎ | Open repo in editor |
+| ⌥⏎ | Launch YOLO (dangerous; second ⏎ confirms; Pro) |
 | ⇧⏎ | Launch Safe |
 | ⇥ | Cycle agent |
+| ⌘P | Cycle attached prompt (Pro) |
 | ⌘R | Re-scan repos |
 | Esc | Close (returns focus to previous app) |
 

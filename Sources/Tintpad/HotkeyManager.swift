@@ -4,6 +4,8 @@ import KeyboardShortcuts
 extension KeyboardShortcuts.Name {
     /// The primary "summon Tintpad" shortcut.
     static let summon = Self("summon")
+    /// Instant quick-resume of the most recent session (no palette).
+    static let resumeLast = Self("resumeLast")
 }
 
 /// Registers the global summon hotkey. In production we will NOT set a default
@@ -19,5 +21,9 @@ enum HotkeyManager {
 
     static func onSummon(_ handler: @escaping () -> Void) {
         KeyboardShortcuts.onKeyDown(for: .summon, action: handler)
+    }
+
+    static func onResumeLast(_ handler: @escaping () -> Void) {
+        KeyboardShortcuts.onKeyDown(for: .resumeLast, action: handler)
     }
 }

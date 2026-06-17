@@ -72,6 +72,31 @@ struct Repo: Identifiable, Codable, Hashable {
     var pinned: Bool = false
 }
 
+// MARK: - Prompt library
+
+/// A reusable starting prompt, injected into a command template's `{prompt}`.
+struct PromptTemplate: Identifiable, Codable, Hashable {
+    var id: UUID = UUID()
+    var title: String
+    var text: String
+}
+
+// MARK: - Sessions
+
+/// A recorded launch, for recents / quick-resume.
+struct Session: Identifiable, Codable, Hashable {
+    var id: UUID = UUID()
+    var repoID: UUID
+    var repoPath: String
+    var repoName: String
+    var agentID: UUID
+    var agentName: String
+    var modeID: UUID
+    var modeName: String
+    var prompt: String?
+    var date: Date
+}
+
 // MARK: - Appearance
 
 /// Curated accent palette. The tint is the brand identity.
@@ -107,12 +132,15 @@ enum AppearanceMode: String, Codable, CaseIterable, Identifiable {
 
 struct Settings: Codable {
     var preferredTerminalBundleID: String?
+    var preferredEditorID: String?
     var rootScanFolders: [String] = []
     var tintAccent: TintAccent = .orange
     var frecencyHalfLifeDays: Double = 30
     var confirmDangerousModes: Bool = true
     var appearance: AppearanceMode = .dark
     var panelWidth: Double = 640
+    /// Pro license key (Ed25519-signed); nil = free tier.
+    var licenseKey: String?
 
     static func defaults() -> Settings {
         let home = NSHomeDirectory()
@@ -130,10 +158,41 @@ struct StoreDocument: Codable {
     var version: Int = 1
     var repos: [Repo] = []
     var agents: [Agent] = []
+    var prompts: [PromptTemplate] = []
+    var sessions: [Session] = []
     var settings: Settings = .defaults()
 
+    init(version: Int = 1, repos: [Repo] = [], agents: [Agent] = [],
+         prompts: [PromptTemplate] = [], sessions: [Session] = [],
+         settings: Settings = .defaults()) {
+        self.version = version; self.repos = repos; self.agents = agents
+        self.prompts = prompts; self.sessions = sessions; self.settings = settings
+    }
+
+    /// Tolerant decode: missing keys (e.g. an older store.json without
+    /// prompts/sessions) fall back to defaults instead of failing the whole load.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        version = try c.decodeIfPresent(Int.self, forKey: .version) ?? 1
+        repos = try c.decodeIfPresent([Repo].self, forKey: .repos) ?? []
+        agents = try c.decodeIfPresent([Agent].self, forKey: .agents) ?? []
+        prompts = try c.decodeIfPresent([PromptTemplate].self, forKey: .prompts) ?? []
+        sessions = try c.decodeIfPresent([Session].self, forKey: .sessions) ?? []
+        settings = try c.decodeIfPresent(Settings.self, forKey: .settings) ?? .defaults()
+    }
+
     static func seeded() -> StoreDocument {
-        StoreDocument(repos: [], agents: AgentSeed.defaults, settings: .defaults())
+        StoreDocument(repos: [], agents: AgentSeed.defaults,
+                      prompts: PromptSeed.defaults, sessions: [], settings: .defaults())
+    }
+}
+
+enum PromptSeed {
+    static var defaults: [PromptTemplate] {
+        [
+            PromptTemplate(title: "Review changes", text: "Review my uncommitted changes for bugs and clarity."),
+            PromptTemplate(title: "Write tests", text: "Write tests for the code I just changed."),
+        ]
     }
 }
 

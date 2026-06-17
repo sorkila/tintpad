@@ -39,6 +39,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         HotkeyManager.onSummon { [weak self] in
             self?.panelController.toggle()
         }
+        HotkeyManager.onResumeLast {
+            if !LaunchService.resumeLast(store: AppStore.shared) {
+                NSSound.beep()
+            }
+        }
 
         // Populate repos in the background so the first summon is instant.
         let added = AppStore.shared.runAutoDiscovery()

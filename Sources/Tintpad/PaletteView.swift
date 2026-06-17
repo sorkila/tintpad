@@ -12,8 +12,14 @@ struct PaletteView: View {
     @State private var status: String?
     /// When a dangerous mode needs confirmation, the pending launch is parked here.
     @State private var pendingDangerous: PendingLaunch?
+    /// Selected prompt from the library to attach to this launch (nil = none).
+    @State private var selectedPromptID: UUID?
 
     private struct PendingLaunch { let repo: Repo; let agent: Agent; let mode: RunMode }
+
+    private var selectedPrompt: PromptTemplate? {
+        store.prompts.first { $0.id == selectedPromptID }
+    }
 
     private var accent: Color { store.settings.tintAccent.color }
 
@@ -78,6 +84,10 @@ struct PaletteView: View {
                     let n = store.runAutoDiscovery()
                     status = "scanned — \(n) new repo\(n == 1 ? "" : "s")"
                     return .handled
+                }
+                .onKeyPress(keys: ["p"]) { press in
+                    guard press.modifiers.contains(.command) else { return .ignored }
+                    cyclePrompt(); return .handled
                 }
         }
         .padding(.horizontal, 18).padding(.vertical, 16)
@@ -156,9 +166,10 @@ struct PaletteView: View {
                 keycap("esc", "cancel")
             } else {
                 keycap("↵", "launch")
+                keycap("⌘↵", "editor")
                 keycap("⌥↵", "YOLO")
-                keycap("⇧↵", "safe")
                 keycap("⇥", "agent")
+                keycap("⌘P", "prompt")
             }
             Spacer()
             statusOrPreview
@@ -179,6 +190,13 @@ struct PaletteView: View {
         } else if let repo = selectedRepo, let agent = activeAgent(for: repo) {
             let mode = resolveMode(agent: agent, repo: repo, modifiers: [])
             HStack(spacing: 8) {
+                if let prompt = selectedPrompt {
+                    Label(prompt.title, systemImage: "text.bubble")
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .foregroundStyle(accent)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(accent.opacity(0.12), in: Capsule())
+                }
                 if let branch = GitInfo.currentBranch(at: repo.path) {
                     Label(branch, systemImage: "arrow.triangle.branch")
                         .font(.system(size: 10, design: .monospaced))
@@ -211,6 +229,15 @@ struct PaletteView: View {
         guard count > 0 else { return }
         selection = (selection + delta + count) % count
         clearTransient()
+    }
+
+    private func cyclePrompt() {
+        guard store.allows(.promptLibrary) else { status = ProFeature.promptLibrary.blurb; return }
+        guard !store.prompts.isEmpty else { status = "no saved prompts — add some in Settings"; return }
+        let ids: [UUID?] = [nil] + store.prompts.map { Optional($0.id) }
+        let idx = ids.firstIndex(of: selectedPromptID) ?? 0
+        selectedPromptID = ids[(idx + 1) % ids.count]
+        status = nil
     }
 
     private func cycleAgent() {
@@ -249,9 +276,21 @@ struct PaletteView: View {
             perform(repo: pending.repo, agent: pending.agent, mode: pending.mode)
             return
         }
-        guard let repo = selectedRepo, let agent = activeAgent(for: repo) else { return }
-        let mode = resolveMode(agent: agent, repo: repo, modifiers: NSEvent.modifierFlags)
+        guard let repo = selectedRepo else { return }
+        let mods = NSEvent.modifierFlags
 
+        // ⌘↵ → open in editor instead of launching an agent.
+        if mods.contains(.command) {
+            openInEditor(repo: repo)
+            return
+        }
+        guard let agent = activeAgent(for: repo) else { return }
+        let mode = resolveMode(agent: agent, repo: repo, modifiers: mods)
+
+        if mode.isDangerous && !store.allows(.yoloMode) {
+            status = ProFeature.yoloMode.blurb
+            return
+        }
         if mode.isDangerous && store.settings.confirmDangerousModes {
             pendingDangerous = PendingLaunch(repo: repo, agent: agent, mode: mode)
             return
@@ -259,28 +298,27 @@ struct PaletteView: View {
         perform(repo: repo, agent: agent, mode: mode)
     }
 
-    private func perform(repo: Repo, agent: Agent, mode: RunMode) {
-        let git = GitInfo.read(at: repo.path)
-        let ctx = CommandTemplate.Context(
-            repo: repo, mode: mode, prompt: nil, branch: git.branch, remote: git.remoteURL)
-        let command: String
+    private func openInEditor(repo: Repo) {
         do {
-            command = try CommandTemplate.resolved(agent.commandTemplate, context: ctx)
+            try LaunchService.openInEditor(repo: repo, store: store)
+            onClose()
         } catch {
-            status = "⚠ \(error)"
-            return
+            status = "⚠ no editor detected — set one in Settings"
         }
-        let terminal = TerminalRegistry.preferred(settings: store.settings)
+    }
+
+    private func perform(repo: Repo, agent: Agent, mode: RunMode) {
+        let promptText = selectedPrompt?.text
         do {
-            let outcome = try terminal.launch(TerminalLaunch(workingDirectory: repo.path, command: command))
-            store.recordLaunch(repoID: repo.id)
+            let outcome = try LaunchService.launchAgent(
+                repo: repo, agent: agent, mode: mode, prompt: promptText, store: store)
             if let note = outcome.note {
                 status = note   // e.g. Warp clipboard fallback — keep palette open
             } else {
                 onClose()
             }
         } catch {
-            status = "⚠ \(terminal.displayName): \(error)"
+            status = "⚠ \(error)"
         }
     }
 }
