@@ -124,14 +124,17 @@ final class AppStore: ObservableObject {
     // MARK: - Licensing / entitlements
 
     var licenseInfo: LicenseManager.LicenseInfo? { LicenseManager.verify(settings.licenseKey) }
-    var isPro: Bool { licenseInfo != nil }
+    /// Has the user bought the optional Supporter unlock. (Tintpad is MIT and
+    /// fully free; this only ever unlocks a cosmetic thank-you.)
+    var isSupporter: Bool { licenseInfo != nil }
 
+    /// Tip-jar model: every functional feature is free. The only thing the
+    /// Supporter purchase unlocks is custom accent tints — a small thank-you,
+    /// never a wall.
     func allows(_ feature: ProFeature) -> Bool {
         switch feature {
-        // Free, to match the site's promise (every agent, all run modes incl. YOLO)
-        // and avoid the crippleware optics flagged by the GTM/red-team audits.
-        case .yoloMode, .unlimitedAgents: return true
-        default: return isPro
+        case .customTint: return isSupporter
+        default: return true
         }
     }
 

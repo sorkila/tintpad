@@ -7,16 +7,10 @@ struct PromptsSettingsView: View {
     @State private var selectedID: UUID?
 
     var body: some View {
-        VStack(spacing: 0) {
-            if !store.isPro {
-                ProBanner(feature: .promptLibrary)
-            }
-            HSplitView {
-                list.frame(minWidth: 180, maxWidth: 240)
-                detail.frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
+        HSplitView {
+            list.frame(minWidth: 180, maxWidth: 240)
+            detail.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .disabled(!store.isPro)
         .onAppear { if selectedID == nil { selectedID = store.prompts.first?.id } }
     }
 
@@ -128,22 +122,5 @@ struct RecentsSettingsView: View {
               let agent = store.agent(s.agentID),
               let mode = agent.modes.first(where: { $0.id == s.modeID }) else { return }
         try? LaunchService.launchAgent(repo: repo, agent: agent, mode: mode, prompt: s.prompt, store: store)
-    }
-}
-
-// MARK: - Shared
-
-struct ProBanner: View {
-    let feature: ProFeature
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "lock.fill")
-            Text(feature.blurb)
-            Spacer()
-            Link("Get Pro", destination: URL(string: "https://tintpad.com/pro")!)
-        }
-        .font(.callout)
-        .padding(.horizontal, 16).padding(.vertical, 10)
-        .background(.yellow.opacity(0.12))
     }
 }

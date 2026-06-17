@@ -12,7 +12,6 @@ struct GitHubSettingsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if !store.isPro { ProBanner(feature: .perRepoPreset) }
             Form {
                 Section("GitHub access") {
                     SecureField("Personal access token (repo scope)", text: $token)
@@ -49,7 +48,6 @@ struct GitHubSettingsView: View {
             }
             .formStyle(.grouped)
         }
-        .disabled(!store.isPro)
         .onAppear {
             if cloneRoot.isEmpty {
                 cloneRoot = store.settings.rootScanFolders.first ?? NSHomeDirectory()

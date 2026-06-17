@@ -280,8 +280,8 @@ struct AppearanceSettingsView: View {
 
     private func swatch(_ tint: TintAccent) -> some View {
         let selected = store.settings.tintAccent == tint
-        // Free tier is locked to the default orange; other tints are Pro.
-        let locked = !store.isPro && tint != .orange
+        // Default orange is free; other tints are the Supporter thank-you.
+        let locked = !store.isSupporter && tint != .orange
         return Button {
             if locked { return }
             store.settings.tintAccent = tint
@@ -301,7 +301,7 @@ struct AppearanceSettingsView: View {
                     .foregroundStyle(.white.opacity(locked ? 0.9 : 0)))
         }
         .buttonStyle(.plain)
-        .help(locked ? "\(tint.displayName) — Pro" : tint.displayName)
+        .help(locked ? "\(tint.displayName) — Supporter" : tint.displayName)
     }
 }
 
@@ -320,14 +320,14 @@ struct AboutSettingsView: View {
                 .foregroundStyle(store.settings.tintAccent.color)
             HStack(spacing: 8) {
                 Text("Tintpad").font(.title.bold())
-                if store.isPro {
-                    Text("PRO").font(.caption2.bold())
-                        .padding(.horizontal, 6).padding(.vertical, 2)
+                if store.isSupporter {
+                    Label("Supporter", systemImage: "heart.fill").font(.caption2.bold())
+                        .padding(.horizontal, 7).padding(.vertical, 2)
                         .background(store.settings.tintAccent.color, in: Capsule())
                         .foregroundStyle(.black)
                 }
             }
-            Text("Local-only, no accounts.")
+            Text("Free & open source. Local-only, no accounts.")
                 .font(.callout).foregroundStyle(.secondary)
 
             Divider().padding(.horizontal, 80)
@@ -368,26 +368,26 @@ struct AboutSettingsView: View {
     @ViewBuilder private var licenseSection: some View {
         if let info = store.licenseInfo {
             VStack(spacing: 6) {
-                Label("Pro license active", systemImage: "checkmark.seal.fill")
+                Label("Supporter — thank you ♥", systemImage: "checkmark.seal.fill")
                     .foregroundStyle(.green)
                 Text(info.email).font(.system(.callout, design: .monospaced)).foregroundStyle(.secondary)
-                Button("Remove license") { store.clearLicense(); keyInput = ""; feedback = nil }
+                Button("Remove key") { store.clearLicense(); keyInput = ""; feedback = nil }
                     .controlSize(.small)
             }
         } else {
             VStack(spacing: 8) {
-                Text("Unlock Pro: unlimited agents, YOLO modes, prompt library, per-repo presets, custom tints.")
+                Text("Everything's free. If Tintpad saves you time, chip in — Supporters get custom accent tints (and my thanks).")
                     .font(.callout).foregroundStyle(.secondary)
                     .multilineTextAlignment(.center).frame(maxWidth: 460)
                 HStack {
-                    TextField("Paste license key", text: $keyInput)
+                    TextField("Paste supporter key", text: $keyInput)
                         .textFieldStyle(.roundedBorder)
                         .font(.system(.callout, design: .monospaced))
                     Button("Activate") {
                         if store.applyLicense(keyInput) {
                             feedback = nil
                         } else {
-                            feedback = "Invalid license key."
+                            feedback = "That key didn't check out."
                         }
                     }
                     .disabled(keyInput.isEmpty)
@@ -396,8 +396,6 @@ struct AboutSettingsView: View {
                 if let feedback {
                     Text(feedback).font(.caption).foregroundStyle(.red)
                 }
-                Link("Buy Pro — tintpad.com", destination: URL(string: "https://tintpad.com/pro")!)
-                    .font(.callout)
             }
         }
     }

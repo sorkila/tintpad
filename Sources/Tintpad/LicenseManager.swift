@@ -55,16 +55,13 @@ enum ProFeature {
     case worktree
     case dispatch
 
-    /// Benefit-led upsell copy (lead with the payoff, not the gate).
+    /// Tip-jar model: everything functional is free, so the only blurb that can
+    /// surface is customTint (the Supporter thank-you). The rest are kept for
+    /// completeness but never shown.
     var blurb: String {
         switch self {
-        case .yoloMode:        return "YOLO mode skips every permission prompt"
-        case .unlimitedAgents: return "Add as many agents as you like"
-        case .promptLibrary:   return "Pro: save prompts and attach them at launch"
-        case .customTint:      return "Pro: pick your own accent tint"
-        case .perRepoPreset:   return "Pro: pin a default agent + mode per repo"
-        case .worktree:        return "Pro: launch each agent on its own git worktree"
-        case .dispatch:        return "Pro: run agents in the background with a notification"
+        case .customTint:      return "Custom tints are a Supporter perk — thanks for chipping in"
+        default:               return "Free in Tintpad"
         }
     }
 }
