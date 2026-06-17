@@ -31,6 +31,18 @@
     <string>Tintpad opens your terminal and runs the selected coding agent at the chosen repository.</string>
     <key>NSHumanReadableCopyright</key>
     <string>© 2026 Sörkila</string>
+    <!-- tintpad:// — summons the palette (e.g. from a Raycast script command). -->
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>com.sorkila.tintpad</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>tintpad</string>
+            </array>
+        </dict>
+    </array>
     <!-- Sparkle auto-update. Replace SUPublicEDKey with the public key printed
          by Sparkle's generate_keys (the private key stays in your Keychain). -->
     <key>SUFeedURL</key>

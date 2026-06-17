@@ -1,0 +1,118 @@
+name: Release
+
+# Manual release build. Click "Run workflow" in the Actions tab.
+#
+# Secrets (all optional — without them you get an unsigned, runnable artifact):
+#   SIGN_IDENTITY    "Developer ID Application: Your Name (TEAMID)" — enables
+#                    codesigning + notarization and the signed-artifact path.
+#   SIGNING_CERT_P12 base64-encoded Developer ID .p12 to import into a temp keychain.
+#   SIGNING_CERT_PWD password for the .p12 above.
+#   NOTARY_PROFILE   notarytool keychain profile name. Created here from the three
+#                    App Store Connect API secrets below (only if SIGN_IDENTITY is set).
+#   NOTARY_KEY       App Store Connect API key (.p8) contents.
+#   NOTARY_KEY_ID    its Key ID.
+#   NOTARY_ISSUER    its Issuer ID.
+#   SPARKLE_ED_KEY   Sparkle EdDSA private key — used to sign the appcast entry.
+#                    (Public key SUPublicEDKey lives in Resources/Info.plist.)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed if a step later attaches assets to a GitHub release
+
+jobs:
+  release:
+    runs-on: macos-15   # match CI; bump to macos-26 once available
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Swift version
+        run: swift --version
+
+      - name: Build release
+        run: swift build -c release
+
+      # --- Signing setup (only when SIGN_IDENTITY is present) -----------------
+      # package.sh self-gates on SIGN_IDENTITY / NOTARY_PROFILE, so everything
+      # below is a no-op when the secrets are absent. The job still succeeds and
+      # produces an unsigned artifact.
+
+      - name: Import signing certificate
+        if: ${{ secrets.SIGN_IDENTITY != '' && secrets.SIGNING_CERT_P12 != '' }}
+        env:
+          SIGNING_CERT_P12: ${{ secrets.SIGNING_CERT_P12 }}
+          SIGNING_CERT_PWD: ${{ secrets.SIGNING_CERT_PWD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
+          KEYCHAIN_PWD="$(openssl rand -base64 24)"
+          security create-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN"
+
+          CERT="$RUNNER_TEMP/cert.p12"
+          echo "$SIGNING_CERT_P12" | base64 --decode > "$CERT"
+          security import "$CERT" -k "$KEYCHAIN" -P "$SIGNING_CERT_PWD" \
+            -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PWD" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | sed s/\"//g)
+          rm -f "$CERT"
+
+      - name: Set up notary profile
+        if: ${{ secrets.SIGN_IDENTITY != '' && secrets.NOTARY_KEY != '' }}
+        env:
+          NOTARY_PROFILE: ${{ secrets.NOTARY_PROFILE }}
+          NOTARY_KEY: ${{ secrets.NOTARY_KEY }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
+        run: |
+          set -euo pipefail
+          KEY="$RUNNER_TEMP/notary.p8"
+          echo "$NOTARY_KEY" > "$KEY"
+          xcrun notarytool store-credentials "$NOTARY_PROFILE" \
+            --key "$KEY" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER"
+          rm -f "$KEY"
+
+      # --- Package ------------------------------------------------------------
+      # Builds .build/release/Tintpad.app. Signs + notarizes only if the env
+      # vars are set; otherwise emits an unsigned bundle.
+
+      - name: Package
+        env:
+          # Empty string when the secret is unset — package.sh treats that as "skip".
+          SIGN_IDENTITY: ${{ secrets.SIGN_IDENTITY }}
+          NOTARY_PROFILE: ${{ secrets.NOTARY_PROFILE }}
+        run: ./Scripts/package.sh
+
+      # --- Sparkle appcast signature (signed builds only, optional) -----------
+
+      - name: Sign appcast entry (Sparkle)
+        if: ${{ secrets.SIGN_IDENTITY != '' && secrets.SPARKLE_ED_KEY != '' }}
+        env:
+          SPARKLE_ED_KEY: ${{ secrets.SPARKLE_ED_KEY }}
+        run: |
+          set -euo pipefail
+          DMG=".build/release/Tintpad.dmg"
+          SIGN_TOOL="$(find .build -name sign_update -type f 2>/dev/null | head -n1 || true)"
+          if [[ -n "$SIGN_TOOL" && -f "$DMG" ]]; then
+            echo "EdDSA signature for $DMG:"
+            "$SIGN_TOOL" "$DMG" --ed-key-file <(printf '%s' "$SPARKLE_ED_KEY")
+          else
+            echo "sign_update tool or DMG not found — skipping appcast signature."
+          fi
+
+      # --- Zip + upload -------------------------------------------------------
+
+      - name: Zip Tintpad.app
+        run: |
+          set -euo pipefail
+          # ditto preserves bundle metadata/symlinks (notarization-safe).
+          ditto -c -k --keepParent ".build/release/Tintpad.app" "Tintpad.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tintpad-app
+          path: Tintpad.zip
+          if-no-files-found: error

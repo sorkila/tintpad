@@ -77,4 +77,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
     }
+
+    /// `tintpad://` — summon the palette. Lets a Raycast script command (or any
+    /// `open tintpad://`) trigger Tintpad without simulating the global hotkey.
+    /// Summon-only by design: a URL never launches an agent on its own.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        guard urls.contains(where: { $0.scheme == "tintpad" }) else { return }
+        panelController.show()
+    }
 }
