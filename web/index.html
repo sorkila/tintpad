@@ -8,7 +8,9 @@
 <meta property="og:title" content="Tintpad" />
 <meta property="og:description" content="Summon a coding agent into your terminal, at the right repo." />
 <meta property="og:image" content="https://tintpad.com/assets/icon.png" />
-<link rel="icon" href="assets/icon.png" />
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png" />
+<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png" />
 <style>
   :root{
     --bg:#08080a; --panel:#141417; --panel2:#1a1a1e; --line:rgba(255,255,255,.06);
@@ -57,18 +59,28 @@
     -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
   .demo{background:rgba(18,18,21,.92);backdrop-filter:blur(20px);border-radius:14px;overflow:hidden;text-align:left;
     box-shadow:0 40px 90px -20px rgba(0,0,0,.7),0 0 50px -20px rgba(255,122,51,.25)}
-  .demo .s{display:flex;gap:10px;padding:15px 17px;border-bottom:1px solid var(--line);color:var(--faint);font-size:16px}
-  .demo .s b{color:var(--accent);font-family:var(--mono);font-weight:700}
-  .demo .row{display:flex;align-items:center;gap:10px;padding:8px 13px}
-  .demo .row.sel{background:rgba(255,255,255,.05)}
-  .demo .bar{width:2px;align-self:stretch;background:var(--accent);border-radius:2px;margin:5px 0;opacity:0}
+  .demo .s{display:flex;align-items:center;gap:10px;padding:15px 17px;border-bottom:1px solid var(--line);color:var(--text);font-size:16px}
+  .demo .s .chev{color:var(--accent);font-family:var(--mono);font-weight:700}
+  .demo .s .q{color:var(--text)}
+  .demo .s .caret{display:inline-block;width:1.5px;height:18px;background:var(--accent);margin-left:1px;vertical-align:-3px;animation:blink 1.1s step-end infinite}
+  @keyframes blink{50%{opacity:0}}
+  .demo .row{display:flex;align-items:center;gap:10px;padding:8px 11px;transition:background .18s}
+  .demo .row.sel{background:rgba(255,255,255,.06)}
+  .demo .bar{width:2px;align-self:stretch;background:var(--accent);border-radius:2px;margin:5px 0;opacity:0;transition:opacity .18s}
   .demo .row.sel .bar{opacity:1}
-  .demo .ic{width:26px;height:26px;border-radius:6px;display:grid;place-items:center;font-size:13px;color:#fff}
+  .demo .tile{width:27px;height:27px;border-radius:7px;display:grid;place-items:center;flex:none}
+  .demo .tile i{width:16px;height:16px;display:block;background:currentColor;
+    -webkit-mask:var(--m) center/contain no-repeat;mask:var(--m) center/contain no-repeat}
   .demo .nm{font-size:13.5px;font-weight:600}
   .demo .pt{font-size:11px;color:var(--faint);font-family:var(--mono)}
   .demo .rt{margin-left:auto;display:flex;align-items:center;gap:9px;font-size:11px;color:var(--dim)}
-  .demo .yolo{color:#ff5a5a;font-weight:800;font-size:9.5px;letter-spacing:.4px}
-  .demo .f{display:flex;gap:16px;padding:11px 14px;border-top:1px solid var(--line);color:var(--faint);font-size:11px;font-family:var(--mono)}
+  .demo .row:not(.sel) .agent{display:none}
+  .demo .chip{font-size:9px;font-weight:800;letter-spacing:.4px;padding:2px 6px;border-radius:99px}
+  .demo .chip.yolo{color:#ff5a5a;background:rgba(255,90,90,.16)}
+  .demo .f{display:flex;gap:14px;align-items:center;padding:11px 14px;border-top:1px solid var(--line);color:var(--faint);font-size:11px;font-family:var(--mono)}
+  .demo .f .key{transition:color .18s,background .18s;padding:1px 4px;border-radius:4px}
+  .demo .f .key.hit{color:#170a03;background:var(--accent)}
+  .demo .f .cmd{margin-left:auto;color:var(--dim)}
 
   section{padding:46px 0}
   section + section{border-top:1px solid var(--line)}
@@ -121,17 +133,38 @@
     <div class="meta">macOS 14+ · native Swift · signed &amp; notarized · no accounts</div>
 
     <div class="shot">
-      <div class="demo" aria-hidden="true">
-        <div class="s"><b>❯</b> delta</div>
-        <div class="row sel"><span class="bar"></span>
-          <span class="ic" style="background:#c96a4a">⌘</span>
-          <span><div class="nm">delta-api</div><div class="pt">~/repos/delta-api</div></span>
-          <span class="rt">Claude Code <span class="yolo">YOLO</span></span></div>
-        <div class="row"><span class="bar"></span>
-          <span class="ic" style="background:#159a7c">✳</span>
-          <span><div class="nm">delta-worker</div><div class="pt">~/repos/delta-worker</div></span>
-          <span class="rt">Codex</span></div>
-        <div class="f"><span>↵ launch</span><span>⇥ agent</span><span>⇧⇥ mode</span><span>⌃W worktree</span></div>
+      <div class="demo" id="demo" aria-hidden="true">
+        <div class="s"><span class="chev">❯</span> <span class="q" id="q">delta</span><span class="caret"></span></div>
+        <div class="rows" id="rows">
+          <div class="row sel">
+            <span class="bar"></span>
+            <span class="tile" style="background:rgba(201,106,74,.16);color:#d9885f">
+              <i style="--m:url(assets/claude.png)"></i></span>
+            <span><div class="nm">delta-api</div><div class="pt">~/repos/delta-api</div></span>
+            <span class="rt"><span class="agent">Claude Code</span><span class="chip yolo">YOLO</span></span>
+          </div>
+          <div class="row">
+            <span class="bar"></span>
+            <span class="tile" style="background:rgba(21,154,124,.16);color:#19b48f">
+              <i style="--m:url(assets/codex.png)"></i></span>
+            <span><div class="nm">delta-worker</div><div class="pt">~/repos/delta-worker</div></span>
+            <span class="rt"><span class="agent">Codex</span></span>
+          </div>
+          <div class="row">
+            <span class="bar"></span>
+            <span class="tile" style="background:rgba(201,106,74,.16);color:#d9885f">
+              <i style="--m:url(assets/claude.png)"></i></span>
+            <span><div class="nm">delta-infra</div><div class="pt">~/work/delta-infra</div></span>
+            <span class="rt"><span class="agent">Claude Code</span></span>
+          </div>
+        </div>
+        <div class="f">
+          <span><span class="key" id="kLaunch">↵</span> launch</span>
+          <span><span class="key">⇥</span> agent</span>
+          <span><span class="key">⇧⇥</span> mode</span>
+          <span><span class="key">⌃W</span> worktree</span>
+          <span class="cmd" id="cmd">cd delta-api &amp;&amp; claude</span>
+        </div>
       </div>
     </div>
   </div>
@@ -190,5 +223,36 @@
 </section>
 
 <footer><div class="wrap">tintpad · open core · made in Sweden · © 2026 Sörkila</div></footer>
+<script>
+(function(){
+  var rows = Array.prototype.slice.call(document.querySelectorAll('#rows .row'));
+  var cmd = document.getElementById('cmd');
+  var kLaunch = document.getElementById('kLaunch');
+  if (!rows.length) return;
+  var data = [
+    {name:'delta-api', cmd:'cd delta-api && claude'},
+    {name:'delta-worker', cmd:'cd delta-worker && codex'},
+    {name:'delta-infra', cmd:'cd delta-infra && claude'}
+  ];
+  var i = 0;
+  function render(){
+    rows.forEach(function(r,idx){ r.classList.toggle('sel', idx===i); });
+    cmd.textContent = data[i].cmd;
+  }
+  function step(){
+    // move down the list (live ↓ nav); when it wraps, flash ↵ like a launch
+    var wrap = (i === rows.length - 1);
+    if (wrap){
+      kLaunch.classList.add('hit');
+      setTimeout(function(){ kLaunch.classList.remove('hit'); }, 320);
+    }
+    i = (i + 1) % rows.length;
+    render();
+  }
+  if (!window.matchMedia || !window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+    setInterval(step, 2100);
+  }
+})();
+</script>
 </body>
 </html>
