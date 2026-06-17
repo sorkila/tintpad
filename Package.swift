@@ -19,6 +19,9 @@ let package = Package(
             dependencies: [
                 .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
                 .product(name: "Sparkle", package: "Sparkle")
+            ],
+            resources: [
+                .process("Resources")
             ]
         )
     ]

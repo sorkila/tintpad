@@ -10,6 +10,10 @@
     <string>com.sorkila.tintpad</string>
     <key>CFBundleExecutable</key>
     <string>Tintpad</string>
+    <key>CFBundleIconFile</key>
+    <string>Tintpad</string>
+    <key>CFBundleIconName</key>
+    <string>Tintpad</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>

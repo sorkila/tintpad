@@ -23,6 +23,7 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BUILD_DIR/$APP_NAME" "$APP/Contents/MacOS/$APP_NAME"
 cp "Resources/Info.plist" "$APP/Contents/Info.plist"
+cp "Resources/Tintpad.icns" "$APP/Contents/Resources/Tintpad.icns"
 # Bundle the SwiftPM resource bundles (e.g. KeyboardShortcuts) next to the binary.
 cp -R "$BUILD_DIR"/*.bundle "$APP/Contents/MacOS/" 2>/dev/null || true
 

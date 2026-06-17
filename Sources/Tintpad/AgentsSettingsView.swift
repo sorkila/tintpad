@@ -90,9 +90,19 @@ private struct AgentEditor: View {
 
     var body: some View {
         Form {
+            Section {
+                HStack(spacing: 12) {
+                    AgentBrandIcon(agent: agent,
+                                   tint: agent.tintHex.flatMap(Color.init(hex:)) ?? .accentColor,
+                                   selected: true)
+                    TextField("Name", text: $agent.name)
+                        .textFieldStyle(.plain).font(.title3.weight(.semibold))
+                }
+                .padding(.vertical, 2)
+            }
+
             Section("Agent") {
-                TextField("Name", text: $agent.name)
-                TextField("SF Symbol", text: $agent.symbol)
+                TextField("SF Symbol (fallback icon)", text: $agent.symbol)
                 Toggle("Accepts a starting prompt", isOn: $agent.acceptsPrompt)
             }
 
@@ -155,34 +165,42 @@ private struct ModeEditor: View {
     let makeDefault: () -> Void
     let onDelete: () -> Void
 
+    private var accent: Color { mode.isDangerous ? dangerTint : .secondary }
+
     var body: some View {
-        VStack(spacing: 8) {
-            HStack {
-                TextField("Name", text: $mode.name).frame(width: 110)
-                TextField("flags", text: $mode.flags)
-                    .font(.system(.body, design: .monospaced))
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(spacing: 10) {
+                TextField("Name", text: $mode.name)
+                    .textFieldStyle(.roundedBorder).frame(width: 130)
                 if mode.isDangerous {
-                    Image(systemName: "exclamationmark.triangle.fill")
+                    Text("DANGEROUS")
+                        .font(.system(size: 9, weight: .bold)).tracking(0.5)
                         .foregroundStyle(dangerTint)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(dangerTint.opacity(0.16), in: Capsule())
                 }
-                Button { onDelete() } label: { Image(systemName: "trash") }
-                    .buttonStyle(.borderless).foregroundStyle(.secondary)
-            }
-            HStack {
-                TextField("description", text: $mode.description)
-                    .font(.caption)
                 Spacer()
-                Toggle("Dangerous", isOn: $mode.isDangerous)
-                    .toggleStyle(.checkbox)
-                Button {
-                    makeDefault()
-                } label: {
-                    Label("Default", systemImage: isDefault ? "largecircle.fill.circle" : "circle")
+                Button { makeDefault() } label: {
+                    Label("Default", systemImage: isDefault ? "checkmark.circle.fill" : "circle")
+                        .labelStyle(.titleAndIcon).font(.caption)
                 }
                 .buttonStyle(.borderless)
                 .foregroundStyle(isDefault ? Color.accentColor : .secondary)
+                Button { onDelete() } label: { Image(systemName: "trash") }
+                    .buttonStyle(.borderless).foregroundStyle(.secondary)
             }
+            TextField("flags — e.g. --dangerously-skip-permissions", text: $mode.flags)
+                .textFieldStyle(.roundedBorder).font(.system(.callout, design: .monospaced))
+            TextField("description", text: $mode.description)
+                .textFieldStyle(.roundedBorder).font(.caption)
+            Toggle("Dangerous — warns and requires a confirm before launch", isOn: $mode.isDangerous)
+                .toggleStyle(.switch).controlSize(.mini).font(.caption)
         }
-        .padding(.vertical, 4)
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
+            .fill(mode.isDangerous ? dangerTint.opacity(0.07) : Color.primary.opacity(0.03)))
+        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
+            .strokeBorder(accent.opacity(mode.isDangerous ? 0.4 : 0.15), lineWidth: 1))
+        .padding(.vertical, 3)
     }
 }

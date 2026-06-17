@@ -17,7 +17,13 @@ final class UpdaterController: ObservableObject {
     @Published var canCheckForUpdates = false
 
     private init() {
-        guard AppEnvironment.isBundled else {
+        // Only start Sparkle when it's actually configured: a real bundle AND a
+        // real SUPublicEDKey (not the scaffold placeholder). Otherwise the
+        // updater "fails to start" and nags on every launch. Dev builds stay
+        // dormant; once you set a real key + signed build, it activates.
+        let key = Bundle.main.object(forInfoDictionaryKey: "SUPublicEDKey") as? String ?? ""
+        guard AppEnvironment.isBundled,
+              !key.isEmpty, key != "REPLACE_WITH_SPARKLE_PUBLIC_ED_KEY" else {
             controller = nil
             return
         }

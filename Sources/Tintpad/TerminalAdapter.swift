@@ -92,16 +92,29 @@ private func openApp(bundleID: String, args: [String]) throws {
 
 // MARK: - Ghostty (CLI via `open`)
 
-/// `+new-window` does not work on macOS; `open -nb … --args --working-directory
-/// … -e …` is reliable.
+/// Ghostty is single-instance on macOS: `+new-window` is unsupported, `open -n`
+/// runs the command in a window-less second instance, and `open` without `-n`
+/// ignores args. The only reliable way to drive a *running* Ghostty is to open a
+/// new window (⌘N) and type the command — via System Events (needs Accessibility
+/// permission, prompted on first use).
 struct GhosttyAdapter: TerminalAdapter {
     let displayName = "Ghostty"
     let bundleID = "com.mitchellh.ghostty"
 
     func launch(_ launch: TerminalLaunch) throws -> LaunchOutcome {
         guard isInstalled else { throw TerminalLaunchError.notInstalled }
-        try openApp(bundleID: bundleID, args:
-            ["--working-directory=\(launch.workingDirectory)", "-e"] + shellProgram(launch))
+        let cmd = "cd \(shellQuote(launch.workingDirectory)) && \(launch.command)"
+        let script = """
+        tell application "Ghostty" to activate
+        delay 0.35
+        tell application "System Events"
+            keystroke "n" using command down
+            delay 0.45
+            keystroke "\(appleScriptEscape(cmd))"
+            key code 36
+        end tell
+        """
+        try AppleScriptRunner.run(script)
         return LaunchOutcome()
     }
 }

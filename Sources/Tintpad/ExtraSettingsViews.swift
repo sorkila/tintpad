@@ -81,32 +81,31 @@ struct RecentsSettingsView: View {
     }()
 
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(store.sessions) { session in
-                        row(session); Divider()
-                    }
-                    if store.sessions.isEmpty {
-                        Text("No sessions yet — launch an agent from the palette.")
-                            .font(.callout).foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity).padding(.vertical, 60)
+        SettingsScroll {
+            SettingsCard("Recent sessions", trailing: AnyView(
+                Button("Clear") { store.clearSessions() }
+                    .controlSize(.small).disabled(store.sessions.isEmpty))) {
+                if store.sessions.isEmpty {
+                    EmptyStateView(icon: "clock.arrow.circlepath", title: "No sessions yet",
+                                   subtitle: "Launch an agent from the palette and it'll show here.")
+                } else {
+                    ForEach(Array(store.sessions.enumerated()), id: \.element.id) { i, session in
+                        if i > 0 { Divider() }
+                        row(session)
                     }
                 }
             }
-            Divider()
-            HStack {
-                Text("Quick-resume the most recent with the Resume-last hotkey (Settings → Hotkeys).")
-                    .font(.caption).foregroundStyle(.secondary)
-                Spacer()
-                Button("Clear") { store.clearSessions() }.disabled(store.sessions.isEmpty)
-            }
-            .padding(16)
+            Label("Quick-resume the most recent with the Resume-last hotkey (Settings → Hotkeys).",
+                  systemImage: "bolt.fill")
+                .font(.caption).foregroundStyle(.secondary)
         }
     }
 
     private func row(_ s: Session) -> some View {
         HStack(spacing: 12) {
+            AgentBrandIcon(agent: store.agent(s.agentID),
+                           tint: store.agent(s.agentID)?.tintHex.flatMap(Color.init(hex:)) ?? .accentColor,
+                           selected: true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(s.repoName).font(.body.weight(.medium))
                 HStack(spacing: 6) {
@@ -121,7 +120,7 @@ struct RecentsSettingsView: View {
             Spacer()
             Button("Resume") { resume(s) }.controlSize(.small)
         }
-        .padding(.horizontal, 16).padding(.vertical, 10)
+        .padding(.horizontal, 14).padding(.vertical, 10)
     }
 
     private func resume(_ s: Session) {

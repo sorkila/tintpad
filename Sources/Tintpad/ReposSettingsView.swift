@@ -7,78 +7,45 @@ struct ReposSettingsView: View {
     @State private var scanResult: String?
 
     var body: some View {
-        VStack(spacing: 0) {
-            rootFoldersSection
-            Divider()
-            repoListSection
-            Divider()
-            toolbar
-        }
-    }
-
-    // MARK: - Root folders
-
-    private var rootFoldersSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Scan roots").font(.headline)
-                Spacer()
+        SettingsScroll {
+            SettingsCard("Scan roots", trailing: AnyView(
                 Button { addRootFolder() } label: { Image(systemName: "plus") }
-                    .help("Add a folder to auto-scan for repos")
+                    .buttonStyle(.borderless).help("Add a folder to auto-scan for repos"))) {
+                if store.settings.rootScanFolders.isEmpty {
+                    Text("No scan roots — add ~/repos or ~/Developer.")
+                        .font(.callout).foregroundStyle(.secondary).padding(14)
+                } else {
+                    ForEach(Array(store.settings.rootScanFolders.enumerated()), id: \.element) { i, folder in
+                        if i > 0 { Divider() }
+                        HStack(spacing: 10) {
+                            Image(systemName: "folder.fill").foregroundStyle(.secondary)
+                            Text(folder).font(.system(.caption, design: .monospaced)).lineLimit(1).truncationMode(.middle)
+                            Spacer()
+                            Button { removeRoot(folder) } label: { Image(systemName: "minus.circle.fill") }
+                                .buttonStyle(.borderless).foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 14).padding(.vertical, 9)
+                    }
+                }
             }
-            if store.settings.rootScanFolders.isEmpty {
-                Text("No scan roots — add ~/repos or ~/Developer.")
-                    .font(.caption).foregroundStyle(.secondary)
-            } else {
-                ForEach(store.settings.rootScanFolders, id: \.self) { folder in
-                    HStack {
-                        Image(systemName: "folder").foregroundStyle(.secondary)
-                        Text(folder).font(.system(.caption, design: .monospaced)).lineLimit(1)
-                            .truncationMode(.middle)
-                        Spacer()
-                        Button { removeRoot(folder) } label: { Image(systemName: "minus.circle") }
-                            .buttonStyle(.borderless).foregroundStyle(.secondary)
+
+            SettingsCard("Repositories · \(store.repos.count)", trailing: AnyView(HStack(spacing: 10) {
+                if let scanResult { Text(scanResult).font(.caption).foregroundStyle(.secondary) }
+                Button("Add…") { addRepoFolder() }
+                Button("Scan") { let n = store.runAutoDiscovery(); scanResult = "+\(n)" }
+            })) {
+                if store.repos.isEmpty {
+                    EmptyStateView(icon: "folder.badge.plus", title: "No repositories yet",
+                                   subtitle: "Drop a folder here, or Scan your roots.")
+                } else {
+                    ForEach(Array(store.repos.enumerated()), id: \.element.id) { i, repo in
+                        if i > 0 { Divider() }
+                        RepoRow(store: store, repo: repo)
                     }
                 }
             }
         }
-        .padding(16)
-    }
-
-    // MARK: - Repo list
-
-    private var repoListSection: some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
-                ForEach(store.repos) { repo in
-                    RepoRow(store: store, repo: repo)
-                    Divider()
-                }
-                if store.repos.isEmpty {
-                    Text("Drop a repo folder here, or press “Scan now”.")
-                        .font(.callout).foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity).padding(.vertical, 50)
-                }
-            }
-        }
-        .frame(maxHeight: .infinity)
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in handleDrop(providers) }
-    }
-
-    private var toolbar: some View {
-        HStack {
-            Button("Add Repo…") { addRepoFolder() }
-            Button("Scan now") {
-                let n = store.runAutoDiscovery()
-                scanResult = "Added \(n) repo\(n == 1 ? "" : "s")."
-            }
-            if let scanResult {
-                Text(scanResult).font(.caption).foregroundStyle(.secondary)
-            }
-            Spacer()
-            Text("\(store.repos.count) repos").font(.caption).foregroundStyle(.secondary)
-        }
-        .padding(16)
     }
 
     // MARK: - Actions
@@ -134,19 +101,23 @@ private struct RepoRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
+            AgentBrandIcon(agent: agent,
+                           tint: agent?.tintHex.flatMap(Color.init(hex:)) ?? .accentColor,
+                           selected: true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(repo.name).font(.body.weight(.medium))
+                Text(displayPath(repo.path)).font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+            }
+            Spacer()
+
             Button { toggle(\.pinned) } label: {
                 Image(systemName: repo.pinned ? "pin.fill" : "pin")
                     .foregroundStyle(repo.pinned ? Color.accentColor : .secondary)
             }
             .buttonStyle(.borderless)
             .help(repo.pinned ? "Unpin" : "Pin to top")
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(repo.name).font(.body.weight(.medium))
-                Text(repo.path).font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
-            }
-            Spacer()
 
             Picker("", selection: agentBinding) {
                 Text("—").tag(UUID?.none)
@@ -164,6 +135,11 @@ private struct RepoRow: View {
                 .buttonStyle(.borderless).foregroundStyle(.secondary)
         }
         .padding(.horizontal, 16).padding(.vertical, 10)
+    }
+
+    private func displayPath(_ path: String) -> String {
+        let home = NSHomeDirectory()
+        return path.hasPrefix(home) ? "~" + path.dropFirst(home.count) : path
     }
 
     private func toggle(_ kp: WritableKeyPath<Repo, Bool>) {

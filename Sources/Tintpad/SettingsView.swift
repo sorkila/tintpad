@@ -1,42 +1,132 @@
 import SwiftUI
 
-/// The first-class Settings window: a native macOS preferences scene with
-/// top tabs. Intentional contrast with the dark utilitarian palette — this is
-/// the bright, spacious, standard-controls surface (Raycast-style).
+/// The first-class Settings window — native macOS sidebar navigation
+/// (System Settings style) via NavigationSplitView.
 struct SettingsView: View {
     @ObservedObject var store: AppStore
+    @State private var selection: SettingsTab = .general
 
     var body: some View {
-        TabView {
-            GeneralSettingsView(store: store)
-                .tabItem { Label("General", systemImage: "gearshape") }
-            HotkeysSettingsView()
-                .tabItem { Label("Hotkeys", systemImage: "keyboard") }
-            ReposSettingsView(store: store)
-                .tabItem { Label("Repos", systemImage: "folder") }
-            AgentsSettingsView(store: store)
-                .tabItem { Label("Agents", systemImage: "terminal") }
-            PromptsSettingsView(store: store)
-                .tabItem { Label("Prompts", systemImage: "text.bubble") }
-            RecentsSettingsView(store: store)
-                .tabItem { Label("Recents", systemImage: "clock.arrow.circlepath") }
-            GitHubSettingsView(store: store)
-                .tabItem { Label("GitHub", systemImage: "arrow.triangle.branch") }
-            AppearanceSettingsView(store: store)
-                .tabItem { Label("Appearance", systemImage: "paintpalette") }
-            AboutSettingsView(store: store)
-                .tabItem { Label("About", systemImage: "info.circle") }
+        NavigationSplitView {
+            List(selection: $selection) {
+                Section { rows([.general, .appearance, .hotkeys]) }
+                Section("Workspace") { rows([.repos, .agents, .prompts]) }
+                Section("Activity") { rows([.recents, .github]) }
+                Section { rows([.about]) }
+            }
+            .navigationSplitViewColumnWidth(min: 196, ideal: 208, max: 240)
+        } detail: {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 12) {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(selection.color.gradient)
+                        .frame(width: 30, height: 30)
+                        .overlay(Image(systemName: selection.icon)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.white))
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(selection.title).font(.system(size: 18, weight: .semibold))
+                        Text(selection.subtitle).font(.system(size: 12)).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 22).padding(.vertical, 16)
+                Divider()
+                detailView
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .frame(minWidth: 480, maxWidth: .infinity, maxHeight: .infinity)
+            .navigationTitle("")
         }
-        .frame(width: 640, height: 520)
+        .navigationSplitViewStyle(.balanced)
+        .frame(minWidth: 740, idealWidth: 800, minHeight: 540, idealHeight: 600)
+    }
+
+    private func rows(_ tabs: [SettingsTab]) -> some View {
+        ForEach(tabs) { tab in
+            Label {
+                Text(tab.title)
+            } icon: {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(tab.color.gradient)
+                    .frame(width: 20, height: 20)
+                    .overlay(Image(systemName: tab.icon)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white))
+            }
+            .tag(tab)
+        }
+    }
+
+    @ViewBuilder private var detailView: some View {
+        switch selection {
+        case .general:    GeneralSettingsView(store: store)
+        case .hotkeys:    HotkeysSettingsView()
+        case .repos:      ReposSettingsView(store: store)
+        case .agents:     AgentsSettingsView(store: store)
+        case .prompts:    PromptsSettingsView(store: store)
+        case .recents:    RecentsSettingsView(store: store)
+        case .github:     GitHubSettingsView(store: store)
+        case .appearance: AppearanceSettingsView(store: store)
+        case .about:      AboutSettingsView(store: store)
+        }
+    }
+}
+
+enum SettingsTab: String, CaseIterable, Identifiable {
+    case general, hotkeys, repos, agents, prompts, recents, github, appearance, about
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .general: "General"; case .hotkeys: "Hotkeys"; case .repos: "Repos"
+        case .agents: "Agents"; case .prompts: "Prompts"; case .recents: "Recents"
+        case .github: "GitHub"; case .appearance: "Appearance"; case .about: "About"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .general: "gearshape.fill"; case .hotkeys: "keyboard.fill"; case .repos: "folder.fill"
+        case .agents: "terminal.fill"; case .prompts: "text.bubble.fill"
+        case .recents: "clock.arrow.circlepath"; case .github: "arrow.triangle.branch"
+        case .appearance: "paintpalette.fill"; case .about: "info.circle.fill"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .general: .gray; case .appearance: .pink; case .hotkeys: .blue
+        case .repos: .orange; case .agents: .green; case .prompts: .teal
+        case .recents: .indigo; case .github: Color(white: 0.25); case .about: .gray
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .general:    "Startup, terminal, editor, and safety"
+        case .hotkeys:    "Global keyboard shortcuts"
+        case .repos:      "Your repositories and scan roots"
+        case .agents:     "Agents, command templates, and run modes"
+        case .prompts:    "Reusable starting prompts"
+        case .recents:    "Recent sessions and quick-resume"
+        case .github:     "Import repositories from GitHub"
+        case .appearance: "Accent tint, theme, and palette"
+        case .about:      "Version, license, and updates"
+        }
     }
 }
 
 // MARK: - General
 
+/// Mirrors the working Appearance tab's structure (Form/Section + store.bind),
+/// but uses AppKit `PopUpPicker` for the dropdowns — two SwiftUI `Picker`s in
+/// one Form reliably cycled AttributeGraph and crashed on this SDK.
 struct GeneralSettingsView: View {
     @ObservedObject var store: AppStore
     @State private var launchAtLogin = LaunchAtLogin.isEnabled
     @State private var installed = TerminalRegistry.installed
+    @State private var editorsInstalled = EditorRegistry.installed
 
     var body: some View {
         Form {
@@ -46,26 +136,23 @@ struct GeneralSettingsView: View {
             }
 
             Section("Terminal") {
-                Picker("Open agents in", selection: terminalSelection) {
-                    Text("Auto (first detected)").tag(String?.none)
-                    ForEach(installed, id: \.bundleID) { t in
-                        Text(t.displayName).tag(Optional(t.bundleID))
-                    }
+                LabeledContent("Open agents in") {
+                    PopUpPicker(options: [("", "Auto (first detected)")] + installed.map { ($0.bundleID, $0.displayName) },
+                                selection: terminalSelection)
+                        .frame(width: 220)
                 }
                 HStack {
-                    Text(detectedSummary)
-                        .font(.caption).foregroundStyle(.secondary)
+                    Text(detectedSummary).font(.caption).foregroundStyle(.secondary)
                     Spacer()
                     Button("Re-detect") { installed = TerminalRegistry.installed }
                 }
             }
 
             Section("Editor") {
-                Picker("Open repos in", selection: store.bind(\.preferredEditorID)) {
-                    Text("Auto (first detected)").tag(String?.none)
-                    ForEach(EditorRegistry.installed) { e in
-                        Text(e.name).tag(Optional(e.id))
-                    }
+                LabeledContent("Open repos in") {
+                    PopUpPicker(options: [("", "Auto (first detected)")] + editorsInstalled.map { ($0.id, $0.name) },
+                                selection: editorSelection)
+                        .frame(width: 220)
                 }
                 Text("Used by ⌘↵ in the palette. \(editorSummary)")
                     .font(.caption).foregroundStyle(.secondary)
@@ -73,15 +160,15 @@ struct GeneralSettingsView: View {
             }
 
             Section("Worktrees") {
-                HStack {
-                    Text("Worktree root")
-                    Spacer()
-                    Text(store.settings.worktreeRoot ?? "Sibling of repo")
-                        .font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
-                        .lineLimit(1).truncationMode(.middle)
-                    Button("Choose…") { chooseWorktreeRoot() }
-                    if store.settings.worktreeRoot != nil {
-                        Button("Reset") { store.settings.worktreeRoot = nil; store.save() }
+                LabeledContent("Worktree root") {
+                    HStack {
+                        Text(store.settings.worktreeRoot ?? "Sibling of repo")
+                            .font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
+                            .lineLimit(1).truncationMode(.middle)
+                        Button("Choose…") { chooseWorktreeRoot() }
+                        if store.settings.worktreeRoot != nil {
+                            Button("Reset") { store.settings.worktreeRoot = nil; store.save() }
+                        }
                     }
                 }
                 Text("Where ⌃W creates new worktrees. Default places them next to the repo.")
@@ -99,8 +186,14 @@ struct GeneralSettingsView: View {
         .padding(20)
     }
 
-    private var terminalSelection: Binding<String?> {
-        store.bind(\.preferredTerminalBundleID)
+    private var terminalSelection: Binding<String> {
+        Binding(get: { store.settings.preferredTerminalBundleID ?? "" },
+                set: { store.settings.preferredTerminalBundleID = $0.isEmpty ? nil : $0; store.save() })
+    }
+
+    private var editorSelection: Binding<String> {
+        Binding(get: { store.settings.preferredEditorID ?? "" },
+                set: { store.settings.preferredEditorID = $0.isEmpty ? nil : $0; store.save() })
     }
 
     private var detectedSummary: String {
@@ -109,7 +202,7 @@ struct GeneralSettingsView: View {
     }
 
     private var editorSummary: String {
-        let names = EditorRegistry.installed.map(\.name)
+        let names = editorsInstalled.map(\.name)
         return names.isEmpty ? "No editors detected." : "Detected: \(names.joined(separator: ", "))."
     }
 

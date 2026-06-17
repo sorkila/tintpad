@@ -6,12 +6,23 @@ struct TintpadApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @ObservedObject private var store = AppStore.shared
 
+    /// Branded menu-bar glyph: the ⌘ mark in Tintpad orange.
+    private static let menuIcon: NSImage = {
+        let cfg = NSImage.SymbolConfiguration(pointSize: 15, weight: .medium)
+            .applying(NSImage.SymbolConfiguration(
+                paletteColors: [NSColor(srgbRed: 1.0, green: 0.45, blue: 0.20, alpha: 1)]))
+        let img = NSImage(systemSymbolName: "command", accessibilityDescription: "Tintpad")?
+            .withSymbolConfiguration(cfg) ?? NSImage()
+        img.isTemplate = false
+        return img
+    }()
+
     var body: some Scene {
-        MenuBarExtra("Tintpad", systemImage: "command") {
+        MenuBarExtra {
             Button("Summon palette") { delegate.panelController.show() }
                 .keyboardShortcut(.space, modifiers: [.option, .command])
             Divider()
-            SettingsLink { Text("Settings…") }
+            Button("Settings…") { delegate.panelController.openSettings() }
                 .keyboardShortcut(",", modifiers: .command)
             Button("Re-scan repos") {
                 let n = store.runAutoDiscovery()
@@ -22,11 +33,8 @@ struct TintpadApp: App {
             Divider()
             Button("Quit Tintpad") { NSApp.terminate(nil) }
                 .keyboardShortcut("q")
-        }
-
-        SwiftUI.Settings {
-            SettingsView(store: store)
-                .preferredColorScheme(store.settings.appearance == .dark ? .dark : nil)
+        } label: {
+            Image(nsImage: Self.menuIcon)
         }
     }
 }
@@ -37,6 +45,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+
+        // Pre-warm the login-shell PATH now, once. Its lazy init spawns `zsh -lic`
+        // and waitUntilExit() pumps the run loop; if that first init happens
+        // during SwiftUI rendering it re-enters and trips dispatch_once (crash).
+        _ = ShellEnvironment.resolvedPath
         HotkeyManager.configureSpikeDefaultIfNeeded()
         HotkeyManager.onSummon { [weak self] in
             self?.panelController.toggle()

@@ -220,7 +220,7 @@ enum AgentSeed {
             name: "Claude Code",
             commandTemplate: "claude {mode} {prompt}",
             acceptsPrompt: true,
-            tintHex: nil,
+            tintHex: "#D97757",   // Claude clay
             symbol: "sparkle",
             modes: [safe, def, yolo],
             defaultModeID: def.id
@@ -237,7 +237,7 @@ enum AgentSeed {
             name: "Codex",
             commandTemplate: "codex {mode} {prompt}",
             acceptsPrompt: true,
-            tintHex: nil,
+            tintHex: "#10A37F",   // OpenAI teal
             symbol: "chevron.left.forwardslash.chevron.right",
             modes: [safe, def, yolo],
             defaultModeID: def.id

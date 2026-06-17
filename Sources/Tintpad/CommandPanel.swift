@@ -1,6 +1,12 @@
 import AppKit
 import SwiftUI
 
+extension Notification.Name {
+    /// Posted whenever the command panel is shown, so the SwiftUI palette can
+    /// reset transient state and refocus the search field.
+    static let tintpadPanelDidShow = Notification.Name("tintpadPanelDidShow")
+}
+
 /// The floating command palette window.
 ///
 /// Why a custom `NSPanel` and not a SwiftUI `WindowGroup`: we need a window that
@@ -27,7 +33,7 @@ final class CommandPanel: NSPanel {
         standardWindowButton(.zoomButton)?.isHidden = true
         backgroundColor = .clear
         isOpaque = false
-        hasShadow = true
+        hasShadow = true   // native window shadow follows the rounded glass content
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
         animationBehavior = .utilityWindow
     }
@@ -43,10 +49,11 @@ final class CommandPanel: NSPanel {
 
     weak var controller: CommandPanelController?
 
-    /// Close when focus is lost (clicked elsewhere).
+    /// Close when focus is lost (clicked elsewhere) — unless we're intentionally
+    /// transitioning to another of our windows (e.g. Settings).
     override func resignKey() {
         super.resignKey()
-        controller?.hide()
+        controller?.panelResignedKey()
     }
 }
 
@@ -55,21 +62,38 @@ final class CommandPanel: NSPanel {
 @MainActor
 final class CommandPanelController: NSObject {
     private var panel: CommandPanel?
+    /// While true, losing key focus won't hide the app (we're opening Settings).
+    private var suppressAutoHide = false
 
     func toggle() {
         if panel?.isVisible == true { hide() } else { show() }
+    }
+
+    func panelResignedKey() {
+        guard !suppressAutoHide else { return }
+        hide()
+    }
+
+    /// Open the Settings window without the panel's focus-loss handler hiding
+    /// the whole app.
+    func openSettings() {
+        suppressAutoHide = true
+        panel?.orderOut(nil)
+        SettingsWindowController.shared.show()
+        // Re-enable auto-hide after the transition settles.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { self.suppressAutoHide = false }
     }
 
     func show() {
         let panel = panel ?? makePanel()
         self.panel = panel
         center(panel)
-        // Order front and make key WITHOUT activating the app: typing works,
-        // but the app never steals the menu bar / Dock focus.
+        // Activate so the search field becomes first responder and accepts
+        // typing; focus returns to the prior app via NSApp.hide on close.
+        NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
-        // Belt-and-suspenders: ensure the panel can receive key events even
-        // though the app is an accessory and not active.
-        NSApp.activate(ignoringOtherApps: false)
+        // Tell the SwiftUI palette to reset + focus the field on every summon.
+        NotificationCenter.default.post(name: .tintpadPanelDidShow, object: nil)
     }
 
     func hide() {
@@ -85,7 +109,10 @@ final class CommandPanelController: NSObject {
         let rect = NSRect(x: 0, y: 0, width: width, height: 420)
         let panel = CommandPanel(contentRect: rect)
         panel.controller = self
-        let root = PaletteView(store: AppStore.shared, onClose: { [weak self] in self?.hide() })
+        let root = PaletteView(
+            store: AppStore.shared,
+            onClose: { [weak self] in self?.hide() },
+            onOpenSettings: { [weak self] in self?.openSettings() })
         let hosting = NSHostingView(rootView: root)
         hosting.frame = panel.contentView?.bounds ?? rect
         hosting.autoresizingMask = [.width, .height]
