@@ -11,77 +11,95 @@
 <link rel="icon" href="assets/icon.png" />
 <style>
   :root{
-    --bg:#0d0d0f; --panel:#161618; --line:rgba(255,255,255,.07);
-    --text:#ededea; --dim:#9b9b97; --faint:#6a6a67;
-    --accent:#ff7a33;
+    --bg:#08080a; --panel:#141417; --panel2:#1a1a1e; --line:rgba(255,255,255,.06);
+    --text:#f4f3f1; --dim:#a2a29d; --faint:#6c6c69;
+    --accent:#ff7a33; --accent-soft:rgba(255,122,51,.16);
     --mono:"Berkeley Mono","JetBrains Mono","SF Mono",ui-monospace,monospace;
     --sans:-apple-system,BlinkMacSystemFont,"Inter","Helvetica Neue",sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html{scroll-behavior:smooth}
-  body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.65;font-size:16px;
-    -webkit-font-smoothing:antialiased}
-  a{color:var(--text);text-decoration:none;border-bottom:1px solid var(--line)}
-  a:hover{border-color:var(--dim)}
-  a.plain,nav a,.logo{border:0}
-  .wrap{max-width:680px;margin:0 auto;padding:0 28px}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.6;font-size:16px;
+    -webkit-font-smoothing:antialiased;position:relative;overflow-x:hidden}
+  /* Linear-style single warm glow behind the hero */
+  body::before{content:"";position:absolute;top:-260px;left:50%;transform:translateX(-50%);
+    width:1100px;height:760px;border-radius:50%;
+    background:radial-gradient(closest-side,rgba(255,122,51,.16),rgba(255,122,51,.04) 55%,transparent 72%);
+    filter:blur(30px);pointer-events:none;z-index:0}
+  .wrap{max-width:720px;margin:0 auto;padding:0 28px;position:relative;z-index:1}
+  a{color:var(--text);text-decoration:none}
   .mono{font-family:var(--mono)}
 
-  nav{display:flex;justify-content:space-between;align-items:center;padding:26px 0;font-size:14px}
-  .logo{display:flex;align-items:center;gap:9px;color:var(--text)}
-  .logo img{width:22px;height:22px;border-radius:5px}
-  nav .links a{color:var(--dim);margin-left:20px}
+  nav{display:flex;justify-content:space-between;align-items:center;padding:24px 0;font-size:14px}
+  .logo{display:flex;align-items:center;gap:9px;font-weight:550;letter-spacing:-.01em}
+  .logo img{width:23px;height:23px;border-radius:6px}
+  nav .links a{color:var(--dim);margin-left:22px;transition:color .15s}
   nav .links a:hover{color:var(--text)}
 
-  .hero{padding:48px 0 60px}
-  h1{font-size:clamp(30px,5.2vw,46px);font-weight:600;letter-spacing:-.02em;line-height:1.1}
-  h1 .a{color:var(--accent)}
-  .hero p{color:var(--dim);font-size:18px;margin-top:20px;max-width:560px}
-  .actions{margin-top:30px;display:flex;align-items:center;gap:20px}
-  .buy{background:var(--accent);color:#160a03;font-weight:600;padding:11px 20px;border-radius:9px;border:0;font-size:15px;cursor:pointer}
-  .buy:hover{opacity:.92}
-  .ghost{color:var(--dim);font-size:14px}
-  .meta{margin-top:18px;color:var(--faint);font-size:13px;font-family:var(--mono)}
+  .hero{text-align:center;padding:64px 0 0}
+  h1{font-size:clamp(38px,6.4vw,62px);font-weight:600;letter-spacing:-.035em;line-height:1.03;
+    background:linear-gradient(180deg,#fff,#cfcec9);-webkit-background-clip:text;background-clip:text;color:transparent}
+  h1 .a{background:linear-gradient(180deg,#ff9152,#ec5f28);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero p{color:var(--dim);font-size:18.5px;line-height:1.55;margin:24px auto 0;max-width:540px;letter-spacing:-.01em}
+  .actions{margin-top:34px;display:flex;align-items:center;justify-content:center;gap:22px}
+  .buy{display:inline-block;background:var(--accent);color:#170a03;font-weight:600;padding:12px 22px;
+    border-radius:10px;font-size:15px;cursor:pointer;border:0;
+    box-shadow:0 8px 28px rgba(255,122,51,.34),inset 0 1px 0 rgba(255,255,255,.25);transition:transform .15s,box-shadow .15s}
+  .buy:hover{transform:translateY(-1px);box-shadow:0 12px 34px rgba(255,122,51,.42),inset 0 1px 0 rgba(255,255,255,.25)}
+  .ghost{color:var(--dim);font-size:14.5px;transition:color .15s}
+  .ghost:hover{color:var(--text)}
+  .meta{margin-top:18px;color:var(--faint);font-size:12.5px;font-family:var(--mono);letter-spacing:.01em}
 
-  /* palette mock */
-  .demo{margin-top:44px;background:#141416;border:1px solid var(--line);border-radius:13px;overflow:hidden}
-  .demo .s{display:flex;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line);color:var(--faint);font-size:16px}
+  /* product shot */
+  .shot{margin:54px auto 0;max-width:660px;position:relative}
+  .shot::after{content:"";position:absolute;inset:-1px;border-radius:15px;padding:1px;
+    background:linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,.02) 40%,transparent);
+    -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
+  .demo{background:rgba(18,18,21,.92);backdrop-filter:blur(20px);border-radius:14px;overflow:hidden;text-align:left;
+    box-shadow:0 40px 90px -20px rgba(0,0,0,.7),0 0 50px -20px rgba(255,122,51,.25)}
+  .demo .s{display:flex;gap:10px;padding:15px 17px;border-bottom:1px solid var(--line);color:var(--faint);font-size:16px}
   .demo .s b{color:var(--accent);font-family:var(--mono);font-weight:700}
-  .demo .row{display:flex;align-items:center;gap:10px;padding:8px 14px}
+  .demo .row{display:flex;align-items:center;gap:10px;padding:8px 13px}
   .demo .row.sel{background:rgba(255,255,255,.05)}
-  .demo .bar{width:2px;align-self:stretch;background:var(--accent);border-radius:2px;margin:4px 0;opacity:0}
+  .demo .bar{width:2px;align-self:stretch;background:var(--accent);border-radius:2px;margin:5px 0;opacity:0}
   .demo .row.sel .bar{opacity:1}
   .demo .ic{width:26px;height:26px;border-radius:6px;display:grid;place-items:center;font-size:13px;color:#fff}
   .demo .nm{font-size:13.5px;font-weight:600}
   .demo .pt{font-size:11px;color:var(--faint);font-family:var(--mono)}
-  .demo .rt{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:var(--dim)}
+  .demo .rt{margin-left:auto;display:flex;align-items:center;gap:9px;font-size:11px;color:var(--dim)}
   .demo .yolo{color:#ff5a5a;font-weight:800;font-size:9.5px;letter-spacing:.4px}
-  .demo .f{display:flex;gap:16px;padding:10px 14px;border-top:1px solid var(--line);color:var(--faint);font-size:11px;font-family:var(--mono)}
+  .demo .f{display:flex;gap:16px;padding:11px 14px;border-top:1px solid var(--line);color:var(--faint);font-size:11px;font-family:var(--mono)}
 
-  section{padding:38px 0;border-top:1px solid var(--line)}
-  h2{font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px}
-  section p{color:var(--dim);font-size:15.5px}
-  .list{margin-top:18px;display:flex;flex-direction:column;gap:14px}
-  .item{display:grid;grid-template-columns:140px 1fr;gap:16px;align-items:baseline}
-  .item .h{font-size:14.5px;color:var(--text)}
+  section{padding:46px 0}
+  section + section{border-top:1px solid var(--line)}
+  h2{font-size:14px;font-weight:600;color:var(--faint);font-family:var(--mono);letter-spacing:.02em;margin-bottom:18px}
+  .lede{color:var(--dim);font-size:16.5px;max-width:560px;letter-spacing:-.01em}
+  .list{margin-top:24px;display:flex;flex-direction:column}
+  .item{display:grid;grid-template-columns:150px 1fr;gap:18px;align-items:baseline;padding:13px 0;border-top:1px solid var(--line)}
+  .item:first-child{border-top:0}
+  .item .h{font-size:14.5px;color:var(--text);font-weight:500}
   .item .d{font-size:14.5px;color:var(--dim)}
-  @media(max-width:520px){.item{grid-template-columns:1fr;gap:2px}}
+  @media(max-width:520px){.item{grid-template-columns:1fr;gap:3px}}
 
-  .price{display:flex;gap:40px;margin-top:20px;flex-wrap:wrap}
-  .price div{min-width:180px}
-  .price .t{font-size:14px;color:var(--faint);font-family:var(--mono)}
-  .price .amt{font-size:24px;font-weight:600;margin:4px 0}
-  .price ul{list-style:none;margin-top:8px}
-  .price li{color:var(--dim);font-size:14px;padding:2px 0}
+  .price{display:flex;gap:48px;margin-top:8px;flex-wrap:wrap}
+  .price .t{font-size:13px;color:var(--faint);font-family:var(--mono)}
+  .price .amt{font-size:26px;font-weight:600;margin:6px 0;letter-spacing:-.02em}
+  .price .amt small{font-size:13px;color:var(--faint);font-weight:400}
+  .price ul{list-style:none;margin-top:10px}
+  .price li{color:var(--dim);font-size:14px;padding:3px 0}
 
-  details{padding:14px 0;border-bottom:1px solid var(--line)}
-  details summary{cursor:pointer;list-style:none;font-size:15px;color:var(--text)}
-  details summary::-webkit-details-marker{display:none}
-  details p{margin-top:10px;font-size:14.5px}
+  details{padding:15px 0;border-top:1px solid var(--line)}
+  details:first-of-type{border-top:0}
+  summary{cursor:pointer;list-style:none;font-size:15px;color:var(--text);display:flex;justify-content:space-between;align-items:center}
+  summary::-webkit-details-marker{display:none}
+  summary::after{content:"+";color:var(--faint);font-family:var(--mono)}
+  details[open] summary::after{content:"−"}
+  details p{margin-top:11px;font-size:14.5px;color:var(--dim);max-width:560px}
 
-  form{margin-top:16px;display:flex;gap:8px;max-width:420px}
-  input{flex:1;background:#141416;border:1px solid var(--line);border-radius:9px;padding:11px 14px;color:var(--text);font-family:var(--sans);font-size:15px}
-  footer{padding:36px 0 60px;color:var(--faint);font-size:13px;font-family:var(--mono)}
+  form{margin-top:18px;display:flex;gap:9px;max-width:430px}
+  input{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 15px;color:var(--text);font-family:var(--sans);font-size:15px}
+  input:focus{outline:none;border-color:rgba(255,122,51,.5)}
+  footer{padding:40px 0 64px;color:var(--faint);font-size:12.5px;font-family:var(--mono);border-top:1px solid var(--line)}
 </style>
 </head>
 <body>
@@ -97,51 +115,53 @@
        Codex, or whatever you run already going. It hands off to the terminal you
        use — it doesn't try to be one.</p>
     <div class="actions">
-      <a class="plain" href="#get"><button class="buy">Download</button></a>
-      <a class="plain ghost" href="https://github.com/sorkila/tintpad">or build from source ›</a>
+      <a href="#get"><button class="buy">Download</button></a>
+      <a class="ghost" href="https://github.com/sorkila/tintpad">build from source ›</a>
     </div>
     <div class="meta">macOS 14+ · native Swift · signed &amp; notarized · no accounts</div>
 
-    <div class="demo" aria-hidden="true">
-      <div class="s"><b>❯</b> delta</div>
-      <div class="row sel"><span class="bar"></span>
-        <span class="ic" style="background:#c96a4a">⌘</span>
-        <span><div class="nm">delta-api</div><div class="pt">~/repos/delta-api</div></span>
-        <span class="rt">Claude Code <span class="yolo">YOLO</span></span></div>
-      <div class="row"><span class="bar"></span>
-        <span class="ic" style="background:#159a7c">✳</span>
-        <span><div class="nm">delta-worker</div><div class="pt">~/repos/delta-worker</div></span>
-        <span class="rt">Codex</span></div>
-      <div class="f"><span>↵ launch</span><span>⇥ agent</span><span>⇧⇥ mode</span><span>⌃W worktree</span></div>
+    <div class="shot">
+      <div class="demo" aria-hidden="true">
+        <div class="s"><b>❯</b> delta</div>
+        <div class="row sel"><span class="bar"></span>
+          <span class="ic" style="background:#c96a4a">⌘</span>
+          <span><div class="nm">delta-api</div><div class="pt">~/repos/delta-api</div></span>
+          <span class="rt">Claude Code <span class="yolo">YOLO</span></span></div>
+        <div class="row"><span class="bar"></span>
+          <span class="ic" style="background:#159a7c">✳</span>
+          <span><div class="nm">delta-worker</div><div class="pt">~/repos/delta-worker</div></span>
+          <span class="rt">Codex</span></div>
+        <div class="f"><span>↵ launch</span><span>⇥ agent</span><span>⇧⇥ mode</span><span>⌃W worktree</span></div>
+      </div>
     </div>
   </div>
 </div>
 
 <section id="how">
   <div class="wrap">
-    <h2>What it actually does</h2>
-    <p>The Claude/Codex menu-bar apps watch your usage. This is the part they skipped: getting you into the work.</p>
+    <h2>WHAT IT DOES</h2>
+    <p class="lede">The Claude and Codex menu-bar apps watch your usage. This is the part they skipped — getting you into the work.</p>
     <div class="list">
-      <div class="item"><div class="h">Hands off to your terminal</div><div class="d">Ghostty, iTerm2, kitty, WezTerm, Alacritty, Terminal, Warp — detected and opened at the repo with the command running.</div></div>
+      <div class="item"><div class="h">Hands off to your terminal</div><div class="d">Ghostty, iTerm2, kitty, WezTerm, Alacritty, Terminal, Warp. Detected, opened at the repo, command running.</div></div>
       <div class="item"><div class="h">Run modes</div><div class="d">Safe, Default, YOLO map to each agent's flags. The dangerous one is marked, never silent.</div></div>
       <div class="item"><div class="h">Frecency</div><div class="d">Repos you use most float up, the way zoxide does it.</div></div>
       <div class="item"><div class="h">Worktrees</div><div class="d">One keystroke spins up an isolated branch checkout and launches the agent in it.</div></div>
-      <div class="item"><div class="h">Local only</div><div class="d">A JSON file on your Mac. No accounts, no telemetry, license checked offline. The core is open if you want to read it.</div></div>
+      <div class="item"><div class="h">Local only</div><div class="d">A JSON file on your Mac. No accounts, no telemetry, license checked offline. The core is open.</div></div>
     </div>
   </div>
 </section>
 
 <section id="price">
   <div class="wrap">
-    <h2>Price</h2>
-    <p>Free to use. Pro is one payment, not a subscription.</p>
+    <h2>PRICE</h2>
+    <p class="lede">Free to use. Pro is one payment, not a subscription.</p>
     <div class="price">
       <div>
         <div class="t">Free</div><div class="amt">$0</div>
         <ul><li>The whole launch flow</li><li>Every repo, agent, terminal</li><li>Frecency, all run modes</li></ul>
       </div>
       <div>
-        <div class="t">Pro</div><div class="amt">$15 <span style="font-size:13px;color:var(--faint);font-weight:400">($9 early)</span></div>
+        <div class="t">Pro</div><div class="amt">$15 <small>· $9 early</small></div>
         <ul><li>Worktrees, headless dispatch</li><li>Prompt library, per-repo presets</li><li>GitHub import, custom tints</li><li>Lifetime updates</li></ul>
       </div>
     </div>
@@ -150,18 +170,18 @@
 
 <section id="faq">
   <div class="wrap">
-    <h2>Questions</h2>
+    <h2>QUESTIONS</h2>
     <details><summary>Isn't this a shell alias?</summary><p>For the simple case, basically. The difference is frecency, run-mode safety, worktrees, seven terminals, and no config. The core is open source, so read it or keep your alias.</p></details>
     <details><summary>Why not Raycast?</summary><p>Raycast runs things inside Raycast. This opens your real terminal, and it's built around the agent loop specifically. One payment, local-only, native.</p></details>
-    <details><summary>Does it phone home?</summary><p>No. No accounts, no telemetry. The license is verified offline. The core being open means you can check.</p></details>
+    <details><summary>Does it phone home?</summary><p>No. No accounts, no telemetry. The license is verified offline, and the core being open means you can check.</p></details>
     <details><summary>Why the Accessibility prompt?</summary><p>Only for Ghostty, which can't be told to open a window with a command any other way on macOS, so Tintpad types it. Other terminals don't need it.</p></details>
   </div>
 </section>
 
 <section id="get">
   <div class="wrap">
-    <h2>Get the release</h2>
-    <p>Email for launch day and the early price.</p>
+    <h2>GET THE RELEASE</h2>
+    <p class="lede">Email for launch day and the early price.</p>
     <form action="REPLACE_WITH_EMAIL_PROVIDER_ENDPOINT" method="post">
       <input type="email" name="email" placeholder="you@example.com" required />
       <button class="buy" type="submit">Notify me</button>
