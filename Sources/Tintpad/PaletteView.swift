@@ -14,6 +14,9 @@ struct PaletteView: View {
     @State private var pendingDangerous: PendingLaunch?
     /// Selected prompt from the library to attach to this launch (nil = none).
     @State private var selectedPromptID: UUID?
+    /// When set, the palette is in "new worktree" mode for this repo and the
+    /// search field captures a branch name instead of filtering.
+    @State private var worktreeRepo: Repo?
 
     private struct PendingLaunch { let repo: Repo; let agent: Agent; let mode: RunMode }
 
@@ -68,8 +71,11 @@ struct PaletteView: View {
 
     private var searchField: some View {
         HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass").foregroundStyle(.white.opacity(0.4))
-            TextField("search a repo…", text: $query)
+            Image(systemName: worktreeRepo == nil ? "magnifyingglass" : "arrow.triangle.branch")
+                .foregroundStyle(worktreeRepo == nil ? .white.opacity(0.4) : accent)
+            TextField(worktreeRepo == nil
+                      ? "search a repo…"
+                      : "new branch in \(worktreeRepo!.name)…", text: $query)
                 .textFieldStyle(.plain)
                 .font(.system(size: 20, design: .monospaced))
                 .foregroundStyle(.white)
@@ -89,13 +95,47 @@ struct PaletteView: View {
                     guard press.modifiers.contains(.command) else { return .ignored }
                     cyclePrompt(); return .handled
                 }
+                .onKeyPress(keys: ["w"]) { press in
+                    guard press.modifiers.contains(.control) else { return .ignored }
+                    enterWorktreeMode(); return .handled
+                }
         }
         .padding(.horizontal, 18).padding(.vertical, 16)
     }
 
     // MARK: - Results
 
-    private var resultList: some View {
+    @ViewBuilder private var resultList: some View {
+        if let wt = worktreeRepo {
+            worktreePanel(wt)
+        } else {
+            repoResults
+        }
+    }
+
+    private func worktreePanel(_ repo: Repo) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("New worktree", systemImage: "arrow.triangle.branch")
+                .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                .foregroundStyle(accent)
+            Text("Creates an isolated checkout of \(repo.name) on a new branch, then launches the agent there.")
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.5))
+            if !query.isEmpty {
+                let path = WorktreeService.defaultPath(
+                    repoPath: repo.path, branch: query, customRoot: store.settings.worktreeRoot)
+                Text("→ \(path)")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.4))
+                    .lineLimit(1).truncationMode(.middle)
+            }
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(20)
+    }
+
+    private var repoResults: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 2) {
@@ -164,11 +204,14 @@ struct PaletteView: View {
             if pendingDangerous != nil {
                 keycap("↵", "confirm").foregroundStyle(dangerTint)
                 keycap("esc", "cancel")
+            } else if worktreeRepo != nil {
+                keycap("↵", "create + launch")
+                keycap("esc", "back")
             } else {
                 keycap("↵", "launch")
                 keycap("⌘↵", "editor")
                 keycap("⌥↵", "YOLO")
-                keycap("⇥", "agent")
+                keycap("⌃W", "worktree")
                 keycap("⌘P", "prompt")
             }
             Spacer()
@@ -264,12 +307,42 @@ struct PaletteView: View {
         return agent.defaultMode
     }
 
+    private func enterWorktreeMode() {
+        guard let repo = selectedRepo else { return }
+        guard store.allows(.worktree) else { status = ProFeature.worktree.blurb; return }
+        worktreeRepo = repo
+        query = ""
+    }
+
+    private func exitWorktreeMode() {
+        worktreeRepo = nil
+        query = ""
+    }
+
+    private func createWorktreeAndLaunch() {
+        guard let repo = worktreeRepo else { return }
+        let branch = query.trimmingCharacters(in: .whitespaces)
+        guard !branch.isEmpty else { status = "enter a branch name"; return }
+        guard let agent = activeAgent(for: repo) else { return }
+        let mode = resolveMode(agent: agent, repo: repo, modifiers: [])
+        do {
+            let outcome = try LaunchService.launchInWorktree(
+                repo: repo, agent: agent, mode: mode,
+                branch: branch, prompt: selectedPrompt?.text, store: store)
+            if let note = outcome.note { status = note } else { onClose() }
+        } catch {
+            status = "⚠ \(error)"
+        }
+    }
+
     private func handleEscape() {
         if pendingDangerous != nil { clearTransient(); return }
+        if worktreeRepo != nil { exitWorktreeMode(); return }
         onClose()
     }
 
     private func handleReturn() {
+        if worktreeRepo != nil { createWorktreeAndLaunch(); return }
         // Second confirmation for a parked dangerous launch.
         if let pending = pendingDangerous {
             pendingDangerous = nil

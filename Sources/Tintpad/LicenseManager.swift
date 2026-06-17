@@ -52,6 +52,7 @@ enum ProFeature {
     case promptLibrary
     case customTint
     case perRepoPreset
+    case worktree
 
     var blurb: String {
         switch self {
@@ -60,6 +61,7 @@ enum ProFeature {
         case .promptLibrary:   return "The prompt library is a Pro feature"
         case .customTint:      return "Custom accent tints are a Pro feature"
         case .perRepoPreset:   return "Per-repo presets are a Pro feature"
+        case .worktree:        return "The worktree workflow is a Pro feature"
         }
     }
 }

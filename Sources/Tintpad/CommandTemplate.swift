@@ -13,6 +13,7 @@ enum CommandTemplate {
         var prompt: String?
         var branch: String?
         var remote: String?
+        var worktreePath: String?
     }
 
     enum ResolveError: Error, CustomStringConvertible {
@@ -63,7 +64,7 @@ enum CommandTemplate {
             "{prompt}": c.prompt.map(promptArgument) ?? "",
             "{mode}": c.mode.flags,
             "{shell}": shell,
-            "{worktreePath}": "",
+            "{worktreePath}": c.worktreePath.map(shellQuotePath) ?? "",
         ]
         var result = template
         for (key, value) in replacements {

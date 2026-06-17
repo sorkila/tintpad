@@ -7,16 +7,36 @@ import Foundation
 enum LaunchService {
     @discardableResult
     static func launchAgent(repo: Repo, agent: Agent, mode: RunMode,
-                            prompt: String?, store: AppStore) throws -> LaunchOutcome {
-        let git = GitInfo.read(at: repo.path)
+                            prompt: String?, store: AppStore,
+                            worktreePath: String? = nil) throws -> LaunchOutcome {
+        let workingDir = worktreePath ?? repo.path
+        let git = GitInfo.read(at: workingDir)
         let ctx = CommandTemplate.Context(
-            repo: repo, mode: mode, prompt: prompt, branch: git.branch, remote: git.remoteURL)
+            repo: repo, mode: mode, prompt: prompt, branch: git.branch,
+            remote: git.remoteURL, worktreePath: worktreePath)
         let command = try CommandTemplate.resolved(agent.commandTemplate, context: ctx)
+
+        // Multi-step: optionally open the editor alongside the terminal+agent.
+        if store.settings.alsoOpenEditor, let editor = EditorRegistry.preferred(settings: store.settings) {
+            try? editor.open(path: workingDir)
+        }
+
         let terminal = TerminalRegistry.preferred(settings: store.settings)
-        let outcome = try terminal.launch(TerminalLaunch(workingDirectory: repo.path, command: command))
+        let outcome = try terminal.launch(TerminalLaunch(workingDirectory: workingDir, command: command))
         store.recordLaunch(repoID: repo.id)
         store.recordSession(repo: repo, agent: agent, mode: mode, prompt: prompt)
         return outcome
+    }
+
+    /// Create a worktree for `branch` off `repo`, then launch the agent in it.
+    @discardableResult
+    static func launchInWorktree(repo: Repo, agent: Agent, mode: RunMode,
+                                 branch: String, prompt: String?, store: AppStore) throws -> LaunchOutcome {
+        let path = WorktreeService.defaultPath(
+            repoPath: repo.path, branch: branch, customRoot: store.settings.worktreeRoot)
+        try WorktreeService.create(repoPath: repo.path, branch: branch, at: path)
+        return try launchAgent(repo: repo, agent: agent, mode: mode,
+                               prompt: prompt, store: store, worktreePath: path)
     }
 
     static func openInEditor(repo: Repo, store: AppStore) throws {

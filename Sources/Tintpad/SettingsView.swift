@@ -67,6 +67,23 @@ struct GeneralSettingsView: View {
                 }
                 Text("Used by ⌘↵ in the palette. \(editorSummary)")
                     .font(.caption).foregroundStyle(.secondary)
+                Toggle("Also open editor when launching an agent", isOn: store.bind(\.alsoOpenEditor))
+            }
+
+            Section("Worktrees") {
+                HStack {
+                    Text("Worktree root")
+                    Spacer()
+                    Text(store.settings.worktreeRoot ?? "Sibling of repo")
+                        .font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
+                        .lineLimit(1).truncationMode(.middle)
+                    Button("Choose…") { chooseWorktreeRoot() }
+                    if store.settings.worktreeRoot != nil {
+                        Button("Reset") { store.settings.worktreeRoot = nil; store.save() }
+                    }
+                }
+                Text("Where ⌃W creates new worktrees. Default places them next to the repo.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
 
             Section("Safety") {
@@ -92,6 +109,17 @@ struct GeneralSettingsView: View {
     private var editorSummary: String {
         let names = EditorRegistry.installed.map(\.name)
         return names.isEmpty ? "No editors detected." : "Detected: \(names.joined(separator: ", "))."
+    }
+
+    private func chooseWorktreeRoot() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        if panel.runModal() == .OK, let url = panel.url {
+            store.settings.worktreeRoot = url.path
+            store.save()
+        }
     }
 }
 

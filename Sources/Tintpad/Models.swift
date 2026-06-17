@@ -139,6 +139,10 @@ struct Settings: Codable {
     var confirmDangerousModes: Bool = true
     var appearance: AppearanceMode = .dark
     var panelWidth: Double = 640
+    /// Multi-step launch: also open the editor when launching an agent.
+    var alsoOpenEditor: Bool = false
+    /// Optional root folder where new worktrees are created (nil = sibling of repo).
+    var worktreeRoot: String?
     /// Pro license key (Ed25519-signed); nil = free tier.
     var licenseKey: String?
 
