@@ -27,15 +27,10 @@ struct AgentsSettingsView: View {
             Divider()
             HStack {
                 Button { addAgent() } label: { Image(systemName: "plus") }
-                    .disabled(!store.allows(.unlimitedAgents))
-                    .help(store.allows(.unlimitedAgents) ? "Add agent" : ProFeature.unlimitedAgents.blurb)
+                    .help("Add agent")
                 Button { removeSelected() } label: { Image(systemName: "minus") }
                     .disabled(selectedID == nil)
                 Spacer()
-                if !store.isPro {
-                    Text("\(store.agents.count)/\(FreeTier.maxAgents)")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
             }
             .buttonStyle(.borderless)
             .padding(8)

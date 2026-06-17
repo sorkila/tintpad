@@ -127,9 +127,12 @@ final class AppStore: ObservableObject {
     var isPro: Bool { licenseInfo != nil }
 
     func allows(_ feature: ProFeature) -> Bool {
-        if isPro { return true }
-        if case .unlimitedAgents = feature { return agents.count < FreeTier.maxAgents }
-        return false
+        switch feature {
+        // Free, to match the site's promise (every agent, all run modes incl. YOLO)
+        // and avoid the crippleware optics flagged by the GTM/red-team audits.
+        case .yoloMode, .unlimitedAgents: return true
+        default: return isPro
+        }
     }
 
     /// Validates and stores a license key. Returns true if accepted.

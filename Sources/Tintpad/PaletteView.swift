@@ -469,11 +469,13 @@ struct PaletteView: View {
                     if model.filtered.isEmpty { emptyState }
                 }
                 .padding(.horizontal, 8).padding(.vertical, 6)
+                .animation(reduceMotion ? nil : .snappy(duration: 0.16), value: model.selection)
             }
             .scrollIndicators(.hidden)
             .frame(maxHeight: .infinity)
             .onChange(of: model.selection) { _, new in
-                withAnimation(.easeOut(duration: 0.1)) { proxy.scrollTo(new, anchor: .center) }
+                let move = { proxy.scrollTo(new, anchor: .center) }
+                reduceMotion ? move() : withAnimation(.easeOut(duration: 0.16), move)
             }
         }
     }
@@ -569,7 +571,9 @@ struct PaletteView: View {
     }
 
     private func modeChip(_ mode: RunMode) -> some View {
-        let color = mode.isDangerous ? dangerTint : Color.white
+        // .primary so the chip stays legible in light mode too (was Color.white,
+        // which vanished on the light glass).
+        let color = mode.isDangerous ? dangerTint : Color.primary
         return Text(mode.name.uppercased())
             .font(.system(size: 9.5, weight: .bold))
             .tracking(0.4)

@@ -55,19 +55,16 @@ enum ProFeature {
     case worktree
     case dispatch
 
+    /// Benefit-led upsell copy (lead with the payoff, not the gate).
     var blurb: String {
         switch self {
-        case .yoloMode:        return "YOLO / dangerous modes are a Pro feature"
-        case .unlimitedAgents: return "Free tier is limited to \(FreeTier.maxAgents) agents — upgrade to Pro"
-        case .promptLibrary:   return "The prompt library is a Pro feature"
-        case .customTint:      return "Custom accent tints are a Pro feature"
-        case .perRepoPreset:   return "Per-repo presets are a Pro feature"
-        case .worktree:        return "The worktree workflow is a Pro feature"
-        case .dispatch:        return "Headless dispatch is a Pro feature"
+        case .yoloMode:        return "YOLO mode skips every permission prompt"
+        case .unlimitedAgents: return "Add as many agents as you like"
+        case .promptLibrary:   return "Pro: save prompts and attach them at launch"
+        case .customTint:      return "Pro: pick your own accent tint"
+        case .perRepoPreset:   return "Pro: pin a default agent + mode per repo"
+        case .worktree:        return "Pro: launch each agent on its own git worktree"
+        case .dispatch:        return "Pro: run agents in the background with a notification"
         }
     }
-}
-
-enum FreeTier {
-    static let maxAgents = 3
 }

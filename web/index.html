@@ -15,7 +15,7 @@
   :root{
     --bg:#08080a; --panel:#141417; --panel2:#1a1a1e; --line:rgba(255,255,255,.06);
     --text:#f4f3f1; --dim:#a2a29d; --faint:#6c6c69;
-    --accent:#ff7a33; --accent-soft:rgba(255,122,51,.16);
+    --accent:#ff7333; --accent-soft:rgba(255,115,51,.16);
     --mono:"Berkeley Mono","JetBrains Mono","SF Mono",ui-monospace,monospace;
     --sans:-apple-system,BlinkMacSystemFont,"Inter","Helvetica Neue",sans-serif;
   }
@@ -26,7 +26,7 @@
   /* Linear-style single warm glow behind the hero */
   body::before{content:"";position:absolute;top:-260px;left:50%;transform:translateX(-50%);
     width:1100px;height:760px;border-radius:50%;
-    background:radial-gradient(closest-side,rgba(255,122,51,.16),rgba(255,122,51,.04) 55%,transparent 72%);
+    background:radial-gradient(closest-side,rgba(255,115,51,.16),rgba(255,115,51,.04) 55%,transparent 72%);
     filter:blur(30px);pointer-events:none;z-index:0}
   .wrap{max-width:720px;margin:0 auto;padding:0 28px;position:relative;z-index:1}
   a{color:var(--text);text-decoration:none}
@@ -41,13 +41,13 @@
   .hero{text-align:center;padding:64px 0 0}
   h1{font-size:clamp(38px,6.4vw,62px);font-weight:600;letter-spacing:-.035em;line-height:1.03;
     background:linear-gradient(180deg,#fff,#cfcec9);-webkit-background-clip:text;background-clip:text;color:transparent}
-  h1 .a{background:linear-gradient(180deg,#ff9152,#ec5f28);-webkit-background-clip:text;background-clip:text;color:transparent}
+  h1 .a{background:linear-gradient(180deg,#ff8a45,#ec5f28);-webkit-background-clip:text;background-clip:text;color:transparent}
   .hero p{color:var(--dim);font-size:18.5px;line-height:1.55;margin:24px auto 0;max-width:540px;letter-spacing:-.01em}
   .actions{margin-top:34px;display:flex;align-items:center;justify-content:center;gap:22px}
   .buy{display:inline-block;background:var(--accent);color:#170a03;font-weight:600;padding:12px 22px;
     border-radius:10px;font-size:15px;cursor:pointer;border:0;
-    box-shadow:0 8px 28px rgba(255,122,51,.34),inset 0 1px 0 rgba(255,255,255,.25);transition:transform .15s,box-shadow .15s}
-  .buy:hover{transform:translateY(-1px);box-shadow:0 12px 34px rgba(255,122,51,.42),inset 0 1px 0 rgba(255,255,255,.25)}
+    box-shadow:0 8px 28px rgba(255,115,51,.34),inset 0 1px 0 rgba(255,255,255,.25);transition:transform .15s,box-shadow .15s}
+  .buy:hover{transform:translateY(-1px);box-shadow:0 12px 34px rgba(255,115,51,.42),inset 0 1px 0 rgba(255,255,255,.25)}
   .ghost{color:var(--dim);font-size:14.5px;transition:color .15s}
   .ghost:hover{color:var(--text)}
   .meta{margin-top:18px;color:var(--faint);font-size:12.5px;font-family:var(--mono);letter-spacing:.01em}
@@ -59,7 +59,7 @@
     background:linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,.02) 40%,transparent);
     -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
   .demo{position:relative;background:rgba(18,18,21,.94);backdrop-filter:blur(22px);border-radius:16px;overflow:hidden;text-align:left;
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 2px 6px rgba(0,0,0,.4),0 24px 50px -20px rgba(0,0,0,.6),0 60px 120px -30px rgba(0,0,0,.85),0 0 70px -26px rgba(255,122,51,.22)}
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 2px 6px rgba(0,0,0,.4),0 24px 50px -20px rgba(0,0,0,.6),0 60px 120px -30px rgba(0,0,0,.85),0 0 70px -26px rgba(255,115,51,.22)}
   /* faint scanline texture for terminal character */
   .demo::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:2;
     background:repeating-linear-gradient(0deg,rgba(255,255,255,.014) 0 1px,transparent 1px 3px)}
@@ -125,7 +125,7 @@
 
   form{margin-top:18px;display:flex;gap:9px;max-width:430px}
   input{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 15px;color:var(--text);font-family:var(--sans);font-size:15px}
-  input:focus{outline:none;border-color:rgba(255,122,51,.5)}
+  input:focus{outline:none;border-color:rgba(255,115,51,.5)}
   footer{padding:40px 0 64px;color:var(--faint);font-size:12.5px;font-family:var(--mono);border-top:1px solid var(--line)}
   @media (prefers-reduced-motion: no-preference){
     .demo .hl{opacity:0;animation:hlin .45s ease .6s forwards}
@@ -136,6 +136,11 @@
     .demo .row:nth-child(4){animation-delay:.26s}
     .demo .row:nth-child(5){animation-delay:.34s}
     @keyframes rowin{to{opacity:1;transform:none}}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .shot{animation:none}
+    .demo .s .caret{animation:none}
+    .demo .hl{transition:none}
   }
 </style>
 </head>
@@ -152,7 +157,7 @@
        Codex, or whatever you run already going. It hands off to the terminal you
        use — it doesn't try to be one.</p>
     <div class="actions">
-      <a href="#get"><button class="buy">Download</button></a>
+      <a href="#get"><button class="buy">Get early access</button></a>
       <a class="ghost" href="https://github.com/sorkila/tintpad">build from source ›</a>
     </div>
     <div class="meta">macOS 14+ · native Swift · signed &amp; notarized · no accounts</div>
@@ -165,7 +170,7 @@
           <div class="row active">
             <span class="tile claude"><i></i></span>
             <span><div class="nm">delta-api</div><div class="pt">~/repos/delta-api</div></span>
-            <span class="rt"><span class="agent">Claude Code</span><span class="chip yolo">YOLO</span></span>
+            <span class="rt"><span class="agent">Claude Code</span></span>
           </div>
           <div class="row">
             <span class="tile codex"><i></i></span>
@@ -175,7 +180,7 @@
           <div class="row">
             <span class="tile claude"><i></i></span>
             <span><div class="nm">delta-infra</div><div class="pt">~/work/delta-infra</div></span>
-            <span class="rt"><span class="agent">Claude Code</span></span>
+            <span class="rt"><span class="agent">Claude Code</span><span class="chip yolo">YOLO</span></span>
           </div>
           <div class="row">
             <span class="tile codex"><i></i></span>
