@@ -13,8 +13,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 
     func show() {
         if window == nil { window = makeWindow() }
-        window?.appearance = AppStore.shared.settings.appearance == .dark
-            ? NSAppearance(named: .darkAqua) : nil
+        window?.appearance = nil   // follow the app-wide theme (NSApp.appearance)
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         window?.center()

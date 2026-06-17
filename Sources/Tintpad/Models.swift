@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SwiftUI
 
@@ -123,9 +124,24 @@ enum TintAccent: String, Codable, CaseIterable, Identifiable {
 let dangerTint = Color(red: 1.0, green: 0.35, blue: 0.35)
 
 enum AppearanceMode: String, Codable, CaseIterable, Identifiable {
-    case system, dark
+    case system, light, dark
     var id: String { rawValue }
     var displayName: String { rawValue.capitalized }
+
+    var nsAppearance: NSAppearance? {
+        switch self {
+        case .system: nil
+        case .light: NSAppearance(named: .aqua)
+        case .dark: NSAppearance(named: .darkAqua)
+        }
+    }
+}
+
+/// Applies the chosen theme to standard app windows (Settings, onboarding).
+/// The command palette stays dark glass regardless (its own identity surface).
+@MainActor
+enum AppAppearance {
+    static func apply(_ mode: AppearanceMode) { NSApp.appearance = mode.nsAppearance }
 }
 
 // MARK: - Settings

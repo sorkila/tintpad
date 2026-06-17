@@ -34,6 +34,7 @@ final class CommandPanel: NSPanel {
         backgroundColor = .clear
         isOpaque = false
         hasShadow = true   // native window shadow follows the rounded glass content
+        appearance = NSAppearance(named: .darkAqua)   // palette stays dark glass regardless of theme
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
         animationBehavior = .utilityWindow
     }

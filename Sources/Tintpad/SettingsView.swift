@@ -5,16 +5,19 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject var store: AppStore
     @State private var selection: SettingsTab = .general
+    // Settings never needs a collapsed sidebar — pin it open and drop the toggle.
+    @State private var columns = NavigationSplitViewVisibility.all
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columns) {
             List(selection: $selection) {
                 Section { rows([.general, .appearance, .hotkeys]) }
                 Section("Workspace") { rows([.repos, .agents, .prompts]) }
                 Section("Activity") { rows([.recents, .github]) }
                 Section { rows([.about]) }
             }
-            .navigationSplitViewColumnWidth(min: 196, ideal: 208, max: 240)
+            .navigationSplitViewColumnWidth(min: 200, ideal: 210, max: 240)
+            .toolbar(removing: .sidebarToggle)
         } detail: {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 12) {
@@ -237,38 +240,48 @@ struct AppearanceSettingsView: View {
             }
 
             Section("Appearance") {
-                Picker("Theme", selection: store.bind(\.appearance)) {
+                Picker("Theme", selection: themeBinding) {
                     ForEach(AppearanceMode.allCases) { Text($0.displayName).tag($0) }
                 }
                 .pickerStyle(.segmented)
             }
 
             Section("Palette") {
-                LabeledContent("Width") {
-                    HStack {
-                        Slider(value: store.bind(\.panelWidth), in: 480...860, step: 20)
-                        Text("\(Int(store.settings.panelWidth))pt")
-                            .font(.system(.body, design: .monospaced)).foregroundStyle(.secondary)
-                            .frame(width: 56, alignment: .trailing)
-                    }
-                }
+                slider("Width", value: store.bind(\.panelWidth), range: 480...860, unit: "pt", snap: 10)
             }
 
             Section("Frecency") {
-                LabeledContent("Half-life") {
-                    HStack {
-                        Slider(value: store.bind(\.frecencyHalfLifeDays), in: 3...90, step: 1)
-                        Text("\(Int(store.settings.frecencyHalfLifeDays))d")
-                            .font(.system(.body, design: .monospaced)).foregroundStyle(.secondary)
-                            .frame(width: 56, alignment: .trailing)
-                    }
-                }
+                slider("Half-life", value: store.bind(\.frecencyHalfLifeDays), range: 3...90, unit: "d", snap: 1)
                 Text("How fast a repo's ranking decays. Shorter = recency wins; longer = frequency wins.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
         .padding(20)
+    }
+
+    private var themeBinding: Binding<AppearanceMode> {
+        Binding(
+            get: { store.settings.appearance },
+            set: { store.settings.appearance = $0; store.save(); AppAppearance.apply($0) })
+    }
+
+    /// A clean tinted slider (no tick marks) with a value chip; snaps on release.
+    private func slider(_ title: String, value: Binding<Double>,
+                        range: ClosedRange<Double>, unit: String, snap: Double) -> some View {
+        LabeledContent(title) {
+            HStack(spacing: 14) {
+                Slider(value: value, in: range) { editing in
+                    if !editing { value.wrappedValue = (value.wrappedValue / snap).rounded() * snap }
+                }
+                .tint(store.settings.tintAccent.color)
+                Text("\(Int((value.wrappedValue / snap).rounded() * snap))\(unit)")
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 48, alignment: .trailing)
+                    .monospacedDigit()
+            }
+        }
     }
 
     private func swatch(_ tint: TintAccent) -> some View {
@@ -339,7 +352,19 @@ struct AboutSettingsView: View {
                 Button("Check for Updates…") { updater.checkForUpdates() }
                     .disabled(!updater.canCheckForUpdates)
                 Link("tintpad.com", destination: URL(string: "https://tintpad.com")!)
+                Link("sorkila.com", destination: URL(string: "https://sorkila.com")!)
             }
+
+            Link(destination: URL(string: "https://www.buymeacoffee.com/eriknielsen")!) {
+                Label("Buy me a coffee", systemImage: "cup.and.saucer.fill")
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(.black)
+                    .padding(.horizontal, 14).padding(.vertical, 7)
+                    .background(Color(red: 1.0, green: 0.86, blue: 0.0), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 4)
+
             Spacer()
         }
         .padding(30)

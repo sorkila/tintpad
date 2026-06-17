@@ -45,6 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        AppAppearance.apply(AppStore.shared.settings.appearance)
 
         // Pre-warm the login-shell PATH now, once. Its lazy init spawns `zsh -lic`
         // and waitUntilExit() pumps the run loop; if that first init happens
