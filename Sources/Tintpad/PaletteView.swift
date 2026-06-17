@@ -374,9 +374,18 @@ struct PaletteView: View {
 
     private var searchField: some View {
         HStack(spacing: 11) {
-            Image(systemName: searchIcon)
-                .font(.system(size: 14))
-                .foregroundStyle(model.worktreeRepo == nil && model.promptRepo == nil ? .white.opacity(0.3) : accent)
+            // Terminal-style prompt glyph (the "command pad" identity) — a shell
+            // chevron, not a search magnifier, in the brand tint.
+            Group {
+                if model.worktreeRepo != nil {
+                    Image(systemName: "arrow.triangle.branch").font(.system(size: 14))
+                } else if model.promptRepo != nil {
+                    Image(systemName: "text.bubble").font(.system(size: 14))
+                } else {
+                    Text("❯").font(.system(size: 17, weight: .bold, design: .monospaced))
+                }
+            }
+            .foregroundStyle(accent)
             TextField(searchPlaceholder, text: $model.query)
                 .textFieldStyle(.plain)
                 .font(.system(size: 18, weight: .regular))
@@ -384,12 +393,6 @@ struct PaletteView: View {
                 .focused($searchFocused)
         }
         .padding(.horizontal, 18).padding(.vertical, 14)
-    }
-
-    private var searchIcon: String {
-        if model.worktreeRepo != nil { return "arrow.triangle.branch" }
-        if model.promptRepo != nil { return "text.bubble" }
-        return "magnifyingglass"
     }
 
     private var searchPlaceholder: String {
@@ -507,7 +510,14 @@ struct PaletteView: View {
         let showMode = mode.map { m in
             selected || m.isDangerous || (repo.defaultModeID != nil && m.name.lowercased() != "default")
         } ?? false
-        return HStack(spacing: 11) {
+        return HStack(spacing: 9) {
+            // Tinted prompt rail on the active row — a small brand signal that
+            // reads "terminal", not a generic launcher highlight.
+            RoundedRectangle(cornerRadius: 2)
+                .fill(accent)
+                .frame(width: 2.5)
+                .padding(.vertical, 3)
+                .opacity(selected ? 1 : 0)
             AgentBrandIcon(agent: agent, tint: agentTint, selected: selected)
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 7) {
