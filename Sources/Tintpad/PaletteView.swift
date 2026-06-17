@@ -360,6 +360,12 @@ struct PaletteView: View {
         guard let agent = activeAgent(for: repo) else { return }
         let mode = resolveMode(agent: agent, repo: repo, modifiers: mods)
 
+        // ⌃↵ → headless dispatch (background run + notification).
+        if mods.contains(.control) {
+            dispatch(repo: repo, agent: agent, mode: mode)
+            return
+        }
+
         if mode.isDangerous && !store.allows(.yoloMode) {
             status = ProFeature.yoloMode.blurb
             return
@@ -369,6 +375,17 @@ struct PaletteView: View {
             return
         }
         perform(repo: repo, agent: agent, mode: mode)
+    }
+
+    private func dispatch(repo: Repo, agent: Agent, mode: RunMode) {
+        guard store.allows(.dispatch) else { status = ProFeature.dispatch.blurb; return }
+        do {
+            _ = try DispatchService.shared.dispatch(
+                repo: repo, agent: agent, mode: mode, prompt: selectedPrompt?.text, store: store)
+            onClose()
+        } catch {
+            status = "⚠ dispatch: \(error)"
+        }
     }
 
     private func openInEditor(repo: Repo) {

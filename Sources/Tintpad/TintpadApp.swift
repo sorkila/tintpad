@@ -48,5 +48,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Populate repos in the background so the first summon is instant.
         let added = AppStore.shared.runAutoDiscovery()
         if added > 0 { NSLog("Tintpad: discovered \(added) repos at launch") }
+
+        // Ask for notification permission so headless dispatch can notify on done.
+        DispatchService.shared.requestAuthorization()
     }
 }
