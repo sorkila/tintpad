@@ -19,6 +19,7 @@ final class DispatchService {
     }()
 
     func requestAuthorization() {
+        guard AppEnvironment.isBundled else { return }  // UN crashes outside a bundle
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
 
@@ -65,6 +66,10 @@ final class DispatchService {
     }
 
     private func notify(repo: String, agent: String, status: Int32, log: URL) {
+        guard AppEnvironment.isBundled else {
+            NSLog("Tintpad dispatch done: \(agent) @ \(repo) exit \(status) — \(log.path)")
+            return
+        }
         let content = UNMutableNotificationContent()
         let ok = status == 0
         content.title = ok ? "✓ \(agent) finished" : "⚠ \(agent) exited \(status)"

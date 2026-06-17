@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Tintpad Sparkle appcast TEMPLATE. Host the generated version at
+  https://tintpad.com/appcast.xml (matches SUFeedURL in Info.plist).
+
+  Generate this automatically from your notarized build with Sparkle's tool:
+    ./Sparkle/bin/generate_appcast /path/to/releases_dir
+  which signs each DMG/zip with your EdDSA private key and fills in
+  sparkle:edSignature + length. Do NOT hand-edit signatures.
+-->
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>Tintpad</title>
+    <link>https://tintpad.com/appcast.xml</link>
+    <description>Tintpad updates</description>
+    <language>en</language>
+    <item>
+      <title>Version 0.1.0</title>
+      <sparkle:version>1</sparkle:version>
+      <sparkle:shortVersionString>0.1.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <pubDate>Tue, 17 Jun 2026 09:00:00 +0000</pubDate>
+      <enclosure
+        url="https://tintpad.com/downloads/Tintpad-0.1.0.dmg"
+        sparkle:edSignature="REPLACE_WITH_ED_SIGNATURE"
+        length="0"
+        type="application/octet-stream" />
+    </item>
+  </channel>
+</rss>

@@ -17,6 +17,8 @@ struct TintpadApp: App {
                 let n = store.runAutoDiscovery()
                 NSLog("Tintpad: discovered \(n) new repos")
             }
+            Button("Check for Updates…") { UpdaterController.shared.checkForUpdates() }
+                .disabled(!UpdaterController.shared.canCheckForUpdates)
             Divider()
             Button("Quit Tintpad") { NSApp.terminate(nil) }
                 .keyboardShortcut("q")

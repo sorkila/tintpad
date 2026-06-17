@@ -20,6 +20,8 @@ struct SettingsView: View {
                 .tabItem { Label("Prompts", systemImage: "text.bubble") }
             RecentsSettingsView(store: store)
                 .tabItem { Label("Recents", systemImage: "clock.arrow.circlepath") }
+            GitHubSettingsView(store: store)
+                .tabItem { Label("GitHub", systemImage: "arrow.triangle.branch") }
             AppearanceSettingsView(store: store)
                 .tabItem { Label("Appearance", systemImage: "paintpalette") }
             AboutSettingsView(store: store)
@@ -207,6 +209,7 @@ struct AppearanceSettingsView: View {
 
 struct AboutSettingsView: View {
     @ObservedObject var store: AppStore
+    @ObservedObject private var updater = UpdaterController.shared
     @State private var keyInput = ""
     @State private var feedback: String?
 
@@ -240,7 +243,8 @@ struct AboutSettingsView: View {
             .font(.system(.callout, design: .monospaced)).frame(maxWidth: 420)
 
             HStack(spacing: 12) {
-                Button("Check for Updates…") {}.disabled(true)
+                Button("Check for Updates…") { updater.checkForUpdates() }
+                    .disabled(!updater.canCheckForUpdates)
                 Link("tintpad.com", destination: URL(string: "https://tintpad.com")!)
             }
             Spacer()

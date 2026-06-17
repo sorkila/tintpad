@@ -30,8 +30,17 @@ Phase 2 (v1):
 | Recent sessions + quick-resume (instant resume-last hotkey) | ✅ |
 | Pro licensing — Ed25519 offline verification + feature gating | ✅ |
 | Per-repo presets (agent + mode + pin) | ✅ |
-| Notarized DMG + Homebrew cask | ⏳ scaffolded (`Scripts/package.sh`, needs Developer ID) |
-| Sparkle auto-update, GTM launch | ⏳ Phase 3 / non-code |
+
+Phase 3:
+
+| Capability | State |
+|---|---|
+| Worktree workflow (⌃W → isolated branch checkout + launch) | ✅ |
+| Multi-step launch (also open editor with agent) | ✅ |
+| Headless dispatch (⌃↵ → background run + notification) | ✅ |
+| GitHub import (PAT in Keychain → list + clone + add) | ✅ |
+| Sparkle auto-update integration | ✅ code; framework-embed + keys at release time |
+| Notarized DMG + Homebrew cask + GTM | ⏳ needs Developer ID / accounts — see `docs/RELEASE.md` |
 
 ### Pro vs Free
 
@@ -91,6 +100,8 @@ To sign + notarize, set `SIGN_IDENTITY` and `NOTARY_PROFILE` and re-run the scri
 | ⌘⏎ | Open repo in editor |
 | ⌥⏎ | Launch YOLO (dangerous; second ⏎ confirms; Pro) |
 | ⇧⏎ | Launch Safe |
+| ⌃↵ | Headless dispatch — background run + notification (Pro) |
+| ⌃W | New worktree for selected repo (Pro) |
 | ⇥ | Cycle agent |
 | ⌘P | Cycle attached prompt (Pro) |
 | ⌘R | Re-scan repos |

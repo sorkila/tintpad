@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tintpad — summon any coding agent into your terminal</title>
+<meta name="description" content="A keyboard-first macOS launcher: hotkey → pick a repo → your terminal opens at that repo with your coding agent already running. In under two seconds." />
+<meta property="og:title" content="Tintpad" />
+<meta property="og:description" content="Summon any coding agent into your terminal at the right repo in 2 seconds." />
+<style>
+  :root {
+    --bg: #0e0e0e; --panel: #141414; --line: rgba(255,255,255,.08);
+    --text: #f2f0ec; --dim: rgba(242,240,236,.55); --dimmer: rgba(242,240,236,.35);
+    --accent: #ff7333; --coral: #ff5a5a;
+    --mono: "Berkeley Mono", "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--mono);
+    line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  a { color: var(--accent); text-decoration: none; }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 0 24px; }
+  header { padding: 28px 0; display: flex; justify-content: space-between; align-items: center; }
+  .logo { font-weight: 600; letter-spacing: .02em; }
+  .logo span { color: var(--accent); }
+  nav a { color: var(--dim); margin-left: 22px; font-size: 14px; }
+  nav a:hover { color: var(--text); }
+
+  .hero { padding: 80px 0 64px; text-align: center; }
+  .hero h1 { font-size: clamp(34px, 6vw, 60px); font-weight: 600; letter-spacing: -.02em; line-height: 1.05; }
+  .hero h1 .tint { color: var(--accent); }
+  .hero p { color: var(--dim); font-size: clamp(15px, 2.4vw, 19px); margin: 22px auto 0; max-width: 620px; }
+  .cta { margin-top: 38px; display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  .btn { font-family: var(--mono); font-size: 15px; padding: 13px 22px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--text); cursor: pointer; }
+  .btn.primary { background: var(--accent); color: #0a0a0a; border-color: var(--accent); font-weight: 600; }
+  .btn:hover { transform: translateY(-1px); }
+  .price-note { color: var(--dimmer); font-size: 13px; margin-top: 14px; }
+
+  .demo { margin: 16px auto 0; max-width: 680px; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 14px; padding: 18px; text-align: left; }
+  .demo .row { display: flex; align-items: center; gap: 12px; padding: 9px 10px; border-radius: 8px; }
+  .demo .row.sel { background: rgba(255,255,255,.06); }
+  .demo .bar { width: 3px; height: 22px; border-radius: 3px; background: var(--accent); }
+  .demo .name { font-weight: 500; }
+  .demo .path { color: var(--dimmer); font-size: 12px; }
+  .demo .chip { margin-left: auto; color: var(--accent); background: rgba(255,115,51,.12);
+    padding: 3px 9px; border-radius: 99px; font-size: 12px; }
+  .demo .foot { display: flex; gap: 14px; color: var(--dimmer); font-size: 12px;
+    border-top: 1px solid var(--line); margin-top: 10px; padding-top: 12px; }
+  kbd { background: rgba(255,255,255,.08); border-radius: 4px; padding: 1px 5px; color: var(--dim); }
+  .coral { color: var(--coral); }
+
+  section { padding: 56px 0; border-top: 1px solid var(--line); }
+  h2 { font-size: 26px; font-weight: 600; margin-bottom: 26px; letter-spacing: -.01em; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+  .card h3 { font-size: 16px; margin-bottom: 8px; }
+  .card p { color: var(--dim); font-size: 14px; }
+
+  .pricing { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .tier { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 26px; }
+  .tier.pro { border-color: var(--accent); }
+  .tier .amt { font-size: 34px; font-weight: 600; margin: 8px 0; }
+  .tier ul { list-style: none; margin-top: 16px; }
+  .tier li { color: var(--dim); font-size: 14px; padding: 5px 0; }
+  .tier li::before { content: "→ "; color: var(--accent); }
+
+  form { display: flex; gap: 10px; max-width: 460px; flex-wrap: wrap; }
+  input[type=email] { flex: 1; min-width: 220px; font-family: var(--mono); font-size: 15px;
+    padding: 13px 16px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--bg); color: var(--text); }
+  footer { padding: 40px 0 60px; color: var(--dimmer); font-size: 13px; text-align: center; }
+  @media (max-width: 620px) { .pricing { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">Tint<span>pad</span></div>
+    <nav>
+      <a href="#features">Features</a>
+      <a href="#pricing">Pricing</a>
+      <a href="https://github.com/sorkila/tintpad">GitHub</a>
+    </nav>
+  </header>
+
+  <div class="hero">
+    <h1>Summon any coding agent<br/>into your <span class="tint">terminal</span>.</h1>
+    <p>One hotkey. Fuzzy-find a repo. Your real terminal opens at that path with
+       Claude Code, Codex, or any agent already running — in under two seconds.
+       It hands off to <em>your</em> terminal; it doesn't replace it.</p>
+
+    <div class="demo" aria-hidden="true">
+      <div class="row sel"><span class="bar"></span>
+        <span><div class="name">delta-api</div><div class="path">~/repos/delta-api</div></span>
+        <span class="chip">Claude Code</span></div>
+      <div class="row">
+        <span style="width:3px"></span>
+        <span><div class="name">marketing-site</div><div class="path">~/repos/marketing-site</div></span>
+        <span class="chip">Codex</span></div>
+      <div class="foot">
+        <span><kbd>↵</kbd> launch</span>
+        <span><kbd>⌘↵</kbd> editor</span>
+        <span class="coral"><kbd>⌥↵</kbd> YOLO</span>
+        <span><kbd>⌃W</kbd> worktree</span>
+      </div>
+    </div>
+
+    <div class="cta">
+      <a class="btn primary" href="#waitlist">Get early access — $4.99</a>
+      <a class="btn" href="https://github.com/sorkila/tintpad">View on GitHub</a>
+    </div>
+    <div class="price-note">Early-adopter intro price. One-time unlock, no subscription. macOS 14+.</div>
+  </div>
+</div>
+
+<section id="features">
+  <div class="wrap">
+    <h2>Built for the keyboard, hostile to friction.</h2>
+    <div class="grid">
+      <div class="card"><h3>Hands off to your terminal</h3><p>Ghostty, iTerm2, kitty, WezTerm, Alacritty, Terminal.app, Warp — auto-detected, launched at the repo with the command running.</p></div>
+      <div class="card"><h3>Safe / Default / YOLO</h3><p>Named run modes map to each agent's flags. Dangerous modes get a coral tint and a confirm — never a silent footgun.</p></div>
+      <div class="card"><h3>Frecency ranking</h3><p>Your most-used repos rise to the top automatically, with continuous half-life decay.</p></div>
+      <div class="card"><h3>Worktrees in one keystroke</h3><p>⌃W spins up an isolated branch checkout and launches the agent there.</p></div>
+      <div class="card"><h3>Open in editor</h3><p>⌘↵ opens the repo in VS Code, Cursor, Zed, and more — or alongside the agent.</p></div>
+      <div class="card"><h3>Local-only, no accounts</h3><p>Everything lives in a JSON file on your Mac. Licenses verify offline. Nothing phones home.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="pricing">
+  <div class="wrap">
+    <h2>Simple, one-time pricing.</h2>
+    <div class="pricing">
+      <div class="tier">
+        <div>Free</div><div class="amt">$0</div>
+        <ul><li>Core launch flow, forever</li><li>Up to 3 agents</li><li>Safe & Default modes</li><li>All 7 terminals</li></ul>
+      </div>
+      <div class="tier pro">
+        <div>Pro · <span style="color:var(--accent)">early adopter</span></div>
+        <div class="amt">$4.99<span style="font-size:15px;color:var(--dimmer)"> → $9.99</span></div>
+        <ul><li>Unlimited agents</li><li>YOLO modes</li><li>Prompt library</li><li>Per-repo presets &amp; worktrees</li><li>Headless dispatch</li><li>Custom tints</li></ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="waitlist">
+  <div class="wrap">
+    <h2>Get launch-day access.</h2>
+    <!-- Wire action to your email provider (Buttondown/ConvertKit/Mailchimp). -->
+    <form action="REPLACE_WITH_EMAIL_PROVIDER_ENDPOINT" method="post">
+      <input type="email" name="email" placeholder="you@example.com" required />
+      <button class="btn primary" type="submit">Notify me</button>
+    </form>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">Tintpad — made in Sweden · <a href="https://github.com/sorkila/tintpad">open source core</a> · © 2026 Sörkila</div>
+</footer>
+</body>
+</html>

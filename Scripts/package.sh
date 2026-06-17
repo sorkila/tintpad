@@ -26,6 +26,16 @@ cp "Resources/Info.plist" "$APP/Contents/Info.plist"
 # Bundle the SwiftPM resource bundles (e.g. KeyboardShortcuts) next to the binary.
 cp -R "$BUILD_DIR"/*.bundle "$APP/Contents/MacOS/" 2>/dev/null || true
 
+# Sparkle note: SPM links Sparkle statically, so "check for updates" + download
+# work, but the privileged auto-INSTALL helpers (Installer.xpc, Autoupdate) ship
+# inside Sparkle.framework and must be embedded for full auto-update. For the
+# release build, download Sparkle's binary framework and embed it:
+#   mkdir -p "$APP/Contents/Frameworks"
+#   cp -R /path/to/Sparkle.framework "$APP/Contents/Frameworks/"
+# then sign it (codesign --deep is discouraged; sign nested code first).
+# Also replace SUPublicEDKey in Info.plist with the output of:
+#   ./Sparkle/bin/generate_keys        # private key -> Keychain, prints public
+
 if [[ -n "${SIGN_IDENTITY:-}" ]]; then
   echo "▸ Signing with hardened runtime…"
   codesign --force --options runtime --timestamp \

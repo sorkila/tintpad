@@ -27,5 +27,15 @@
     <string>Tintpad opens your terminal and runs the selected coding agent at the chosen repository.</string>
     <key>NSHumanReadableCopyright</key>
     <string>© 2026 Sörkila</string>
+    <!-- Sparkle auto-update. Replace SUPublicEDKey with the public key printed
+         by Sparkle's generate_keys (the private key stays in your Keychain). -->
+    <key>SUFeedURL</key>
+    <string>https://tintpad.com/appcast.xml</string>
+    <key>SUPublicEDKey</key>
+    <string>REPLACE_WITH_SPARKLE_PUBLIC_ED_KEY</string>
+    <key>SUEnableAutomaticChecks</key>
+    <true/>
+    <key>SUScheduledCheckInterval</key>
+    <integer>86400</integer>
 </dict>
 </plist>
