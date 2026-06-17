@@ -136,7 +136,7 @@ struct Settings: Codable {
     var rootScanFolders: [String] = []
     var tintAccent: TintAccent = .orange
     var frecencyHalfLifeDays: Double = 30
-    var confirmDangerousModes: Bool = true
+    var confirmDangerousModes: Bool = false
     var appearance: AppearanceMode = .dark
     var panelWidth: Double = 640
     /// Multi-step launch: also open the editor when launching an agent.
@@ -162,7 +162,7 @@ struct Settings: Codable {
         rootScanFolders = g(.rootScanFolders, [])
         tintAccent = g(.tintAccent, .orange)
         frecencyHalfLifeDays = g(.frecencyHalfLifeDays, 30)
-        confirmDangerousModes = g(.confirmDangerousModes, true)
+        confirmDangerousModes = g(.confirmDangerousModes, false)
         appearance = g(.appearance, .dark)
         panelWidth = g(.panelWidth, 640)
         alsoOpenEditor = g(.alsoOpenEditor, false)
