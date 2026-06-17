@@ -295,16 +295,17 @@ final class PaletteModel: ObservableObject {
 // MARK: - View
 
 struct PaletteView: View {
-    @StateObject private var model: PaletteModel
+    @ObservedObject private var model: PaletteModel
     @FocusState private var searchFocused: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var hovered: Int?
     @State private var shown = false
     private let corner: CGFloat = 18
 
-    init(store: AppStore, onClose: @escaping () -> Void, onOpenSettings: @escaping () -> Void) {
-        _model = StateObject(wrappedValue: PaletteModel(
-            store: store, onClose: onClose, onOpenSettings: onOpenSettings))
+    /// The model is owned by the controller (created + monitored at launch) so
+    /// the very first summon is already warm.
+    init(model: PaletteModel) {
+        self.model = model
     }
 
     private var accent: Color { model.accent }

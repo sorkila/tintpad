@@ -65,6 +65,15 @@ final class CommandPanelController: NSObject {
     /// While true, losing key focus won't hide the app (we're opening Settings).
     private var suppressAutoHide = false
 
+    /// Owned here so it's alive + monitoring before the first summon.
+    private(set) lazy var model = PaletteModel(
+        store: .shared,
+        onClose: { [weak self] in self?.hide() },
+        onOpenSettings: { [weak self] in self?.openSettings() })
+
+    /// Install the key monitor at launch so the very first summon is responsive.
+    func warm() { model.startMonitoring() }
+
     func toggle() {
         if panel?.isVisible == true { hide() } else { show() }
     }
@@ -109,10 +118,7 @@ final class CommandPanelController: NSObject {
         let rect = NSRect(x: 0, y: 0, width: width, height: 420)
         let panel = CommandPanel(contentRect: rect)
         panel.controller = self
-        let root = PaletteView(
-            store: AppStore.shared,
-            onClose: { [weak self] in self?.hide() },
-            onOpenSettings: { [weak self] in self?.openSettings() })
+        let root = PaletteView(model: model)
         let hosting = NSHostingView(rootView: root)
         hosting.frame = panel.contentView?.bounds ?? rect
         hosting.autoresizingMask = [.width, .height]

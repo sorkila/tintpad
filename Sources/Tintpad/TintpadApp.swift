@@ -50,6 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // and waitUntilExit() pumps the run loop; if that first init happens
         // during SwiftUI rendering it re-enters and trips dispatch_once (crash).
         _ = ShellEnvironment.resolvedPath
+        panelController.warm()   // install key monitor before the first summon
         HotkeyManager.configureSpikeDefaultIfNeeded()
         HotkeyManager.onSummon { [weak self] in
             self?.panelController.toggle()
