@@ -26,15 +26,18 @@ cp "Resources/Info.plist" "$APP/Contents/Info.plist"
 # Bundle the SwiftPM resource bundles (e.g. KeyboardShortcuts) next to the binary.
 cp -R "$BUILD_DIR"/*.bundle "$APP/Contents/MacOS/" 2>/dev/null || true
 
-# Sparkle note: SPM links Sparkle statically, so "check for updates" + download
-# work, but the privileged auto-INSTALL helpers (Installer.xpc, Autoupdate) ship
-# inside Sparkle.framework and must be embedded for full auto-update. For the
-# release build, download Sparkle's binary framework and embed it:
-#   mkdir -p "$APP/Contents/Frameworks"
-#   cp -R /path/to/Sparkle.framework "$APP/Contents/Frameworks/"
-# then sign it (codesign --deep is discouraged; sign nested code first).
-# Also replace SUPublicEDKey in Info.plist with the output of:
-#   ./Sparkle/bin/generate_keys        # private key -> Keychain, prints public
+# Embed Sparkle.framework (SPM builds it as a dynamic framework). The binary's
+# rpaths include @loader_path; we also add @executable_path/../Frameworks so the
+# conventional location works and notarization is happy.
+SPARKLE_FW="$BUILD_DIR/Sparkle.framework"
+if [[ -d "$SPARKLE_FW" ]]; then
+  mkdir -p "$APP/Contents/Frameworks"
+  cp -R "$SPARKLE_FW" "$APP/Contents/Frameworks/"
+  install_name_tool -add_rpath "@executable_path/../Frameworks" \
+    "$APP/Contents/MacOS/$APP_NAME" 2>/dev/null || true
+fi
+# At release time also replace SUPublicEDKey in Info.plist with the output of
+# Sparkle's ./bin/generate_keys (private key stays in your Keychain).
 
 if [[ -n "${SIGN_IDENTITY:-}" ]]; then
   echo "▸ Signing with hardened runtime…"
