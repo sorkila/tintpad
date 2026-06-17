@@ -1,116 +1,100 @@
+<div align="center">
+
+<img src="docs/assets/icon.png" width="116" alt="Tintpad" />
+
 # Tintpad
 
-A keyboard-first macOS launcher: summon a palette, fuzzy-find a repo, pick an
-agent + run mode, and your terminal opens at that repo with the agent running —
-in under two seconds, without the mouse.
+**Your agent. Your repo. One keystroke.**
 
-Native Swift/SwiftUI menu-bar (accessory) app. Local-only, no accounts.
-Distributed direct (Developer ID + notarization), not the Mac App Store.
+A macOS hotkey that opens your terminal at the right repo with Claude Code, Codex,
+or whatever you run — already going.
 
-## Status: Phase 2 (v1)
+[![CI](https://github.com/sorkila/tintpad/actions/workflows/ci.yml/badge.svg)](https://github.com/sorkila/tintpad/actions/workflows/ci.yml)
+&nbsp;![macOS 14+](https://img.shields.io/badge/macOS-14%2B-000)
+&nbsp;![Swift 6](https://img.shields.io/badge/Swift-6-orange)
+&nbsp;![License: MIT](https://img.shields.io/badge/license-MIT-blue)
 
-Phase 1 (MVP):
+</div>
 
-| Capability | State |
-|---|---|
-| Global hotkey → non-activating palette → frecency repo search | ✅ |
-| Repo management: manual add, drag-drop, auto-discover, frecency ranking | ✅ |
-| User-defined agents with command templates + Safe/Default/YOLO run modes | ✅ |
-| Run-mode selection: per-agent default, per-repo override, launch modifiers | ✅ |
-| Dangerous-mode confirm + warning tint | ✅ |
-| Terminal handoff to 7 terminals | ✅ |
-| First-class Settings + tint design system + JSON persistence | ✅ |
+---
 
-Phase 2 (v1):
+Press <kbd>⌥⌘Space</kbd>. Fuzzy-find a repo. Hit <kbd>↵</kbd>. Your real terminal opens
+there with the agent running — in under two seconds, without the mouse.
 
-| Capability | State |
-|---|---|
-| Open-in-editor (⌘↵) — VS Code / Cursor / Zed / Sublime / JetBrains | ✅ |
-| Prompt library — saved prompts, ⌘P to attach at launch | ✅ |
-| Recent sessions + quick-resume (instant resume-last hotkey) | ✅ |
-| Pro licensing — Ed25519 offline verification + feature gating | ✅ |
-| Per-repo presets (agent + mode + pin) | ✅ |
+It hands off to the terminal you already use. It doesn't try to be one.
 
-Phase 3:
+> Not a usage monitor. Not an IDE. Not a terminal. The launcher the agent menu-bar apps forgot.
 
-| Capability | State |
-|---|---|
-| Worktree workflow (⌃W → isolated branch checkout + launch) | ✅ |
-| Multi-step launch (also open editor with agent) | ✅ |
-| Headless dispatch (⌃↵ → background run + notification) | ✅ |
-| GitHub import (PAT in Keychain → list + clone + add) | ✅ |
-| Sparkle auto-update integration | ✅ code; framework-embed + keys at release time |
-| Notarized DMG + Homebrew cask + GTM | ⏳ needs Developer ID / accounts — see `docs/RELEASE.md` |
+<!-- TODO: drop a demo.gif here (summon → pick → terminal opens). It carries the whole pitch. -->
 
-### Pro vs Free
+## Why
 
-Free: core launch flow forever, up to 3 agents, Safe/Default modes, default tint.
-Pro (one-time unlock): unlimited agents, YOLO modes, prompt library, per-repo
-presets, custom tints. Licenses are Ed25519-signed and verified offline (no
-phone-home). The signing key lives only in `secrets/` (gitignored); the public
-key is embedded in `LicenseManager.swift`.
+GUI apps don't inherit your shell `PATH`, so double-clicking an app can't find
+`claude` or `codex`. Repo-switching is friction. Tintpad fixes both: it resolves your
+login-shell `PATH` once, ranks repos by frecency, and hands the command to your terminal
+at the right directory. The boring 2-second thing you do twenty times a day, gone.
 
-## Architecture
-
-**Data layer**
-- `Models.swift` — Codable `Repo`, `Agent`, `RunMode`, `Settings`, `TintAccent`,
-  seed agents (Claude Code, Codex).
-- `Store.swift` — `AppStore` (`ObservableObject`), JSON persistence to
-  `~/Library/Application Support/Tintpad/store.json`.
-
-**Services**
-- `Frecency.swift` — `fre`-style continuous half-life decay ranking.
-- `GitInfo.swift` — parses `.git/HEAD` + `.git/config` directly (no subprocess).
-- `CommandTemplate.swift` — variable substitution + login-shell binary resolution.
-- `RepoDiscovery.swift` — scans root folders 1–2 levels deep for `.git`.
-- `ShellEnvironment.swift` — resolves the interactive login-shell PATH so a
-  GUI-launched app finds `claude`/`codex`/… (the #1 footgun).
-
-**Terminal handoff**
-- `TerminalAdapter.swift` — protocol + 7 adapters. Ghostty / kitty / Alacritty
-  via `open` CLI flags; WezTerm via bundled binary; iTerm2 / Terminal.app via
-  AppleScript; Warp via open-at-path + clipboard fallback (no command-injection API).
-
-**UI**
-- `CommandPanel.swift` — `.nonactivatingPanel` `NSPanel` hosting SwiftUI;
-  returns focus on Esc / focus-loss.
-- `PaletteView.swift` — the palette: frecency list, agent cycling (⇥), modifier
-  modes (⌥ YOLO / ⇧ Safe), dangerous-mode confirm, git branch + live command preview.
-- `SettingsView.swift` + `HotkeysSettingsView` / `ReposSettingsView` /
-  `AgentsSettingsView` — the native preferences window.
-- `HotkeyManager.swift` — KeyboardShortcuts global summon.
-- `TintpadApp.swift` — `MenuBarExtra` accessory app + `Settings` scene.
-
-## Run
+## Install
 
 ```sh
-swift run                 # dev
-./Scripts/package.sh      # assemble Tintpad.app (unsigned)
+# Build from source (the supported path today)
+git clone https://github.com/sorkila/tintpad.git
+cd tintpad
+swift run                  # dev run
+./Scripts/package.sh       # build Tintpad.app into .build/release
 ```
 
-To sign + notarize, set `SIGN_IDENTITY` and `NOTARY_PROFILE` and re-run the script.
+Requires macOS 14+ and a Swift 6 toolchain (Xcode 16+). A notarized build and a
+Homebrew cask (`brew install --cask sorkila/tap/tintpad`) are coming.
 
-### Palette keys
+## Features
+
+- **Frecency repo search** — your most-used repos rise to the top, zoxide-style.
+- **Hands off to 7 terminals** — Ghostty, iTerm2, kitty, WezTerm, Alacritty, Terminal, Warp.
+- **Run modes** — Safe / Default / YOLO map to each agent's flags. The dangerous one is marked, never silent.
+- **Worktrees** — <kbd>⌃W</kbd> spins up an isolated branch checkout and launches the agent in it.
+- **Headless dispatch** — <kbd>⌃↵</kbd> runs an agent in the background and notifies you when it's done.
+- **Prompt library, per-repo presets, GitHub import, open-in-editor.**
+- **Local-only.** No accounts, no telemetry, nothing leaves your Mac.
+
+## Keys
 
 | Key | Action |
 |---|---|
-| ⌥⌘Space | Summon (spike default; change in Settings → Hotkeys) |
-| ↑ / ↓ | Navigate |
-| ⏎ | Launch default agent + mode |
-| ⌘⏎ | Open repo in editor |
-| ⌥⏎ | Launch YOLO (dangerous; second ⏎ confirms; Pro) |
-| ⇧⏎ | Launch Safe |
-| ⌃↵ | Headless dispatch — background run + notification (Pro) |
-| ⌃W | New worktree for selected repo (Pro) |
-| ⇥ | Cycle agent |
-| ⌘P | Cycle attached prompt (Pro) |
-| ⌘R | Re-scan repos |
-| Esc | Close (returns focus to previous app) |
+| <kbd>⌥⌘Space</kbd> | Summon (change in Settings → Hotkeys) |
+| <kbd>↑</kbd> / <kbd>↓</kbd> | Navigate |
+| <kbd>↵</kbd> | Launch default agent + mode |
+| <kbd>⌘↵</kbd> | Open repo in editor |
+| <kbd>⌥↵</kbd> | Launch YOLO (dangerous) |
+| <kbd>⇧↵</kbd> | Launch Safe |
+| <kbd>⌃↵</kbd> | Headless dispatch |
+| <kbd>⌃W</kbd> | New worktree |
+| <kbd>⇥</kbd> / <kbd>⇧⇥</kbd> | Cycle agent / mode |
+| <kbd>⌘L</kbd> · <kbd>⌘P</kbd> | Inline prompt · cycle saved prompt |
+| <kbd>⌘R</kbd> · <kbd>Esc</kbd> | Re-scan repos · close |
 
-### Notes / Phase 2
+## Configure
 
-- Hotkey currently seeds ⌥⌘Space; production onboarding should prompt instead.
-- AppleScript terminals (iTerm2/Terminal.app) trigger an Automation TCC prompt —
-  the bundled `Info.plist` carries `NSAppleEventsUsageDescription`.
-- Pro licensing (Lemon Squeezy/Paddle), Sparkle updates, per-repo prompt
-  library, recent sessions, worktrees → Phase 2/3.
+Agents are just command templates with variables — set them in **Settings → Agents**:
+
+```
+claude {mode} {prompt}
+```
+
+Variables: `{repoPath}` `{repoName}` `{branch}` `{remote}` `{prompt}` `{mode}` `{shell}` `{worktreePath}`.
+Every interpolated value is sanitized and shell-quoted before it runs.
+
+## Contributing
+
+PRs welcome — **especially new terminal adapters**, which are about one protocol and one
+struct. See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Support
+
+Tintpad is **free and MIT** — the whole thing. If it earns a spot in your day, leave a tip:
+[**Buy me a coffee →**](https://www.buymeacoffee.com/eriknielsen). Supporters get custom
+accent tints and my thanks. That's the only difference.
+
+## License
+
+[MIT](LICENSE) © 2026 Erik Nielsen ([Sörkila](https://sorkila.com))
