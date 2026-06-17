@@ -1,53 +1,83 @@
-# Tintpad — Phase 0 Spike
+# Tintpad
 
 A keyboard-first macOS launcher: summon a palette, fuzzy-find a repo, pick an
-agent + run mode, and your terminal opens at that repo with the agent running.
+agent + run mode, and your terminal opens at that repo with the agent running —
+in under two seconds, without the mouse.
 
-This is the **Phase 0 de-risking spike**. Its only job is to prove the four
-unknowns that determine whether the product is feasible:
+Native Swift/SwiftUI menu-bar (accessory) app. Local-only, no accounts.
+Distributed direct (Developer ID + notarization), not the Mac App Store.
 
-| # | Unknown | Status | Evidence |
-|---|---------|--------|----------|
-| a | Non-activating `NSPanel` that takes typing and returns focus on close | ⏳ needs GUI check | `CommandPanel.swift` / `CommandPanelController` |
-| b | Global hotkey in a menu-bar (accessory) app | ⏳ needs GUI check | KeyboardShortcuts, ⌥⌘Space |
-| c | Login-shell PATH resolution for agent binaries | ✅ **proven** | `claude`→`~/.local/bin`, `codex`→fnm path resolved at launch |
-| d | Terminal handoff end-to-end (≥2 adapters) | ⏳ needs GUI check | Ghostty (live), iTerm2 / WezTerm / Terminal.app written |
+## Status: Phase 1 (MVP)
+
+| Capability | State |
+|---|---|
+| Global hotkey → non-activating palette → frecency repo search | ✅ |
+| Repo management: manual add, drag-drop, auto-discover, frecency ranking | ✅ |
+| User-defined agents with command templates + Safe/Default/YOLO run modes | ✅ |
+| Run-mode selection: per-agent default, per-repo override, launch modifiers | ✅ |
+| Dangerous-mode confirm + warning tint | ✅ |
+| Terminal handoff to 7 terminals | ✅ |
+| First-class Settings (General/Hotkeys/Repos/Agents/Appearance/About) | ✅ |
+| JSON persistence + tint design system | ✅ |
+| Notarized DMG + Homebrew cask | ⏳ scaffolded (`Scripts/package.sh`, needs Developer ID) |
 
 ## Architecture
 
-- `ShellEnvironment.swift` — resolves the interactive login-shell PATH
-  (`zsh -lic`) + probes well-known install dirs, so GUI-launched Tintpad finds
-  `claude`/`codex`/`aider` that launchd's minimal PATH would miss.
-- `TerminalAdapter.swift` — `TerminalAdapter` protocol + per-terminal launchers.
-  Ghostty/WezTerm use CLI flags; iTerm2/Terminal.app use AppleScript `do script`.
-  Detection is bundle-id based via `NSWorkspace`.
-- `CommandPanel.swift` — `NSPanel` subclass (`.nonactivatingPanel`) hosting
-  SwiftUI via `NSHostingView`; closes on Esc / focus loss and returns focus.
-- `PaletteView.swift` — the palette UI: repo discovery, frecency-ready list,
-  Claude Code agent with Safe / Default / **YOLO** run modes, live command preview.
-- `HotkeyManager.swift` — KeyboardShortcuts wiring (spike default ⌥⌘Space).
-- `TintpadApp.swift` — `MenuBarExtra` accessory app; logs spike diagnostics.
+**Data layer**
+- `Models.swift` — Codable `Repo`, `Agent`, `RunMode`, `Settings`, `TintAccent`,
+  seed agents (Claude Code, Codex).
+- `Store.swift` — `AppStore` (`ObservableObject`), JSON persistence to
+  `~/Library/Application Support/Tintpad/store.json`.
 
-## Run it
+**Services**
+- `Frecency.swift` — `fre`-style continuous half-life decay ranking.
+- `GitInfo.swift` — parses `.git/HEAD` + `.git/config` directly (no subprocess).
+- `CommandTemplate.swift` — variable substitution + login-shell binary resolution.
+- `RepoDiscovery.swift` — scans root folders 1–2 levels deep for `.git`.
+- `ShellEnvironment.swift` — resolves the interactive login-shell PATH so a
+  GUI-launched app finds `claude`/`codex`/… (the #1 footgun).
+
+**Terminal handoff**
+- `TerminalAdapter.swift` — protocol + 7 adapters. Ghostty / kitty / Alacritty
+  via `open` CLI flags; WezTerm via bundled binary; iTerm2 / Terminal.app via
+  AppleScript; Warp via open-at-path + clipboard fallback (no command-injection API).
+
+**UI**
+- `CommandPanel.swift` — `.nonactivatingPanel` `NSPanel` hosting SwiftUI;
+  returns focus on Esc / focus-loss.
+- `PaletteView.swift` — the palette: frecency list, agent cycling (⇥), modifier
+  modes (⌥ YOLO / ⇧ Safe), dangerous-mode confirm, git branch + live command preview.
+- `SettingsView.swift` + `HotkeysSettingsView` / `ReposSettingsView` /
+  `AgentsSettingsView` — the native preferences window.
+- `HotkeyManager.swift` — KeyboardShortcuts global summon.
+- `TintpadApp.swift` — `MenuBarExtra` accessory app + `Settings` scene.
+
+## Run
 
 ```sh
-swift run
+swift run                 # dev
+./Scripts/package.sh      # assemble Tintpad.app (unsigned)
 ```
 
-The app appears as a `command` icon in the menu bar (no Dock icon). Launch
-diagnostics print to stdout.
+To sign + notarize, set `SIGN_IDENTITY` and `NOTARY_PROFILE` and re-run the script.
 
-### Manual verification checklist (the GUI unknowns)
+### Palette keys
 
-1. **Hotkey (b):** press **⌥⌘Space** anywhere → palette appears centered.
-2. **Panel focus (a):** start typing immediately (no extra click) → query
-   filters. Press **Esc** → palette closes and focus returns to your previous
-   app (the app never stole the menu bar).
-3. **Handoff (d):** select a repo, press **↵** → Ghostty opens at that path
-   running `claude`. Press **⌥↵** instead → launches with
-   `--dangerously-skip-permissions` (YOLO).
-4. The footer always shows the exact resolved command before you launch.
+| Key | Action |
+|---|---|
+| ⌥⌘Space | Summon (spike default; change in Settings → Hotkeys) |
+| ↑ / ↓ | Navigate |
+| ⏎ | Launch default agent + mode |
+| ⌥⏎ | Launch YOLO (dangerous; second ⏎ confirms) |
+| ⇧⏎ | Launch Safe |
+| ⇥ | Cycle agent |
+| ⌘R | Re-scan repos |
+| Esc | Close (returns focus to previous app) |
 
-> Spike caveats: a global hotkey and AppleScript-driven terminals (iTerm2 /
-> Terminal.app) trigger macOS TCC prompts; allow them. iTerm2 is not installed
-> on the dev machine, so its adapter is written but untested here.
+### Notes / Phase 2
+
+- Hotkey currently seeds ⌥⌘Space; production onboarding should prompt instead.
+- AppleScript terminals (iTerm2/Terminal.app) trigger an Automation TCC prompt —
+  the bundled `Info.plist` carries `NSAppleEventsUsageDescription`.
+- Pro licensing (Lemon Squeezy/Paddle), Sparkle updates, per-repo prompt
+  library, recent sessions, worktrees → Phase 2/3.

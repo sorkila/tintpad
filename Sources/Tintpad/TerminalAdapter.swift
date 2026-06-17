@@ -5,45 +5,42 @@ import Foundation
 struct TerminalLaunch {
     /// Absolute, canonicalized repo path.
     let workingDirectory: String
-    /// The full shell command to run, e.g. `claude --dangerously-skip-permissions`.
-    /// Already binary-resolved and assembled by the caller.
+    /// The full command to run (binary already resolved to an absolute path).
     let command: String
+}
+
+/// Result of a launch. `note` carries user-facing info (e.g. Warp's clipboard
+/// fallback) without being an error.
+struct LaunchOutcome {
+    var note: String?
 }
 
 enum TerminalLaunchError: Error, CustomStringConvertible {
     case notInstalled
     case launchFailed(String)
-    case unsupported(String)
 
     var description: String {
         switch self {
-        case .notInstalled: return "Terminal app is not installed."
-        case .launchFailed(let m): return "Launch failed: \(m)"
-        case .unsupported(let m): return "Unsupported: \(m)"
+        case .notInstalled: return "not installed"
+        case .launchFailed(let m): return m
         }
     }
 }
 
 /// One implementation per terminal app. Detection is bundle-id based; launch
-/// uses whichever mechanism is most reliable for that terminal (CLI flags,
-/// `open -na`, or AppleScript).
+/// uses whichever mechanism is most reliable for that terminal.
 protocol TerminalAdapter: Sendable {
-    /// Human-facing name, e.g. "Ghostty".
     var displayName: String { get }
-    /// Bundle identifier used for detection.
     var bundleID: String { get }
-    /// Whether the app is installed on this machine.
     var isInstalled: Bool { get }
-    /// Open a window/tab at the path with the command running.
-    func launch(_ launch: TerminalLaunch) throws
+    @discardableResult
+    func launch(_ launch: TerminalLaunch) throws -> LaunchOutcome
 }
 
 extension TerminalAdapter {
     var isInstalled: Bool {
         NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) != nil
     }
-
-    /// URL of the installed app bundle, if any.
     var appURL: URL? {
         NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID)
     }
@@ -51,13 +48,23 @@ extension TerminalAdapter {
 
 // MARK: - Shared helpers
 
-private func shellQuote(_ s: String) -> String {
-    // Single-quote and escape embedded single quotes the POSIX way.
+func shellQuote(_ s: String) -> String {
     "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
 }
 
-/// Runs a foreground process (used for `open` and CLI launchers), throwing on
-/// nonzero exit with captured stderr.
+/// A shell script that cd's into the repo, runs the command, then drops into an
+/// interactive login shell so the window stays open and PATH/aliases are loaded.
+private func keepOpenScript(_ launch: TerminalLaunch) -> String {
+    let shell = ShellEnvironment.loginShell
+    return "cd \(shellQuote(launch.workingDirectory)) && \(launch.command); exec \(shell) -i"
+}
+
+/// Program + args that run the keep-open script through the user's login shell.
+private func shellProgram(_ launch: TerminalLaunch) -> [String] {
+    [ShellEnvironment.loginShell, "-i", "-c", keepOpenScript(launch)]
+}
+
+/// Runs a foreground process, throwing on nonzero exit with captured stderr.
 private func run(_ executable: String, _ args: [String]) throws {
     let p = Process()
     p.executableURL = URL(fileURLWithPath: executable)
@@ -74,79 +81,99 @@ private func run(_ executable: String, _ args: [String]) throws {
     p.waitUntilExit()
     if p.terminationStatus != 0 {
         let msg = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        throw TerminalLaunchError.launchFailed("\(executable) exited \(p.terminationStatus): \(msg)")
+        throw TerminalLaunchError.launchFailed("exited \(p.terminationStatus): \(msg.trimmingCharacters(in: .whitespacesAndNewlines))")
     }
 }
 
-// MARK: - Ghostty (CLI via `open -na`)
+/// Launches a new instance of a bundled app, passing args to it via `open`.
+private func openApp(bundleID: String, args: [String]) throws {
+    try run("/usr/bin/open", ["-nb", bundleID, "--args"] + args)
+}
 
-/// `+new-window` does not work on macOS; `open -na` with `--working-directory`
-/// and `-e <cmd>` is the reliable path.
+// MARK: - Ghostty (CLI via `open`)
+
+/// `+new-window` does not work on macOS; `open -nb … --args --working-directory
+/// … -e …` is reliable.
 struct GhosttyAdapter: TerminalAdapter {
     let displayName = "Ghostty"
     let bundleID = "com.mitchellh.ghostty"
 
-    func launch(_ launch: TerminalLaunch) throws {
+    func launch(_ launch: TerminalLaunch) throws -> LaunchOutcome {
         guard isInstalled else { throw TerminalLaunchError.notInstalled }
-        // Run the command, then drop into an interactive shell so the window
-        // stays open after the agent exits.
-        let inner = "cd \(shellQuote(launch.workingDirectory)) && \(launch.command); exec \(ShellEnvironment.loginShell) -i"
-        try run("/usr/bin/open", [
-            "-na", "Ghostty",
-            "--args",
-            "--working-directory=\(launch.workingDirectory)",
-            "-e", inner,
-        ])
+        try openApp(bundleID: bundleID, args:
+            ["--working-directory=\(launch.workingDirectory)", "-e"] + shellProgram(launch))
+        return LaunchOutcome()
     }
 }
 
-// MARK: - WezTerm (CLI)
+// MARK: - kitty (CLI via `open`)
 
-/// `open -a` does NOT pass cwd; must use the `wezterm` binary directly with an
-/// absolute `--cwd` (Issue #6218: relative paths fall back to $HOME).
+struct KittyAdapter: TerminalAdapter {
+    let displayName = "kitty"
+    let bundleID = "net.kovidgoyal.kitty"
+
+    func launch(_ launch: TerminalLaunch) throws -> LaunchOutcome {
+        guard isInstalled else { throw TerminalLaunchError.notInstalled }
+        try openApp(bundleID: bundleID, args:
+            ["--directory", launch.workingDirectory] + shellProgram(launch))
+        return LaunchOutcome()
+    }
+}
+
+// MARK: - Alacritty (CLI via `open`)
+
+/// `-e <command>` must come last; no IPC, a clean new process each time.
+struct AlacrittyAdapter: TerminalAdapter {
+    let displayName = "Alacritty"
+    let bundleID = "org.alacritty"
+
+    func launch(_ launch: TerminalLaunch) throws -> LaunchOutcome {
+        guard isInstalled else { throw TerminalLaunchError.notInstalled }
+        try openApp(bundleID: bundleID, args:
+            ["--working-directory", launch.workingDirectory, "-e"] + shellProgram(launch))
+        return LaunchOutcome()
+    }
+}
+
+// MARK: - WezTerm (bundled CLI)
+
+/// `open -a` does NOT pass cwd; must use the `wezterm` binary with an absolute
+/// `--cwd` (Issue #6218: relative paths fall back to $HOME).
 struct WezTermAdapter: TerminalAdapter {
     let displayName = "WezTerm"
     let bundleID = "com.github.wez.wezterm"
 
-    func launch(_ launch: TerminalLaunch) throws {
+    func launch(_ launch: TerminalLaunch) throws -> LaunchOutcome {
         guard let app = appURL else { throw TerminalLaunchError.notInstalled }
-        // Prefer the CLI shipped inside the bundle to avoid PATH ambiguity.
         let bundled = app.appendingPathComponent("Contents/MacOS/wezterm").path
         let bin = FileManager.default.isExecutableFile(atPath: bundled)
             ? bundled
             : (ShellEnvironment.resolveBinary("wezterm") ?? bundled)
-
-        let inner = "\(launch.command); exec \(ShellEnvironment.loginShell) -i"
-        try run(bin, [
-            "start",
-            "--cwd", launch.workingDirectory,
-            "--", ShellEnvironment.loginShell, "-i", "-c", inner,
-        ])
+        try run(bin, ["start", "--cwd", launch.workingDirectory, "--"] + shellProgram(launch))
+        return LaunchOutcome()
     }
 }
 
 // MARK: - iTerm2 (AppleScript)
 
-/// Most scriptable terminal. `do script` types-and-runs. Triggers the macOS
-/// Automation (Apple Events) TCC prompt on first use.
+/// Most scriptable. `write text` types-and-runs in a fresh session that stays
+/// open. Triggers the macOS Automation (Apple Events) TCC prompt on first use.
 struct ITerm2Adapter: TerminalAdapter {
     let displayName = "iTerm2"
     let bundleID = "com.googlecode.iterm2"
 
-    func launch(_ launch: TerminalLaunch) throws {
+    func launch(_ launch: TerminalLaunch) throws -> LaunchOutcome {
         guard isInstalled else { throw TerminalLaunchError.notInstalled }
         let cmd = "cd \(shellQuote(launch.workingDirectory)) && \(launch.command)"
-        // Escape for embedding inside an AppleScript double-quoted string.
-        let escaped = cmd
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
         let script = """
         tell application "iTerm2"
-            create window with default profile command "\(ShellEnvironment.loginShell) -i -c \\"\(escaped)\\""
+            set w to (create window with default profile)
+            tell current session of w to write text "\(appleScriptEscape(cmd))"
             activate
         end tell
         """
         try AppleScriptRunner.run(script)
+        return LaunchOutcome()
     }
 }
 
@@ -156,22 +183,51 @@ struct AppleTerminalAdapter: TerminalAdapter {
     let displayName = "Terminal"
     let bundleID = "com.apple.Terminal"
 
-    func launch(_ launch: TerminalLaunch) throws {
+    func launch(_ launch: TerminalLaunch) throws -> LaunchOutcome {
         let cmd = "cd \(shellQuote(launch.workingDirectory)) && \(launch.command)"
-        let escaped = cmd
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
         let script = """
         tell application "Terminal"
-            do script "\(escaped)"
+            do script "\(appleScriptEscape(cmd))"
             activate
         end tell
         """
         try AppleScriptRunner.run(script)
+        return LaunchOutcome()
     }
 }
 
-// MARK: - AppleScript runner
+// MARK: - Warp (open-at-path + clipboard fallback)
+
+/// Warp has no supported command-injection API (issues #5405, #12343). We open
+/// a new window at the path and copy the command to the clipboard.
+struct WarpAdapter: TerminalAdapter {
+    let displayName = "Warp"
+    let bundleID = "dev.warp.Warp-Stable"
+
+    func launch(_ launch: TerminalLaunch) throws -> LaunchOutcome {
+        guard isInstalled else { throw TerminalLaunchError.notInstalled }
+        let full = "cd \(shellQuote(launch.workingDirectory)) && \(launch.command)"
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        pb.setString(full, forType: .string)
+
+        if let encoded = launch.workingDirectory
+            .addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+           let url = URL(string: "warp://action/new_window?path=\(encoded)") {
+            NSWorkspace.shared.open(url)
+        } else {
+            try run("/usr/bin/open", ["-nb", bundleID])
+        }
+        return LaunchOutcome(note: "Command copied — paste in Warp (no command-injection API)")
+    }
+}
+
+// MARK: - AppleScript
+
+private func appleScriptEscape(_ s: String) -> String {
+    s.replacingOccurrences(of: "\\", with: "\\\\")
+     .replacingOccurrences(of: "\"", with: "\\\"")
+}
 
 enum AppleScriptRunner {
     static func run(_ source: String) throws {
@@ -192,18 +248,29 @@ enum AppleScriptRunner {
 enum TerminalRegistry {
     static let all: [TerminalAdapter] = [
         GhosttyAdapter(),
+        KittyAdapter(),
+        AlacrittyAdapter(),
         WezTermAdapter(),
         ITerm2Adapter(),
         AppleTerminalAdapter(),
+        WarpAdapter(),
     ]
 
     static var installed: [TerminalAdapter] {
-        all.filter { $0.isInstalled }
+        all.filter(\.isInstalled)
     }
 
-    /// The adapter we'll launch into by default: first installed, with
-    /// Terminal.app as the always-present fallback.
-    static var preferred: TerminalAdapter {
-        installed.first ?? AppleTerminalAdapter()
+    static func adapter(forBundleID id: String?) -> TerminalAdapter? {
+        guard let id else { return nil }
+        return all.first { $0.bundleID == id }
+    }
+
+    /// The adapter to launch into: the user's preference if installed, else the
+    /// first installed terminal, with Terminal.app as the always-present fallback.
+    static func preferred(settings: Settings) -> TerminalAdapter {
+        if let chosen = adapter(forBundleID: settings.preferredTerminalBundleID), chosen.isInstalled {
+            return chosen
+        }
+        return installed.first ?? AppleTerminalAdapter()
     }
 }

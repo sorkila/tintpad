@@ -81,10 +81,11 @@ final class CommandPanelController: NSObject {
     }
 
     private func makePanel() -> CommandPanel {
-        let rect = NSRect(x: 0, y: 0, width: 640, height: 420)
+        let width = AppStore.shared.settings.panelWidth
+        let rect = NSRect(x: 0, y: 0, width: width, height: 420)
         let panel = CommandPanel(contentRect: rect)
         panel.controller = self
-        let root = PaletteView(onClose: { [weak self] in self?.hide() })
+        let root = PaletteView(store: AppStore.shared, onClose: { [weak self] in self?.hide() })
         let hosting = NSHostingView(rootView: root)
         hosting.frame = panel.contentView?.bounds ?? rect
         hosting.autoresizingMask = [.width, .height]
