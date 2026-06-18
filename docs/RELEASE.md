@@ -1,23 +1,38 @@
 # Tintpad — Release & Launch Handoff
 
-Everything below needs your accounts/credentials, so it's documented rather than
-automated. The app code for each is already wired.
+The pipeline is wired and the Sparkle key is set. The remaining steps need your
+Apple Developer credentials, which only you can supply.
 
-## 1. Code signing + notarization
-- Developer ID Application cert in the login keychain.
-- Store notary creds once: `xcrun notarytool store-credentials` → profile name.
-- Run: `SIGN_IDENTITY="Developer ID Application: … (TEAMID)" NOTARY_PROFILE="<profile>" ./Scripts/package.sh`
-- Produces a signed, hardened-runtime, notarized, stapled DMG.
+## Release in 3 commands
+```sh
+# 1. One-time: store notary creds in a keychain profile
+xcrun notarytool store-credentials tintpad-notary \
+  --apple-id you@example.com --team-id TEAMID --password <app-specific-password>
 
-## 2. Sparkle auto-update
-- Generate keys: `./Sparkle/bin/generate_keys` (private key → Keychain; prints public).
-- Put the public key in `Resources/Info.plist` → `SUPublicEDKey`.
-- Embed `Sparkle.framework` (with its XPCServices) into `Contents/Frameworks` of
-  the release `.app` — SPM links Sparkle statically and does NOT include the
-  privileged install helpers. See the note in `Scripts/package.sh`.
-- Generate the appcast from your releases dir: `./Sparkle/bin/generate_appcast <dir>`
-  (signs each DMG, fills `sparkle:edSignature` + `length`). Template: `Scripts/appcast.xml`.
-- Host `appcast.xml` at `https://tintpad.com/appcast.xml` (matches `SUFeedURL`).
+# 2. Build → sign → notarize → staple → DMG (one command)
+SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
+NOTARY_PROFILE="tintpad-notary" ./Scripts/package.sh
+#   → .build/release/Tintpad.dmg (notarized + stapled; prints the sha256)
+
+# 3. Sign the appcast entry and publish it
+.build/artifacts/sparkle/Sparkle/bin/sign_update .build/release/Tintpad.dmg
+#   → paste sparkle:edSignature + length into Scripts/appcast.xml, host it at
+#     https://tintpad.com/appcast.xml (commit appcast under web/ to auto-deploy it)
+```
+Without `SIGN_IDENTITY`, `package.sh` still produces a runnable **unsigned DMG**
+for local testing.
+
+## What's already done
+- ✅ **Sparkle public key** is in `Info.plist` (`SUPublicEDKey`); the private key
+  is in your login Keychain (shared with your other apps). `generate_keys` already ran.
+- ✅ `package.sh` embeds `Sparkle.framework` and signs its nested XPC services /
+  Autoupdate / Updater.app **inside-out before the app** (the notarization gotcha).
+- ✅ Always emits a DMG; notarizes + staples it when creds are present, and prints its sha256.
+- ⏳ You provide: the Developer ID cert + notary profile (step 1–2 above).
+
+## Homebrew (after the first notarized DMG)
+- Fill `version` + the printed `sha256` into `Casks/tintpad.rb`, push to
+  `sorkila/homebrew-tap`. See `docs/HOMEBREW.md`.
 
 ## 3. Licensing server
 - Private signing key + format + a working sample key: `secrets/license-private-key.txt` (gitignored).

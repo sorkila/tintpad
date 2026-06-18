@@ -42,22 +42,39 @@ fi
 
 if [[ -n "${SIGN_IDENTITY:-}" ]]; then
   echo "▸ Signing with hardened runtime…"
+  sign() { codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$@"; }
+  # Sparkle: sign the nested code inside-out BEFORE the app, or notarization fails.
+  FW="$APP/Contents/Frameworks/Sparkle.framework"
+  if [[ -d "$FW" ]]; then
+    V="$FW/Versions/B"
+    for x in "$V/XPCServices/Downloader.xpc" "$V/XPCServices/Installer.xpc" \
+             "$V/Autoupdate" "$V/Updater.app"; do
+      [[ -e "$x" ]] && sign "$x"
+    done
+    sign "$FW"
+  fi
+  # The app itself carries the entitlements.
   codesign --force --options runtime --timestamp \
     --sign "$SIGN_IDENTITY" \
     --entitlements "Resources/Tintpad.entitlements" \
     "$APP"
   codesign --verify --strict --verbose=2 "$APP"
 else
-  echo "▸ SIGN_IDENTITY not set — skipping signing (app will run locally only)."
+  echo "▸ SIGN_IDENTITY not set — skipping signing (app runs locally only)."
 fi
 
+# Always build a DMG so there's a testable/distributable artifact.
+DMG="${BUILD_DIR}/${APP_NAME}.dmg"
+echo "▸ Creating ${DMG}…"
+hdiutil create -volname "$APP_NAME" -srcfolder "$APP" -ov -format UDZO "$DMG" >/dev/null
+
 if [[ -n "${NOTARY_PROFILE:-}" && -n "${SIGN_IDENTITY:-}" ]]; then
-  DMG="${BUILD_DIR}/${APP_NAME}.dmg"
-  echo "▸ Creating DMG and notarizing…"
-  hdiutil create -volname "$APP_NAME" -srcfolder "$APP" -ov -format UDZO "$DMG"
+  echo "▸ Notarizing…"
   xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait
   xcrun stapler staple "$DMG"
-  echo "▸ Notarized DMG: $DMG"
+  echo "▸ Notarized DMG: $DMG  (sha256: $(shasum -a 256 "$DMG" | cut -d' ' -f1))"
+else
+  echo "▸ Unsigned DMG (local testing only): $DMG"
 fi
 
 echo "✓ Done: $APP"

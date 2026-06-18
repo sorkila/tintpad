@@ -48,7 +48,7 @@
     <key>SUFeedURL</key>
     <string>https://tintpad.com/appcast.xml</string>
     <key>SUPublicEDKey</key>
-    <string>REPLACE_WITH_SPARKLE_PUBLIC_ED_KEY</string>
+    <string>ySK9S3I/sYkwt9qR+xdJmJfpApQIibkJwIj9nX/nQak=</string>
     <key>SUEnableAutomaticChecks</key>
     <true/>
     <key>SUScheduledCheckInterval</key>
