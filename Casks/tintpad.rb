@@ -10,7 +10,7 @@ cask "tintpad" do
   desc "Menu-bar launcher that summons a coding agent into your terminal at the right repo"
   homepage "https://tintpad.com"
 
-  depends_on macos: ">= :sonoma"
+  depends_on macos: :sonoma
 
   app "Tintpad.app"
 
