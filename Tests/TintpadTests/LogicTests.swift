@@ -25,6 +25,18 @@ final class FrecencyTests: XCTestCase {
         XCTAssertEqual(Frecency.ordered([a, c], now: now, halfLifeDays: 30).map(\.name), ["charlie", "alpha"])
     }
 
+    // Guards the arrow-nav-jumping regression: the list order must not change as
+    // time ticks (a non-transitive epsilon comparator made it reshuffle per render).
+    func testOrderingStableAcrossTimeJitter() {
+        let now = Date(timeIntervalSince1970: 2_000_000)
+        var repos = ["alpha", "bravo", "charlie", "delta", "echo"].map { Repo(path: "/\($0)", name: $0) }
+        repos[1].frecencyScore = 3; repos[1].lastLaunchedAt = now.addingTimeInterval(-3600)
+        repos[3].frecencyScore = 3; repos[3].lastLaunchedAt = now.addingTimeInterval(-3600) // ties bravo
+        let a = Frecency.ordered(repos, now: now, halfLifeDays: 30).map(\.name)
+        let b = Frecency.ordered(repos, now: now.addingTimeInterval(1.5), halfLifeDays: 30).map(\.name)
+        XCTAssertEqual(a, b, "frecency order must be stable as time advances")
+    }
+
     func testRecordVisitIncrementsAndReanchors() {
         var repo = Repo(path: "/x", name: "x")
         let now = Date(timeIntervalSince1970: 2_000_000)

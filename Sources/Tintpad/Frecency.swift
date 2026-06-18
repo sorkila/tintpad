@@ -24,9 +24,12 @@ enum Frecency {
     static func ordered(_ repos: [Repo], now: Date, halfLifeDays: Double) -> [Repo] {
         repos.sorted { a, b in
             if a.pinned != b.pinned { return a.pinned }
+            // Exact comparison (no epsilon band) — an epsilon "≈ tie" breaks
+            // transitivity, which makes sort() produce shuffling, inconsistent
+            // orderings. Scores are computed from one `now`, so this is stable.
             let sa = decayedScore(a, now: now, halfLifeDays: halfLifeDays)
             let sb = decayedScore(b, now: now, halfLifeDays: halfLifeDays)
-            if abs(sa - sb) > 0.0001 { return sa > sb }
+            if sa != sb { return sa > sb }
             let la = a.lastLaunchedAt ?? .distantPast
             let lb = b.lastLaunchedAt ?? .distantPast
             if la != lb { return la > lb }
