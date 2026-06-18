@@ -123,9 +123,11 @@
   details[open] summary::after{content:"−"}
   details p{margin-top:11px;font-size:14.5px;color:var(--dim);max-width:560px}
 
-  form{margin-top:18px;display:flex;gap:9px;max-width:430px}
-  input{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 15px;color:var(--text);font-family:var(--sans);font-size:15px}
-  input:focus{outline:none;border-color:rgba(255,115,51,.5)}
+  #get .actions{margin-top:26px;justify-content:flex-start}
+  .dl{margin-top:22px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .dl .lbl{color:var(--faint);font-size:12.5px;font-family:var(--mono);letter-spacing:.01em}
+  .dl code{background:var(--panel);border:1px solid var(--line);border-radius:9px;
+    padding:9px 13px;color:var(--dim);font-size:13.5px;user-select:all}
   footer{padding:40px 0 64px;color:var(--faint);font-size:12.5px;font-family:var(--mono);border-top:1px solid var(--line)}
   @media (prefers-reduced-motion: no-preference){
     .demo .hl{opacity:0;animation:hlin .45s ease .6s forwards}
@@ -157,8 +159,8 @@
        Codex, or whatever you run already going. It hands off to the terminal you
        use, not a new one.</p>
     <div class="actions">
-      <a href="#get"><button class="buy">Get early access</button></a>
-      <a class="ghost" href="https://github.com/sorkila/tintpad">build from source ›</a>
+      <a href="https://github.com/sorkila/tintpad/releases/latest"><button class="buy">Download for macOS</button></a>
+      <a class="ghost" href="https://github.com/sorkila/tintpad">view source ›</a>
     </div>
     <div class="meta">macOS 14+ · native Swift · signed &amp; notarized · no accounts</div>
 
@@ -215,12 +217,16 @@
 
 <section id="get">
   <div class="wrap">
-    <h2>GET THE RELEASE</h2>
-    <p class="lede">Email for launch day and the early price.</p>
-    <form action="REPLACE_WITH_EMAIL_PROVIDER_ENDPOINT" method="post">
-      <input type="email" name="email" placeholder="you@example.com" required />
-      <button class="buy" type="submit">Notify me</button>
-    </form>
+    <h2>GET TINTPAD</h2>
+    <p class="lede">macOS 14 or later. Free, MIT, no account.</p>
+    <div class="actions">
+      <a href="https://github.com/sorkila/tintpad/releases/latest"><button class="buy">Download for macOS</button></a>
+      <a class="ghost" href="https://github.com/sorkila/tintpad">view source ›</a>
+    </div>
+    <div class="dl">
+      <span class="lbl">Homebrew</span>
+      <code class="mono">brew install --cask sorkila/tap/tintpad</code>
+    </div>
   </div>
 </section>
 
