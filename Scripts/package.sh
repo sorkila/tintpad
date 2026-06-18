@@ -13,19 +13,26 @@ cd "$(dirname "$0")/.."
 
 APP_NAME="Tintpad"
 BUILD_DIR=".build/release"
-APP="${BUILD_DIR}/${APP_NAME}.app"
+# Assemble + sign in a scratch dir OFF the iCloud/fileprovider volume. That volume
+# re-adds the com.apple.FinderInfo "detritus" codesign rejects (even right after we
+# strip it), so signing in place fails. TMPDIR is local — there it stays stripped.
+WORK="${TMPDIR:-/tmp}/tintpad-package"
+APP="${WORK}/${APP_NAME}.app"
+DMG_OUT="${BUILD_DIR}/${APP_NAME}.dmg"
 
 echo "▸ Building release…"
 swift build -c release
 
-echo "▸ Assembling ${APP}…"
-rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+echo "▸ Assembling ${APP} (scratch: ${WORK})…"
+rm -rf "$WORK"; mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BUILD_DIR/$APP_NAME" "$APP/Contents/MacOS/$APP_NAME"
 cp "Resources/Info.plist" "$APP/Contents/Info.plist"
 cp "Resources/Tintpad.icns" "$APP/Contents/Resources/Tintpad.icns"
-# Bundle the SwiftPM resource bundles (e.g. KeyboardShortcuts) next to the binary.
-cp -R "$BUILD_DIR"/*.bundle "$APP/Contents/MacOS/" 2>/dev/null || true
+# ditto (not cp -R) so the SPM resource bundles don't carry Finder info / resource
+# forks into the bundle — that's what codesign rejected as "detritus".
+for b in "$BUILD_DIR"/*.bundle; do
+  [[ -d "$b" ]] && ditto --noextattr --norsrc --noacl "$b" "$APP/Contents/MacOS/$(basename "$b")"
+done
 
 # Embed Sparkle.framework (SPM builds it as a dynamic framework). The binary's
 # rpaths include @loader_path; we also add @executable_path/../Frameworks so the
@@ -92,18 +99,29 @@ else
   echo "▸ SIGN_IDENTITY not set — skipping signing (app runs locally only)."
 fi
 
-# Always build a DMG so there's a testable/distributable artifact.
-DMG="${BUILD_DIR}/${APP_NAME}.dmg"
-echo "▸ Creating ${DMG}…"
-hdiutil create -volname "$APP_NAME" -srcfolder "$APP" -ov -format UDZO "$DMG" >/dev/null
+# Build the DMG in the scratch dir, then notarize/staple, then copy back to
+# .build/release (where release.sh expects it).
+DMG_WORK="${WORK}/${APP_NAME}.dmg"
+echo "▸ Creating DMG…"
+hdiutil create -volname "$APP_NAME" -srcfolder "$APP" -ov -format UDZO "$DMG_WORK" >/dev/null
 
 if [[ -n "${NOTARY_PROFILE:-}" && -n "${SIGN_IDENTITY:-}" ]]; then
   echo "▸ Notarizing…"
-  xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait
-  xcrun stapler staple "$DMG"
-  echo "▸ Notarized DMG: $DMG  (sha256: $(shasum -a 256 "$DMG" | cut -d' ' -f1))"
-else
-  echo "▸ Unsigned DMG (local testing only): $DMG"
+  xcrun notarytool submit "$DMG_WORK" --keychain-profile "$NOTARY_PROFILE" --wait
+  xcrun stapler staple "$DMG_WORK"
 fi
 
-echo "✓ Done: $APP"
+mkdir -p "$BUILD_DIR"
+cp "$DMG_WORK" "$DMG_OUT"
+rm -rf "$BUILD_DIR/${APP_NAME}.app"
+ditto "$APP" "$BUILD_DIR/${APP_NAME}.app"   # signed app back for inspection
+
+if [[ -n "${NOTARY_PROFILE:-}" && -n "${SIGN_IDENTITY:-}" ]]; then
+  echo "▸ Notarized + stapled DMG: $DMG_OUT  (sha256: $(shasum -a 256 "$DMG_OUT" | cut -d' ' -f1))"
+elif [[ -n "${SIGN_IDENTITY:-}" ]]; then
+  echo "▸ Signed (not notarized) DMG: $DMG_OUT"
+else
+  echo "▸ Unsigned DMG (local testing only): $DMG_OUT"
+fi
+
+echo "✓ Done: $DMG_OUT"
