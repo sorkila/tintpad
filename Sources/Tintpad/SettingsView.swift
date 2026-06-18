@@ -42,7 +42,9 @@ struct SettingsView: View {
             .navigationTitle("")
         }
         .navigationSplitViewStyle(.balanced)
-        .frame(minWidth: 740, idealWidth: 800, minHeight: 540, idealHeight: 600)
+        // Roomier default: the Agents pane nests a second list inside the detail,
+        // so a wider window keeps its editor from getting cramped.
+        .frame(minWidth: 820, idealWidth: 920, minHeight: 560, idealHeight: 640)
     }
 
     private func rows(_ tabs: [SettingsTab]) -> some View {
@@ -107,7 +109,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 
     var subtitle: String {
         switch self {
-        case .general:    "Startup, terminal, editor, and safety"
+        case .general:    "Startup, terminal, and editor"
         case .hotkeys:    "Global keyboard shortcuts"
         case .repos:      "Your repositories and scan roots"
         case .agents:     "Agents, command templates, and run modes"
