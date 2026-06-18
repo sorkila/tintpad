@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Tintpad</title>
+    <link>https://tintpad.com/appcast.xml</link>
+    <item>
+      <title>0.1.0</title>
+      <sparkle:version>1</sparkle:version>
+      <sparkle:shortVersionString>0.1.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <enclosure url="https://github.com/sorkila/tintpad/releases/download/v0.1.0/Tintpad.dmg" sparkle:edSignature="+xy7NZ3umdzERWVGtMEMGrz6gFGTCfMoSZr2D8tJrMgT6rqLECa7+tUsDSGBo9ws5/TNZngqfksrUOs4+rIEBA==" length="4655463" type="application/octet-stream"/>
+    </item>
+  </channel>
+</rss>
