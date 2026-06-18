@@ -95,7 +95,7 @@
   .demo .f{display:flex;gap:14px;align-items:center;padding:11px 14px;border-top:1px solid var(--line);color:var(--faint);font-size:11px;font-family:var(--mono)}
   .demo .f .key{color:var(--dim);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.05);border-radius:5px;padding:1.5px 5px;transition:color .2s,background .2s,border-color .2s}
   .demo .f .key.hit{color:#170a03;background:var(--accent);border-color:var(--accent)}
-  .demo .f .cmd{margin-left:auto;color:var(--dim)}
+  .demo .f .cmd{margin-left:auto;color:var(--dim);max-width:42%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
   section{padding:46px 0}
   section + section{border-top:1px solid var(--line)}
@@ -261,7 +261,7 @@
   var kLaunch = document.getElementById('kLaunch');
   if (!rows.length) return;
   var data = [
-    {name:'delta-api', cmd:'cd delta-api && claude'},
+    {name:'delta-api', cmd:'git worktree add fix-auth && claude'},
     {name:'delta-worker', cmd:'cd delta-worker && codex'},
     {name:'delta-infra', cmd:'cd delta-infra && claude'},
     {name:'delta-web', cmd:'cd delta-web && codex'}
