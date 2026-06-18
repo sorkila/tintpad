@@ -30,11 +30,30 @@ SHA="$(shasum -a 256 "$DMG" | cut -d' ' -f1)"
 echo "▸ DMG sha256: ${SHA}"
 
 # 2. GitHub Release with the DMG.
+NOTES="$(cat <<EOF
+**Tintpad**: press ⌥⌘Space, fuzzy-find a repo, hit Enter, and your terminal opens there with
+your coding agent (Claude Code, Codex, …) already running. Hands off to the terminal you already
+use. Native, local-only, free and open source.
+
+### Install
+- **Download \`Tintpad.dmg\` below**, drag to Applications, launch. macOS 14+.
+- or \`brew install --cask sorkila/tap/tintpad\`
+- The build is signed with a Developer ID and notarized, so it opens past Gatekeeper. Auto-updates via Sparkle.
+
+### What's inside
+- Frecency repo search, Safe / Default / YOLO run modes (mapped to each agent's real flags), git worktrees (⌃W), headless dispatch (⌃↵), prompt library, per-repo presets, GitHub import.
+- 7 terminals: Ghostty, iTerm2, kitty, WezTerm, Alacritty, Terminal.app, Warp.
+- Light + dark. Local-only: no accounts, no telemetry, nothing leaves your Mac.
+- Free and MIT, the whole app. The optional Supporter tip only unlocks custom accent tints.
+
+Full notes: [CHANGELOG.md](https://github.com/${REPO}/blob/main/CHANGELOG.md) · sha256 \`${SHA}\`
+EOF
+)"
 if gh release view "$TAG" -R "$REPO" >/dev/null 2>&1; then
   gh release upload "$TAG" "$DMG" --clobber -R "$REPO"
+  gh release edit "$TAG" -R "$REPO" --title "Tintpad ${VERSION}" --notes "$NOTES"
 else
-  gh release create "$TAG" "$DMG" -R "$REPO" \
-    --title "Tintpad ${VERSION}" --notes "See CHANGELOG.md"
+  gh release create "$TAG" "$DMG" -R "$REPO" --title "Tintpad ${VERSION}" --notes "$NOTES"
 fi
 
 # 3. Sparkle appcast (auto-deploys via web/ → tintpad.com/appcast.xml).

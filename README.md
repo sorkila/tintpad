@@ -40,16 +40,24 @@ at the right directory. The boring 2-second thing you do twenty times a day, gon
 
 ## Install
 
+**Download** the latest signed, notarized `Tintpad.dmg` from the
+[releases page](https://github.com/sorkila/tintpad/releases/latest), drag it to
+Applications, and launch. macOS 14+.
+
+Or with Homebrew:
+
 ```sh
-# Build from source (the supported path today)
+brew install --cask sorkila/tap/tintpad
+```
+
+Or build from source (macOS 14+, Swift 6 toolchain / Xcode 16+):
+
+```sh
 git clone https://github.com/sorkila/tintpad.git
 cd tintpad
 swift run                  # dev run
 ./Scripts/package.sh       # build Tintpad.app into .build/release
 ```
-
-Requires macOS 14+ and a Swift 6 toolchain (Xcode 16+). A notarized build and a
-Homebrew cask (`brew install --cask sorkila/tap/tintpad`) are coming.
 
 ## Features
 

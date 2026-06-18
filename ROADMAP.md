@@ -20,10 +20,8 @@ it." That's the whole job right now.
 - **Homebrew cask.** `brew install --cask sorkila/tap/tintpad`. Trivial once the
   notarized DMG has a stable download URL. Depends on the release above.
   **[needs maintainer accounts]**
-- **Demo GIF.** The README has a `TODO` hole where the pitch should be: summon →
-  pick → terminal opens, under two seconds. Reviewers want it to show something an
-  alias can't, worktree spin-up or a frecency reorder, not `cd && claude`. It
-  carries the whole front page.
+- **Demo.** ✅ Done, `docs/assets/demo.gif` carries the README hero and a cropped
+  video runs on tintpad.com: summon → pick → terminal opens with the agent running.
 - **Accessibility: the Tab/VoiceOver fix.** `PaletteView.handle` swallows Tab and
   Shift-Tab to cycle agents, which blocks keyboard and VoiceOver users from moving
   between the field, list, and footer. Intercept Tab only while the search field is

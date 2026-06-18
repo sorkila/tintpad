@@ -45,14 +45,12 @@ for local testing.
 - GitHub repo: `sorkila/tintpad` (referenced by the landing page + About).
 
 ## 5. GTM (from the brief)
-- **Pre-launch:** LinkedIn build-in-public, `web/index.html` landing page at
-  tintpad.com with the waitlist form wired to your email provider
-  (`REPLACE_WITH_EMAIL_PROVIDER_ENDPOINT`).
-- **Launch day:** Product Hunt (00:01 PT, $4.99 intro), Show HN
-  ("summon any coding agent into your terminal at the right repo in 2s"),
-  r/macapps · r/ClaudeAI · r/commandline · r/swift.
+- **Pre-launch:** LinkedIn build-in-public, `web/index.html` landing page live at
+  tintpad.com with a direct download (no waitlist, it's free).
+- **Launch day:** Product Hunt (00:01 PT), Show HN ("summon any coding agent into
+  your terminal at the right repo in 2s"), r/macapps · r/ClaudeAI · r/ChatGPTCoding ·
+  r/commandline · r/swift.
 - **Sustain:** SEO blog posts (the GUI PATH problem, Safe vs YOLO, per-terminal
-  setup guides), a complementary Raycast extension, free Pro licenses to
-  AI-coding YouTubers/newsletters, keep the core open for the GitHub-star halo.
-- **Watch:** waitlist conversion, launch-day downloads, free→Pro at $4.99 vs
-  $9.99, review velocity, which terminal adapters dominate.
+  setup guides), a complementary Raycast extension, the open-source GitHub-star halo.
+- **Watch:** GitHub stars, launch-day downloads, which terminal adapters dominate,
+  tip volume, review velocity.
