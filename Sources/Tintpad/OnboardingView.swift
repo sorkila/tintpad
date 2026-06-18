@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import KeyboardShortcuts
 import SwiftUI
 
@@ -49,6 +50,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
 struct OnboardingView: View {
     let onDone: () -> Void
     @State private var terminalSel = ""
+    @State private var axTrusted = false
     private let accent = Color(red: 1.0, green: 0.45, blue: 0.20)
 
     var body: some View {
@@ -87,7 +89,7 @@ struct OnboardingView: View {
             }
 
             step(3, "Permissions", permissionsBlurb) {
-                EmptyView()
+                permissionsControl
             }
 
             Button(action: onDone) {
@@ -100,7 +102,44 @@ struct OnboardingView: View {
         .frame(width: 440, alignment: .topLeading)
         .fixedSize(horizontal: false, vertical: true)
         .background(Color(red: 0.07, green: 0.07, blue: 0.07))
-        .onAppear { terminalSel = AppStore.shared.settings.preferredTerminalBundleID ?? "" }
+        .onAppear {
+            terminalSel = AppStore.shared.settings.preferredTerminalBundleID ?? ""
+            axTrusted = AXIsProcessTrusted()
+        }
+        // Re-check after the user returns from System Settings.
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            axTrusted = AXIsProcessTrusted()
+        }
+    }
+
+    /// The actionable part of step 3: grant Accessibility (Ghostty) or open the
+    /// Automation pane (AppleScript terminals). CLI terminals need nothing.
+    @ViewBuilder private var permissionsControl: some View {
+        switch resolvedTerminalID {
+        case "com.mitchellh.ghostty":
+            if axTrusted {
+                Label("Accessibility granted", systemImage: "checkmark.circle.fill")
+                    .font(.callout).foregroundStyle(.green)
+            } else {
+                Button("Grant Accessibility…") { requestAccessibility() }
+            }
+        case "com.googlecode.iterm2", "com.apple.Terminal":
+            Button("Open Privacy Settings…") { openPrivacy("Privacy_Automation") }
+        default:
+            EmptyView()
+        }
+    }
+
+    private func requestAccessibility() {
+        let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
+        _ = AXIsProcessTrustedWithOptions([key: true] as CFDictionary)  // prompts + adds to the list
+        openPrivacy("Privacy_Accessibility")
+    }
+
+    private func openPrivacy(_ anchor: String) {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(anchor)") {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     /// The terminal that handoff will actually use (explicit choice, or first detected).
