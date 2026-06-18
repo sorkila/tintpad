@@ -40,9 +40,9 @@ at the right directory. The boring 2-second thing you do twenty times a day, gon
 
 ## Install
 
-**Download** the latest signed, notarized `Tintpad.dmg` from the
-[releases page](https://github.com/sorkila/tintpad/releases/latest), drag it to
-Applications, and launch. macOS 14+.
+**[Download the latest signed, notarized `Tintpad.dmg`](https://github.com/sorkila/tintpad/releases/latest/download/Tintpad.dmg)**,
+drag it to Applications, and launch. macOS 14+.
+(Or browse all [releases](https://github.com/sorkila/tintpad/releases).)
 
 Or with Homebrew:
 
