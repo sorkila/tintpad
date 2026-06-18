@@ -711,9 +711,8 @@ private struct FooterButton: View {
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .onHover { inside in
-            hovering = inside
-            if inside { NSCursor.pointingHand.set() } else { NSCursor.arrow.set() }
-        }
+        // Hover highlight only — no manual NSCursor.set(), which can leave a
+        // stray cursor if the panel closes mid-hover.
+        .onHover { hovering = $0 }
     }
 }

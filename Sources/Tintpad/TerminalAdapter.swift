@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import Foundation
 
 /// A launch request: open a terminal at `workingDirectory` and run `command`.
@@ -107,6 +108,13 @@ struct GhosttyAdapter: TerminalAdapter {
 
     func launch(_ launch: TerminalLaunch) throws -> LaunchOutcome {
         guard isInstalled else { throw TerminalLaunchError.notInstalled }
+        // Ghostty handoff types the command via System Events, which needs
+        // Accessibility. Without it the keystrokes silently no-op — so fail loudly
+        // instead. (Rebuilding an unsigned app resets this grant in macOS.)
+        guard AXIsProcessTrusted() else {
+            throw TerminalLaunchError.launchFailed(
+                "Ghostty needs Accessibility. Grant Tintpad in System Settings → Privacy & Security → Accessibility, then relaunch.")
+        }
         let cmd = "cd \(shellQuote(launch.workingDirectory)) && \(launch.command)"
         let newKey = launch.openInTab ? "t" : "n"   // ⌘T tab / ⌘N window
         let script = """
