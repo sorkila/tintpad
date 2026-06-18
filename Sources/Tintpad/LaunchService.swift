@@ -5,26 +5,41 @@ import Foundation
 /// frecency + session history.
 @MainActor
 enum LaunchService {
-    @discardableResult
-    static func launchAgent(repo: Repo, agent: Agent, mode: RunMode,
-                            prompt: String?, store: AppStore,
-                            worktreePath: String? = nil) throws -> LaunchOutcome {
+    /// Resolves the terminal to launch into. Injectable so the launch path can be
+    /// exercised in tests with a fake adapter instead of spawning a real terminal.
+    static var resolveTerminal: @MainActor (Settings) -> TerminalAdapter = {
+        TerminalRegistry.preferred(settings: $0)
+    }
+
+    /// Pure: turn a launch request into the concrete `TerminalLaunch` (working
+    /// directory + resolved command + tab preference). No side effects, no store —
+    /// this is the decision logic, unit-tested in isolation.
+    nonisolated static func makeLaunch(repo: Repo, agent: Agent, mode: RunMode,
+                                       prompt: String?, worktreePath: String?,
+                                       settings: Settings) throws -> TerminalLaunch {
         let workingDir = worktreePath ?? repo.path
         let git = GitInfo.read(at: workingDir)
         let ctx = CommandTemplate.Context(
             repo: repo, mode: mode, prompt: prompt, branch: git.branch,
             remote: git.remoteURL, worktreePath: worktreePath)
         let command = try CommandTemplate.resolved(agent.commandTemplate, context: ctx)
+        return TerminalLaunch(workingDirectory: workingDir, command: command,
+                              openInTab: settings.openInNewTab)
+    }
+
+    @discardableResult
+    static func launchAgent(repo: Repo, agent: Agent, mode: RunMode,
+                            prompt: String?, store: AppStore,
+                            worktreePath: String? = nil) throws -> LaunchOutcome {
+        let launch = try makeLaunch(repo: repo, agent: agent, mode: mode, prompt: prompt,
+                                    worktreePath: worktreePath, settings: store.settings)
 
         // Multi-step: optionally open the editor alongside the terminal+agent.
         if store.settings.alsoOpenEditor, let editor = EditorRegistry.preferred(settings: store.settings) {
-            try? editor.open(path: workingDir)
+            try? editor.open(path: launch.workingDirectory)
         }
 
-        let terminal = TerminalRegistry.preferred(settings: store.settings)
-        let outcome = try terminal.launch(TerminalLaunch(
-            workingDirectory: workingDir, command: command,
-            openInTab: store.settings.openInNewTab))
+        let outcome = try resolveTerminal(store.settings).launch(launch)
         store.recordLaunch(repoID: repo.id)
         store.recordSession(repo: repo, agent: agent, mode: mode, prompt: prompt)
         return outcome

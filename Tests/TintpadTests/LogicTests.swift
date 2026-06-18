@@ -80,6 +80,35 @@ final class CommandTemplateTests: XCTestCase {
     }
 }
 
+final class LaunchResolutionTests: XCTestCase {
+    private func agent(_ template: String) -> Agent {
+        Agent(name: "T", commandTemplate: template, acceptsPrompt: true, tintHex: nil,
+              symbol: "terminal", modes: [.defaultMode()], defaultModeID: nil)
+    }
+
+    func testMakeLaunchResolvesCommandAndWorkingDir() throws {
+        // A "/"-prefixed binary is trusted as-is, so resolution is deterministic.
+        let mode = RunMode(name: "YOLO", flags: "--go", isDangerous: true, description: "")
+        var s = Settings(); s.openInNewTab = false
+        let launch = try LaunchService.makeLaunch(
+            repo: Repo(path: "/tmp/acme", name: "acme"), agent: agent("/bin/echo {mode} {prompt}"),
+            mode: mode, prompt: "fix it", worktreePath: nil, settings: s)
+        XCTAssertEqual(launch.workingDirectory, "/tmp/acme")
+        XCTAssertEqual(launch.command, "/bin/echo --go 'fix it'")
+        XCTAssertFalse(launch.openInTab)
+    }
+
+    func testMakeLaunchHonorsTabSettingAndWorktree() throws {
+        var s = Settings(); s.openInNewTab = true
+        let launch = try LaunchService.makeLaunch(
+            repo: Repo(path: "/tmp/acme", name: "acme"), agent: agent("/bin/echo"),
+            mode: .defaultMode(), prompt: nil, worktreePath: "/tmp/wt/feature", settings: s)
+        XCTAssertTrue(launch.openInTab)
+        XCTAssertEqual(launch.workingDirectory, "/tmp/wt/feature")
+        XCTAssertEqual(launch.command, "/bin/echo")
+    }
+}
+
 final class LicenseTests: XCTestCase {
     // The sample Pro key signed by the embedded public key (see secrets/).
     private let validKey = "eyJlbWFpbCI6ImVyaWtAc29ya2lsYS5jb20iLCJwbGFuIjoicHJvIiwiaWF0IjoxNzUwMDAwMDAwfQ==.HqALR7nuRgB6AeUq7daHFd33+ESLZn2qdMbMaKk1FwoIAACRxgs5rSXdkG2A2bxPXGJ4g1jRCNrQJ2LS08DeCQ=="
