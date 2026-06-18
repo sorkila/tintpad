@@ -53,7 +53,9 @@ final class PaletteModel: ObservableObject {
     }
 
     func activeAgent(for repo: Repo) -> Agent? {
-        if let override = store.agent(agentOverrideID) { return override }
+        // The ⇥ override only applies to the row you're on — other rows keep their
+        // own default agent.
+        if repo.id == selectedRepo?.id, let override = store.agent(agentOverrideID) { return override }
         if let def = store.agent(repo.defaultAgentID) { return def }
         return store.agents.first
     }
@@ -126,6 +128,9 @@ final class PaletteModel: ObservableObject {
         let count = filtered.count
         guard count > 0 else { return }
         selection = (selection + delta + count) % count
+        // Agent/mode overrides belong to the row you were on — reset on move.
+        agentOverrideID = nil
+        modeOverrideID = nil
         clearTransient()
     }
 
@@ -164,7 +169,9 @@ final class PaletteModel: ObservableObject {
 
     /// The mode that a plain ⏎ will use right now (no modifiers) — drives the chip.
     func displayMode(agent: Agent, repo: Repo) -> RunMode {
-        if let id = modeOverrideID, let m = agent.modes.first(where: { $0.id == id }) { return m }
+        // The ⇧⇥ override is scoped to the selected row too.
+        if repo.id == selectedRepo?.id,
+           let id = modeOverrideID, let m = agent.modes.first(where: { $0.id == id }) { return m }
         if let pinned = repo.defaultModeID, let m = agent.modes.first(where: { $0.id == pinned }) { return m }
         return agent.defaultMode
     }
