@@ -16,8 +16,8 @@ Especially interested in:
 
 ## What's already known / by design
 
-- **The offline license is client-side and patchable.** That's intentional — Tintpad is
-  MIT and free; the Supporter unlock is a tip, not DRM. "Bypassing" it isn't a vulnerability.
+- **The offline license is client-side and patchable.** That's intentional, Tintpad is
+  MIT and free, the Supporter unlock is a tip, not DRM. "Bypassing" it isn't a vulnerability.
 - **It needs Accessibility only for Ghostty** (which has no command-open API on macOS, so
   Tintpad types the command). It's optional and scoped to launching.
 - **Local-only**: no accounts, no telemetry. A GitHub PAT (if you add one) lives in the Keychain.

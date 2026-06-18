@@ -1,6 +1,6 @@
 # Contributing to Tintpad
 
-Thanks for being here. Tintpad is a small, native Swift app — PRs, issues, and
+Thanks for being here. Tintpad is a small, native Swift app, PRs, issues, and
 terminal adapters are all welcome.
 
 ## Getting set up
@@ -46,11 +46,11 @@ struct TerminalLaunch {
 Steps:
 
 1. Add a `struct MyTermAdapter: TerminalAdapter`.
-   - `bundleID` — the app's bundle identifier (e.g. `"com.example.MyTerm"`).
-   - `isInstalled` — usually `NSWorkspace.shared.urlForApplication(withBundleIdentifier:) != nil`.
-   - `launch(_:)` — open a new window/tab at `launch.workingDirectory` and run `launch.command`. Prefer a CLI flag (like kitty/Alacritty) over AppleScript; fall back to AppleScript `do script` (like Terminal/iTerm2) or keystrokes (Ghostty) only if there's no command API.
+   - `bundleID`, the app's bundle identifier (e.g. `"com.example.MyTerm"`).
+   - `isInstalled`, usually `NSWorkspace.shared.urlForApplication(withBundleIdentifier:) != nil`.
+   - `launch(_:)`, open a new window/tab at `launch.workingDirectory` and run `launch.command`. Prefer a CLI flag (like kitty/Alacritty) over AppleScript, fall back to AppleScript `do script` (like Terminal/iTerm2) or keystrokes (Ghostty) only if there's no command API.
 2. Register it in `TerminalRegistry.all` (line ~264).
-3. If you build the command string, **reuse the existing `shellQuote` helper**; never hand-concatenate paths.
+3. If you build the command string, **reuse the existing `shellQuote` helper**, never hand-concatenate paths.
 4. Test it: add `TestA`/`TestB` marker agents and run `./Scripts/uitest.sh`, or just launch and eyeball it.
 
 Open a PR titled `terminal: add <name>` with a one-line note on how you tested it.

@@ -19,13 +19,12 @@ bundled `wezterm` binary. Plenty of people live in one window and want a new tab
 instead. Add a per-terminal "new tab vs new window" preference (mirror however
 the other adapters expose launch options) and have the adapter pass the
 `wezterm cli spawn` path for tabs, falling back to a fresh window when no GUI is
-running. Keep the command build going through `CommandTemplate` / `shellQuote` —
-no hand-concatenated paths.
+running. Keep the command build going through `CommandTemplate` / `shellQuote`, no hand-concatenated paths.
 
 **Acceptance criteria**
 
 - A toggle exists to launch WezTerm in a new tab.
-- Tab mode reuses the running GUI; if WezTerm isn't running, it opens a window.
+- Tab mode reuses the running GUI, if WezTerm isn't running, it opens a window.
 - Window mode behaves exactly as today (no regression).
 - The launched shell starts in the canonicalized repo path with the command run.
 - A test covers the command string for both modes.
@@ -40,7 +39,7 @@ no hand-concatenated paths.
 This is the single most useful thing you can contribute, and it's small. Pick a
 terminal Tintpad doesn't support yet (Rio, Tabby, Hyper, your favorite) and add
 a `struct` conforming to `TerminalAdapter` in `TerminalAdapter.swift`, then
-register it in `TerminalRegistry.all`. Prefer a CLI flag over AppleScript; fall
+register it in `TerminalRegistry.all`. Prefer a CLI flag over AppleScript, fall
 back to `do script` or keystrokes only if there's no command API. The protocol
 and a worked example are in CONTRIBUTING.md under "Adding a terminal adapter."
 
@@ -49,7 +48,7 @@ and a worked example are in CONTRIBUTING.md under "Adding a terminal adapter."
 - New `TerminalAdapter` type with correct `displayName`, `bundleID`, and
   `isInstalled`.
 - Registered in `TerminalRegistry.all`.
-- `launch(_:)` opens at `workingDirectory` and runs `command`; any path goes
+- `launch(_:)` opens at `workingDirectory` and runs `command`, any path goes
   through `shellQuote`.
 - Adapter is hidden when the app isn't installed.
 - PR notes how you tested it (`./Scripts/uitest.sh` or an eyeball launch).
@@ -111,8 +110,8 @@ disk unless you want a "copy to clipboard" button. No telemetry.
 
 - `DispatchService` records the last N dispatches in memory.
 - A Settings pane lists them, newest first, with status.
-- Failures show the error; successes show the command that ran.
-- Buffer is bounded and resets on relaunch; nothing is sent anywhere.
+- Failures show the error, successes show the command that ran.
+- Buffer is bounded and resets on relaunch, nothing is sent anywhere.
 
 ---
 
@@ -123,8 +122,8 @@ disk unless you want a "copy to clipboard" button. No telemetry.
 
 When two repos have an equal decayed score in `Frecency.swift`, ordering is
 undefined, so the palette list can shuffle between launches. Add a stable
-tie-break — most recently visited first, then name — so equal-score repos always
-sort the same way. Touch only the comparator; don't change the decay math.
+tie-break, most recently visited first, then name, so equal-score repos always
+sort the same way. Touch only the comparator, don't change the decay math.
 
 **Acceptance criteria**
 
@@ -163,7 +162,7 @@ dispatch log (issue 5) if it lands.
 **Labels:** `docs`, `good first issue`
 **Difficulty:** easy
 
-The README tells; a GIF shows. Record a short loop of the hotkey summoning the
+The README tells, a GIF shows. Record a short loop of the hotkey summoning the
 palette, picking a repo, and an agent landing in the terminal at that repo. Keep
 it tight (a few seconds), reasonably sized, and drop it in `docs/assets/`, then
 reference it near the top of `README.md`.

@@ -1,4 +1,4 @@
-# Tintpad — Homebrew
+# Tintpad, Homebrew
 
 Ship Tintpad as a Homebrew cask. One command to install, one command to update.
 The cask points at a notarized DMG attached to a GitHub release. Nothing fancy.
@@ -13,7 +13,7 @@ markers for the two values only a real release can fill: `version` and `sha256`.
 ## Prerequisites
 
 You need a **notarized, stapled DMG** first. The Homebrew cask is just a pointer.
-See `docs/RELEASE.md` — short version:
+See `docs/RELEASE.md`, short version:
 
 ```sh
 SIGN_IDENTITY="Developer ID Application: … (TEAMID)" \
@@ -67,7 +67,7 @@ In `Casks/tintpad.rb`:
 - Replace the `sha256 :no_check` line with `sha256 "<digest from above>"`.
 
 The `:no_check` placeholder exists so the cask is syntactically valid before a
-real release. Never ship `:no_check` to the tap — it disables integrity
+real release. Never ship `:no_check` to the tap, it disables integrity
 verification. Fill the real digest first.
 
 ## 4. Publish to the tap
@@ -93,7 +93,7 @@ brew uninstall --cask --zap tintpad   # confirms the zap stanza is clean
 ```
 
 `--zap` should remove `~/Library/Application Support/Tintpad`. Tintpad is
-local-only — no accounts, no telemetry — so that one directory is the whole
+local-only, no accounts, no telemetry, so that one directory is the whole
 footprint.
 
 ## Updating later
@@ -103,7 +103,7 @@ commit, push. Users get it with `brew upgrade --cask tintpad`.
 
 Note: Tintpad also ships Sparkle for in-app auto-update (see `docs/RELEASE.md`).
 Sparkle and Homebrew are independent update paths. Brew users update via
-`brew upgrade`; the cask doesn't need to know about the appcast.
+`brew upgrade`, the cask doesn't need to know about the appcast.
 
 ---
 

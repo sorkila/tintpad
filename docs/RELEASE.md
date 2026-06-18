@@ -1,4 +1,4 @@
-# Tintpad — Release & Launch Handoff
+# Tintpad, Release & Launch Handoff
 
 The pipeline is wired and the Sparkle key is set. The remaining steps need your
 Apple Developer credentials, which only you can supply.
@@ -23,11 +23,11 @@ Without `SIGN_IDENTITY`, `package.sh` still produces a runnable **unsigned DMG**
 for local testing.
 
 ## What's already done
-- ✅ **Sparkle public key** is in `Info.plist` (`SUPublicEDKey`); the private key
+- ✅ **Sparkle public key** is in `Info.plist` (`SUPublicEDKey`), the private key
   is in your login Keychain (shared with your other apps). `generate_keys` already ran.
 - ✅ `package.sh` embeds `Sparkle.framework` and signs its nested XPC services /
   Autoupdate / Updater.app **inside-out before the app** (the notarization gotcha).
-- ✅ Always emits a DMG; notarizes + staples it when creds are present, and prints its sha256.
+- ✅ Always emits a DMG, notarizes + staples it when creds are present, and prints its sha256.
 - ⏳ You provide: the Developer ID cert + notary profile (step 1–2 above).
 
 ## Homebrew (after the first notarized DMG)
@@ -45,13 +45,13 @@ for local testing.
 - GitHub repo: `sorkila/tintpad` (referenced by the landing page + About).
 
 ## 5. GTM (from the brief)
-- **Pre-launch:** LinkedIn build-in-public; `web/index.html` landing page at
+- **Pre-launch:** LinkedIn build-in-public, `web/index.html` landing page at
   tintpad.com with the waitlist form wired to your email provider
   (`REPLACE_WITH_EMAIL_PROVIDER_ENDPOINT`).
 - **Launch day:** Product Hunt (00:01 PT, $4.99 intro), Show HN
   ("summon any coding agent into your terminal at the right repo in 2s"),
   r/macapps · r/ClaudeAI · r/commandline · r/swift.
-- **Sustain:** SEO blog posts (the GUI PATH problem; Safe vs YOLO; per-terminal
+- **Sustain:** SEO blog posts (the GUI PATH problem, Safe vs YOLO, per-terminal
   setup guides), a complementary Raycast extension, free Pro licenses to
   AI-coding YouTubers/newsletters, keep the core open for the GitHub-star halo.
 - **Watch:** waitlist conversion, launch-day downloads, free→Pro at $4.99 vs

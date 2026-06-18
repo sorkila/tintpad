@@ -1,7 +1,7 @@
 # Recording the demo GIF
 
 The README and PH gallery point at `docs/assets/demo.gif`. Drop the file there and
-it just works — everything's already wired. Target: a tight ~6-second loop that
+it just works, everything's already wired. Target: a tight ~6-second loop that
 shows the one thing words can't.
 
 ## What to show (the script)
@@ -11,7 +11,7 @@ shows the one thing words can't.
 4. `↓` to a repo, then `⌃W` (or just `↵`) → your terminal opens at that repo with
    the agent already running.
 
-Lead with the **worktree** or the **handoff**, not a plain `↵` — show what an alias
+Lead with the **worktree** or the **handoff**, not a plain `↵`, show what an alias
 can't. End the moment the terminal lands (don't film the agent working).
 
 ## How (you already have CleanShot)

@@ -7,7 +7,7 @@
 **Your agent. Your repo. One keystroke.**
 
 A macOS hotkey that opens your terminal at the right repo with Claude Code, Codex,
-or whatever you run — already going.
+or whatever you run, already going.
 
 [![CI](https://github.com/sorkila/tintpad/actions/workflows/ci.yml/badge.svg)](https://github.com/sorkila/tintpad/actions/workflows/ci.yml)
 &nbsp;![macOS 14+](https://img.shields.io/badge/macOS-14%2B-000)
@@ -19,7 +19,7 @@ or whatever you run — already going.
 ---
 
 Press <kbd>⌥⌘Space</kbd>. Fuzzy-find a repo. Hit <kbd>↵</kbd>. Your real terminal opens
-there with the agent running — in under two seconds, without the mouse.
+there with the agent running, in under two seconds, without the mouse.
 
 It hands off to the terminal you already use. It doesn't try to be one.
 
@@ -29,7 +29,7 @@ It hands off to the terminal you already use. It doesn't try to be one.
   <img src="docs/assets/demo.gif" alt="Tintpad: summon → fuzzy-find a repo → your terminal opens there with the agent running" width="640" />
 </div>
 
-<!-- Drop the recording at docs/assets/demo.gif — see docs/DEMO.md for the 60-second how-to. -->
+<!-- Drop the recording at docs/assets/demo.gif, see docs/DEMO.md for the 60-second how-to. -->
 
 ## Why
 
@@ -53,11 +53,11 @@ Homebrew cask (`brew install --cask sorkila/tap/tintpad`) are coming.
 
 ## Features
 
-- **Frecency repo search** — your most-used repos rise to the top, zoxide-style.
-- **Hands off to 7 terminals** — Ghostty, iTerm2, kitty, WezTerm, Alacritty, Terminal, Warp.
-- **Run modes** — Safe / Default / YOLO map to each agent's flags. The dangerous one is marked, never silent.
-- **Worktrees** — <kbd>⌃W</kbd> spins up an isolated branch checkout and launches the agent in it.
-- **Headless dispatch** — <kbd>⌃↵</kbd> runs an agent in the background and notifies you when it's done.
+- **Frecency repo search**, your most-used repos rise to the top, zoxide-style.
+- **Hands off to 7 terminals**, Ghostty, iTerm2, kitty, WezTerm, Alacritty, Terminal, Warp.
+- **Run modes**, Safe / Default / YOLO map to each agent's flags. The dangerous one is marked, never silent.
+- **Worktrees**, <kbd>⌃W</kbd> spins up an isolated branch checkout and launches the agent in it.
+- **Headless dispatch**, <kbd>⌃↵</kbd> runs an agent in the background and notifies you when it's done.
 - **Prompt library, per-repo presets, GitHub import, open-in-editor.**
 - **Local-only.** No accounts, no telemetry, nothing leaves your Mac.
 
@@ -79,7 +79,7 @@ Homebrew cask (`brew install --cask sorkila/tap/tintpad`) are coming.
 
 ## Configure
 
-Agents are just command templates with variables — set them in **Settings → Agents**:
+Agents are just command templates with variables, set them in **Settings → Agents**:
 
 ```
 claude {mode} {prompt}
@@ -90,12 +90,12 @@ Every interpolated value is sanitized and shell-quoted before it runs.
 
 ## Contributing
 
-PRs welcome — **especially new terminal adapters**, which are about one protocol and one
+PRs welcome, **especially new terminal adapters**, which are about one protocol and one
 struct. See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Support
 
-Tintpad is **free and MIT** — the whole thing. If it earns a spot in your day, leave a tip:
+Tintpad is **free and MIT**, the whole thing. If it earns a spot in your day, leave a tip:
 [**Buy me a coffee →**](https://www.buymeacoffee.com/eriknielsen). Supporters get custom
 accent tints and my thanks. That's the only difference.
 
