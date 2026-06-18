@@ -51,7 +51,10 @@ struct OnboardingView: View {
     let onDone: () -> Void
     @State private var terminalSel = ""
     @State private var axTrusted = false
+    @State private var testStatus: String?
+    @State private var testOK = false
     private let accent = Color(red: 1.0, green: 0.45, blue: 0.20)
+    private let errorRed = Color(red: 1, green: 0.42, blue: 0.32)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
@@ -90,12 +93,27 @@ struct OnboardingView: View {
                 }
             }
 
-            step(3, "Permissions", permissionsBlurb) {
-                permissionsControl
+            step(3, "Test the handoff", permissionsBlurb) {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 10) {
+                        Button("Test launch") { testLaunch() }
+                        if testOK {
+                            Label("Working", systemImage: "checkmark.circle.fill")
+                                .font(.callout).foregroundStyle(.green)
+                        }
+                    }
+                    if let s = testStatus, !testOK {
+                        Text(s)
+                            .font(.caption).foregroundStyle(errorRed)
+                            .fixedSize(horizontal: false, vertical: true)
+                        permissionsControl
+                    }
+                }
+                .frame(minHeight: 88, alignment: .topLeading)   // reserve room so the window fits the failure case
             }
 
             Button(action: onDone) {
-                Text("Get started").frame(maxWidth: .infinity)
+                Text(testOK ? "Done — start using Tintpad" : "Get started").frame(maxWidth: .infinity)
             }
             .controlSize(.large).buttonStyle(.borderedProminent).tint(accent)
             .padding(.top, 4)
@@ -105,6 +123,13 @@ struct OnboardingView: View {
         .fixedSize(horizontal: false, vertical: true)
         .background(Color(red: 0.07, green: 0.07, blue: 0.07))
         .onAppear {
+            // Default to Terminal.app — it's the most reliable handoff (one
+            // Automation prompt, no Accessibility/relaunch dance).
+            if AppStore.shared.settings.preferredTerminalBundleID == nil,
+               TerminalRegistry.adapter(forBundleID: "com.apple.Terminal")?.isInstalled == true {
+                AppStore.shared.settings.preferredTerminalBundleID = "com.apple.Terminal"
+                AppStore.shared.save()
+            }
             terminalSel = AppStore.shared.settings.preferredTerminalBundleID ?? ""
             axTrusted = AXIsProcessTrusted()
         }
@@ -129,6 +154,24 @@ struct OnboardingView: View {
             Button("Open Privacy Settings…") { openPrivacy("Privacy_Automation") }
         default:
             EmptyView()
+        }
+    }
+
+    /// Opens a harmless window in the chosen terminal. This both triggers the
+    /// macOS permission prompt (so it's granted here, in-flow) and proves the
+    /// whole handoff works before the user leaves onboarding.
+    private func testLaunch() {
+        let terminal = TerminalRegistry.preferred(settings: AppStore.shared.settings)
+        do {
+            _ = try terminal.launch(TerminalLaunch(
+                workingDirectory: NSHomeDirectory(),
+                command: "echo 'Tintpad is set up — you can close this window.'"))
+            testOK = true
+            testStatus = "Working — a terminal window just opened."
+        } catch {
+            testOK = false
+            testStatus = "\(error)"
+            axTrusted = AXIsProcessTrusted()
         }
     }
 
