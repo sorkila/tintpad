@@ -270,11 +270,11 @@ enum AgentSeed {
     }
 
     static var codex: Agent {
-        let safe = RunMode(name: "Safe", flags: "--ask-for-approval", isDangerous: false,
+        let safe = RunMode(name: "Safe", flags: "--ask-for-approval untrusted", isDangerous: false,
                            description: "Approval required for actions")
         let def = RunMode.defaultMode()
-        let yolo = RunMode(name: "YOLO", flags: "--full-auto", isDangerous: true,
-                           description: "Full-auto, no approvals")
+        let yolo = RunMode(name: "YOLO", flags: "--dangerously-bypass-approvals-and-sandbox", isDangerous: true,
+                           description: "No approvals, no sandbox")
         return Agent(
             name: "Codex",
             commandTemplate: "codex {mode} {prompt}",
