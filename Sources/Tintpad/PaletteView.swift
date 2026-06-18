@@ -489,39 +489,44 @@ struct PaletteView: View {
     }
 
     private var repoResults: some View {
-        ScrollViewReader { proxy in
+        // Snapshot once per render: avoids re-sorting on every row access, and
+        // gives the ForEach and selection a single consistent list.
+        let repos = model.filtered
+        return ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 1) {
-                    ForEach(Array(model.filtered.enumerated()), id: \.element.id) { index, repo in
-                        if let header = groupHeader(at: index, repo: repo) { sectionHeader(header) }
+                    // Index identity throughout (id: \.self == .id(index) == selection),
+                    // so a selection change updates the row in place instead of being
+                    // mis-diffed as a remove/insert (which read as a "deselect").
+                    ForEach(repos.indices, id: \.self) { index in
+                        let repo = repos[index]
+                        if let header = groupHeader(at: index, in: repos) { sectionHeader(header) }
                         row(repo, selected: index == model.selection, hovered: hovered == index)
                             .id(index)
                             .contentShape(Rectangle())
                             .onHover { inside in hovered = inside ? index : (hovered == index ? nil : hovered) }
                             .onTapGesture { model.activate(at: index) }
                     }
-                    if model.filtered.isEmpty { emptyState }
+                    if repos.isEmpty { emptyState }
                 }
                 .padding(.horizontal, 8).padding(.vertical, 6)
-                .animation(reduceMotion ? nil : .snappy(duration: 0.16), value: model.selection)
             }
             .scrollIndicators(.hidden)
             .frame(maxHeight: .infinity)
             .onChange(of: model.selection) { _, new in
-                let move = { proxy.scrollTo(new, anchor: .center) }
-                reduceMotion ? move() : withAnimation(.easeOut(duration: 0.16), move)
+                let scroll = { proxy.scrollTo(new, anchor: .center) }
+                reduceMotion ? scroll() : withAnimation(.easeOut(duration: 0.18), scroll)
             }
         }
     }
 
     /// Section label shown when the list is unfiltered: "Pinned" before the
     /// first pinned repo, "Recent" before the first non-pinned one.
-    private func groupHeader(at index: Int, repo: Repo) -> String? {
-        guard model.query.isEmpty else { return nil }
-        let list = model.filtered
+    private func groupHeader(at index: Int, in list: [Repo]) -> String? {
+        guard model.query.isEmpty, index < list.count else { return nil }
+        let repo = list[index]
         if index == 0 { return repo.pinned ? "Pinned" : "Recent" }
-        let prevPinned = list[index - 1].pinned
-        if prevPinned && !repo.pinned { return "Recent" }
+        if list[index - 1].pinned && !repo.pinned { return "Recent" }
         return nil
     }
 
