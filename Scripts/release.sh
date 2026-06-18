@@ -29,8 +29,10 @@ echo "▸ Releasing Tintpad ${VERSION} (${TAG})"
 SHA="$(shasum -a 256 "$DMG" | cut -d' ' -f1)"
 echo "▸ DMG sha256: ${SHA}"
 
-# 2. GitHub Release with the DMG.
-NOTES="$(cat <<EOF
+# 2. GitHub Release with the DMG. Notes go via a temp file (a heredoc inside
+# $(...) trips bash on the parens/backticks in the body).
+NOTES_FILE="$(mktemp)"
+cat > "$NOTES_FILE" <<EOF
 **Tintpad**: press ⌥⌘Space, fuzzy-find a repo, hit Enter, and your terminal opens there with
 your coding agent (Claude Code, Codex, …) already running. Hands off to the terminal you already
 use. Native, local-only, free and open source.
@@ -48,13 +50,13 @@ use. Native, local-only, free and open source.
 
 Full notes: [CHANGELOG.md](https://github.com/${REPO}/blob/main/CHANGELOG.md) · sha256 \`${SHA}\`
 EOF
-)"
 if gh release view "$TAG" -R "$REPO" >/dev/null 2>&1; then
   gh release upload "$TAG" "$DMG" --clobber -R "$REPO"
-  gh release edit "$TAG" -R "$REPO" --title "Tintpad ${VERSION}" --notes "$NOTES"
+  gh release edit "$TAG" -R "$REPO" --title "Tintpad ${VERSION}" --notes-file "$NOTES_FILE"
 else
-  gh release create "$TAG" "$DMG" -R "$REPO" --title "Tintpad ${VERSION}" --notes "$NOTES"
+  gh release create "$TAG" "$DMG" -R "$REPO" --title "Tintpad ${VERSION}" --notes-file "$NOTES_FILE"
 fi
+rm -f "$NOTES_FILE"
 
 # 3. Sparkle appcast (auto-deploys via web/ → tintpad.com/appcast.xml).
 SIG="$("$SIGN_UPDATE" "$DMG")"   # → sparkle:edSignature="…" length="…"
