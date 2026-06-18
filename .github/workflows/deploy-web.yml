@@ -1,11 +1,13 @@
 name: Deploy site
 
-# Publishes web/ to ftp.tintpad.com on every push that touches the site.
+# Publishes web/ to the Inleed host over FTP, on every push that touches the site.
+# Wired the same way as sorkila/lockpaw-web.
 #
-# Secrets (set them in GitHub → Settings → Secrets and variables → Actions):
-#   FTP_USERNAME   the FTP login (e.g. admin@tintpad.com)
+# Secrets (GitHub → Settings → Secrets and variables → Actions):
+#   FTP_SERVER     the Inleed server address (NOT the domain — per Inleed docs use
+#                  the server host/IP; the domain only works once its DNS is live)
+#   FTP_USERNAME   the FTP login (admin@tintpad.com)
 #   FTP_PASSWORD   the FTP password
-# The server host and web root are not secret and live below.
 
 on:
   push:
@@ -21,17 +23,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy web/ over FTPS
+      - name: Deploy via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
-          server: ftp.tintpad.com
+          server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          protocol: ftps           # explicit FTP over TLS; switch to `ftp` if the host rejects it
+          protocol: ftp
+          port: 21
           local-dir: ./web/
-          # The FTP account home is /home/s65145/domains/tintpad.com; the public
-          # web root is usually `public_html/` under it. If the site doesn't show
-          # up, try `./` instead.
-          server-dir: ./public_html/
-          # Keeps a small log on the server so only changed files upload next time.
-          state-name: .ftp-deploy-sync-state.json
+          server-dir: /public_html/
