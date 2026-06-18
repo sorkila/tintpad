@@ -28,8 +28,8 @@ struct SettingsView: View {
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundStyle(.white))
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(selection.title).font(.system(size: 18, weight: .semibold))
-                        Text(selection.subtitle).font(.system(size: 12)).foregroundStyle(.secondary)
+                        Text(selection.title).font(TypeRamp.paneTitle)
+                        Text(selection.subtitle).font(TypeRamp.paneSubtitle).foregroundStyle(.secondary)
                     }
                     Spacer()
                 }
