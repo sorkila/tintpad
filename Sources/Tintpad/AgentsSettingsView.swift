@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct AgentsSettingsView: View {
@@ -97,7 +98,7 @@ private struct AgentEditor: View {
             }
 
             Section("Agent") {
-                TextField("SF Symbol (fallback icon)", text: $agent.symbol)
+                LabeledContent("Fallback icon") { SymbolPicker(symbol: $agent.symbol) }
                 Toggle("Accepts a starting prompt", isOn: $agent.acceptsPrompt)
             }
 
@@ -163,10 +164,10 @@ private struct ModeEditor: View {
     private var accent: Color { mode.isDangerous ? dangerTint : .secondary }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            HStack(spacing: 10) {
-                TextField("Name", text: $mode.name)
-                    .textFieldStyle(.roundedBorder).frame(width: 130)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 8) {
+                TextField("Mode name", text: $mode.name)
+                    .textFieldStyle(.roundedBorder).frame(maxWidth: 180)
                 if mode.isDangerous {
                     Text("DANGEROUS")
                         .font(.system(size: 9, weight: .bold)).tracking(0.5)
@@ -176,26 +177,79 @@ private struct ModeEditor: View {
                 }
                 Spacer()
                 Button { makeDefault() } label: {
-                    Label("Default", systemImage: isDefault ? "checkmark.circle.fill" : "circle")
+                    Label(isDefault ? "Default" : "Make default",
+                          systemImage: isDefault ? "checkmark.circle.fill" : "circle")
                         .labelStyle(.titleAndIcon).font(.caption)
                 }
                 .buttonStyle(.borderless)
                 .foregroundStyle(isDefault ? Color.accentColor : .secondary)
                 Button { onDelete() } label: { Image(systemName: "trash") }
                     .buttonStyle(.borderless).foregroundStyle(.secondary)
+                    .help("Delete mode")
             }
-            TextField("flags — e.g. --dangerously-skip-permissions", text: $mode.flags)
-                .textFieldStyle(.roundedBorder).font(.system(.callout, design: .monospaced))
-            TextField("description", text: $mode.description)
-                .textFieldStyle(.roundedBorder).font(.caption)
+            field("Flags", "e.g. --dangerously-skip-permissions", text: $mode.flags, mono: true)
+            field("Description", "What this mode does", text: $mode.description, mono: false)
             Toggle("Dangerous — warns and requires a confirm before launch", isOn: $mode.isDangerous)
-                .toggleStyle(.switch).controlSize(.mini).font(.caption)
+                .toggleStyle(.switch).controlSize(.small).font(.callout)
         }
-        .padding(12)
-        .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
             .fill(mode.isDangerous ? dangerTint.opacity(0.07) : Color.primary.opacity(0.03)))
-        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
             .strokeBorder(accent.opacity(mode.isDangerous ? 0.4 : 0.15), lineWidth: 1))
-        .padding(.vertical, 3)
+        .padding(.vertical, 4)
+    }
+
+    /// A labeled, full-width field — keeps the card readable instead of cramped.
+    @ViewBuilder
+    private func field(_ label: String, _ placeholder: String,
+                       text: Binding<String>, mono: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label).font(.caption).foregroundStyle(.secondary)
+            TextField(placeholder, text: text)
+                .textFieldStyle(.roundedBorder)
+                .font(mono ? .system(.callout, design: .monospaced) : .body)
+        }
+    }
+}
+
+// MARK: - Symbol picker
+
+/// Fallback-icon picker: a live preview, free text entry, and a visual menu of
+/// common dev glyphs — smoother than typing a raw SF Symbol name.
+private struct SymbolPicker: View {
+    @Binding var symbol: String
+
+    private let options = [
+        "terminal", "command", "chevron.left.forwardslash.chevron.right", "curlybraces",
+        "bolt.fill", "sparkles", "hammer.fill", "wrench.and.screwdriver.fill",
+        "cpu", "ant.fill", "wand.and.stars", "cube.fill", "gearshape.fill", "play.fill",
+    ]
+
+    /// Falls back to a question mark while the typed name is incomplete/invalid,
+    /// so the preview never goes blank.
+    private var preview: String {
+        NSImage(systemSymbolName: symbol, accessibilityDescription: nil) != nil ? symbol : "questionmark"
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: preview)
+                .font(.system(size: 14, weight: .semibold))
+                .frame(width: 26, height: 26)
+                .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(.quaternary))
+            TextField("symbol name", text: $symbol)
+                .textFieldStyle(.roundedBorder).frame(maxWidth: 170)
+            Menu {
+                ForEach(options, id: \.self) { s in
+                    Button { symbol = s } label: { Label(s, systemImage: s) }
+                }
+            } label: {
+                Image(systemName: "square.grid.2x2")
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("Pick a common glyph")
+        }
     }
 }
