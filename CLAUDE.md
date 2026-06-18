@@ -9,14 +9,22 @@ your terminal opens at that repo with the agent (Claude Code, Codex, …) runnin
 Hands off to *your* terminal, it isn't one. Accessory app (`LSUIElement`), local-only,
 no accounts. **Free & open source (MIT) + optional Supporter tip.**
 
+## Status (shipped)
+**v0.1.0 is live.** Notarized DMG published at `github.com/sorkila/tintpad/releases/tag/v0.1.0`,
+direct download via `releases/latest/download/Tintpad.dmg`, site live at tintpad.com,
+Homebrew tap at `sorkila/homebrew-tap` (`brew install --cask sorkila/tap/tintpad`),
+Sparkle auto-update wired (`web/appcast.xml` → tintpad.com/appcast.xml). Bump the version
+in `Resources/Info.plist` then run `./Scripts/release.sh` to cut the next one.
+
 ## Commands
 ```sh
 swift build              # debug build
-swift test               # 19 unit tests (pure logic, keep green)
+swift test               # 24 unit tests (pure logic, keep green)
 swift run                # run from source (dev; unsigned)
-./Scripts/package.sh     # assemble .build/release/Tintpad.app (+ DMG; signs if SIGN_IDENTITY set)
+./Scripts/package.sh     # assemble + sign .app/DMG in a TMPDIR scratch (signs if SIGN_IDENTITY set)
 ./Scripts/dev-install.sh # build → Developer ID sign → install to /Applications (local dev)
-./Scripts/release.sh     # notarized release (needs SIGN_IDENTITY + notary creds)
+./Scripts/release.sh     # one-command notarized release (needs SIGN_IDENTITY + NOTARY_PROFILE)
+./Scripts/sign-license.swift <email>  # sign a Supporter key (manual tint fulfillment)
 ./Scripts/uitest.sh      # synthetic-input GUI smoke test (needs Accessibility/Automation)
 ```
 Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
@@ -36,6 +44,10 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
 - Resizable surfaces (Settings, onboarding) use the scalable `TypeRamp` (Dynamic Type), the palette is a fixed-size HUD with tuned point sizes (with `@ScaledMetric`, clamped to xxLarge).
 - Monetization is a tip jar: `AppStore.allows()` returns true for everything except
   `customTint` (the Supporter perk). Don't add functional gates.
+- **Supporter unlock is manual fulfillment** (low volume): tipper emails their receipt,
+  you run `Scripts/sign-license.swift <email>` (Ed25519, self-verifies against the embedded
+  public key, prints a ready-to-send email), they paste the key in Settings → About.
+  No webhook/server yet. A one-tap unlock is a future feature.
 - Match surrounding style, keep `swift test` green, add a test when fixing logic.
 
 ## Gotchas (hard-won, read before debugging)
@@ -60,11 +72,29 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
     is a cdhash that changes). A **Developer ID signature** has a stable cert-based requirement,
     so Accessibility/Automation grants **persist** across rebuilds. Use `Scripts/dev-install.sh`.
   - This repo lives on a **fileprovider-managed volume** (iCloud Documents) that re-adds the
-    `com.apple.FinderInfo` "detritus" codesign rejects, so **sign in a scratch dir** (dev-install.sh
-    does this). `xattr -c` chokes on the un-removable fileprovider xattr, delete FinderInfo/ResourceFork
+    `com.apple.FinderInfo` "detritus" codesign rejects, so **both `package.sh` and `dev-install.sh`
+    assemble + sign in a TMPDIR scratch dir**, then copy the DMG back to `.build/release`.
+    `ditto --noextattr --norsrc` the SPM bundles in (not `cp -R`) so they don't carry forks.
+    `xattr -c` chokes on the un-removable fileprovider xattr, delete FinderInfo/ResourceFork
     **per-file** (`-exec`, not batched `xargs`).
   - **SPM ships flat resource bundles** (no Info.plist) → codesign calls them "unsuitable", `package.sh` injects a minimal Info.plist and signs them. Sparkle's nested XPC/Updater.app
     must be signed **inside-out before the app**. (Sign off a fileprovider volume, CI runners are fine.)
+- **Notarization:** needs a notarytool keychain profile. One-time:
+  `xcrun notarytool store-credentials tintpad-notary --apple-id erik@sorkila.com --team-id 78ACS592J2`
+  (uses an **app-specific** password, not the Apple ID password). `release.sh` reads it via
+  `NOTARY_PROFILE`. `package.sh` staples the **DMG** (Gatekeeper still accepts the app inside;
+  stapling the .app too would be more robust offline).
+- **Sparkle `sign_update`** reads the ED private key from the login keychain and triggers a
+  **GUI keychain-approval prompt**, so it hangs in headless/sandboxed shells. Run it in a real
+  terminal, click "Always Allow", paste the `edSignature`/`length` into `web/appcast.xml`.
+  `SUPublicEDKey` (Info.plist) must match that key.
+- **release.sh notes:** pass release notes via `--notes-file`, not `--notes "$(cat <<EOF…)"`,
+  a heredoc inside `$(...)` trips bash with "bad substitution" on the parens/backticks.
+- **Direct download URL:** link `releases/latest/download/Tintpad.dmg` (stable latest-asset URL,
+  always the newest release) since `release.sh` always names the asset `Tintpad.dmg`.
+- **Homebrew 6.x trusts third-party taps explicitly:** a fresh `brew install --cask sorkila/tap/tintpad`
+  prompts to trust the tap once (or `brew trust sorkila/tap`). The cask mirrors LockPaw's
+  (`depends_on macos: :sonoma`, not `">= :sonoma"` which errors). Tap repo is `sorkila/homebrew-tap`.
 - **GitHub Actions:** never reference `secrets` in an `if:`, it fails the workflow at parse time
   on every push (a "startup failure"). Map secrets to **job-level `env`** and gate on `env.X`.
 - **Settings:** don't put multiple SwiftUI `.menu` Pickers in one `Form` (AttributeGraph crash on
@@ -72,7 +102,10 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
 
 ## Repo layout
 - `Sources/Tintpad/`, app. `Tests/TintpadTests/`, unit tests. `Resources/`, Info.plist, icns, entitlements.
-- `web/`, marketing site (auto-deploys to tintpad.com via `.github/workflows/deploy-web.yml`).
-- `Scripts/`, package / dev-install / release / uitest. `Casks/tintpad.rb`, Homebrew cask.
-- `docs/`, ARCHITECTURE, AUDIT, RELEASE, HOMEBREW, DEMO, ROADMAP, good-first-issues.
-- `secrets/` (gitignored), Ed25519 license private key. `private/` (gitignored), internal strategy docs.
+- `web/`, marketing site + `appcast.xml` + `assets/` (demo.mp4, og.png), auto-deploys to
+  tintpad.com via `.github/workflows/deploy-web.yml`.
+- `Scripts/`, package / dev-install / release / sign-license / uitest. `Casks/tintpad.rb`, Homebrew cask
+  (mirrored into the separate `sorkila/homebrew-tap` repo, which is what `brew` installs from).
+- `docs/`, ARCHITECTURE, AUDIT, RELEASE, HOMEBREW, DEMO, good-first-issues. `ROADMAP.md`, `CHANGELOG.md` at root.
+- `secrets/` (gitignored), Ed25519 license **private** key (`sign-license.swift` reads it). `private/` (gitignored),
+  internal GTM/launch docs (launch-copy.md, launch-plan.md). **Never commit these.**
