@@ -1,0 +1,37 @@
+name: Deploy site
+
+# Publishes web/ to ftp.tintpad.com on every push that touches the site.
+#
+# Secrets (set them in GitHub → Settings → Secrets and variables → Actions):
+#   FTP_USERNAME   the FTP login (e.g. admin@tintpad.com)
+#   FTP_PASSWORD   the FTP password
+# The server host and web root are not secret and live below.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - ".github/workflows/deploy-web.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy web/ over FTPS
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ftp.tintpad.com
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps           # explicit FTP over TLS; switch to `ftp` if the host rejects it
+          local-dir: ./web/
+          # The FTP account home is /home/s65145/domains/tintpad.com; the public
+          # web root is usually `public_html/` under it. If the site doesn't show
+          # up, try `./` instead.
+          server-dir: ./public_html/
+          # Keeps a small log on the server so only changed files upload next time.
+          state-name: .ftp-deploy-sync-state.json
