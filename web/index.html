@@ -95,9 +95,24 @@
     transition:transform .15s,background .15s,box-shadow .15s}
   .coffee:hover{transform:translateY(-1px);background:rgba(255,115,51,.22);
     box-shadow:0 8px 22px rgba(255,115,51,.16)}
-  .price .note{font-size:12px;color:var(--faint);margin-top:11px;max-width:250px;line-height:1.5}
-  .price .note a{color:var(--dim)}
-  .price .note a:hover{color:var(--accent)}
+  /* Supporter "how?" tooltip */
+  .tipwrap{position:relative;display:inline-flex;align-items:center;gap:7px;cursor:help;outline:none}
+  .tipwrap .hint{font-size:10.5px;font-weight:600;letter-spacing:.02em;color:var(--accent);
+    background:var(--accent-soft);border:1px solid rgba(255,115,51,.3);border-radius:99px;padding:1px 8px;
+    transition:background .15s}
+  .tipwrap:hover .hint,.tipwrap:focus-visible .hint{background:rgba(255,115,51,.24)}
+  .tipwrap .bubble{position:absolute;bottom:calc(100% + 12px);left:-4px;width:268px;
+    background:var(--panel2);border:1px solid var(--line);border-radius:13px;padding:13px 15px;
+    font-size:12.5px;color:var(--dim);line-height:1.55;text-align:left;font-weight:400;letter-spacing:0;
+    box-shadow:0 14px 40px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.02);
+    opacity:0;transform:translateY(7px) scale(.97);transform-origin:24px bottom;pointer-events:none;
+    transition:opacity .2s cubic-bezier(.16,1,.3,1),transform .2s cubic-bezier(.16,1,.3,1);z-index:6}
+  .tipwrap:hover .bubble,.tipwrap:focus .bubble,.tipwrap:focus-within .bubble{opacity:1;transform:none;pointer-events:auto}
+  .tipwrap .bubble strong{color:var(--text);font-weight:600}
+  .tipwrap .bubble a{color:var(--accent)}
+  .tipwrap .bubble::after{content:"";position:absolute;top:100%;left:22px;
+    border:7px solid transparent;border-top-color:var(--panel2)}
+  @media (prefers-reduced-motion: reduce){.tipwrap .bubble{transition:opacity .2s}}
   .coffee .cup{display:inline-block;transform-origin:50% 80%}
   .coffee:hover .cup{animation:wobble .6s ease}
   @keyframes wobble{0%,100%{transform:rotate(0)}20%{transform:rotate(-14deg)}60%{transform:rotate(11deg)}}
@@ -209,9 +224,8 @@
       </div>
       <div>
         <div class="t">Supporter</div><div class="amt">tip <small>· pay what you want</small></div>
-        <ul><li>Funds the work, keeps it free</li><li>Custom accent tints</li><li>A little heart in the About box ♥</li></ul>
+        <ul><li>Funds the work, keeps it free</li><li><span class="tipwrap" tabindex="0" role="note" aria-label="How to unlock custom accent tints">Custom accent tints <em class="hint">how?</em><span class="bubble"><strong>Tint the whole app your color.</strong> The unlock is gloriously manual for now: leave a tip, email your receipt to <a href="mailto:erik@sorkila.com">erik@sorkila.com</a>, and I hand-sign you a license key. Yes, by hand, like it's 1998. A proper one-tap unlock is on the roadmap, building it is half the fun. 🛠️</span></span></li><li>A little heart in the About box ♥</li></ul>
         <a class="coffee" href="https://www.buymeacoffee.com/eriknielsen" target="_blank" rel="noopener"><span class="cup">☕</span> Buy me a coffee</a>
-        <p class="note">For the tints: tip, then email your receipt to <a href="mailto:erik@sorkila.com">erik@sorkila.com</a> and I'll send your unlock key.</p>
       </div>
     </div>
   </div>
@@ -245,7 +259,7 @@
 
 <footer><div class="wrap">
   <span>The app is local-only. No accounts, no telemetry, nothing leaves your Mac.</span>
-  <span>tintpad · free &amp; open source (MIT) · <a href="https://github.com/sorkila/tintpad">GitHub</a> · made in Sweden by <a href="https://sorkila.com" target="_blank" rel="noopener">Sorkila</a> · © 2026</span>
+  <span>tintpad · free &amp; open source (MIT) · <a href="https://github.com/sorkila/tintpad">GitHub</a> · made by <a href="https://sorkila.com" target="_blank" rel="noopener">Erik Nielsen (sorkila.com)</a> · © 2026</span>
   <span class="fine">This site uses <a href="https://umami.is" target="_blank" rel="noopener">umami</a> for light, cookieless analytics. No personal data, no third-party tracking.</span>
 </div></footer>
 </body>
