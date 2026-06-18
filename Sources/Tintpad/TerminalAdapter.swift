@@ -166,7 +166,14 @@ struct WezTermAdapter: TerminalAdapter {
         let bin = FileManager.default.isExecutableFile(atPath: bundled)
             ? bundled
             : (ShellEnvironment.resolveBinary("wezterm") ?? bundled)
-        try run(bin, ["start", "--cwd", launch.workingDirectory, "--"] + shellProgram(launch))
+        let prog = shellProgram(launch)
+        // Tab: spawn into the running GUI via the mux. Falls back to a new window
+        // if WezTerm isn't already running (`cli spawn` needs a live gui server).
+        if launch.openInTab,
+           (try? run(bin, ["cli", "spawn", "--cwd", launch.workingDirectory, "--"] + prog)) != nil {
+            return LaunchOutcome()
+        }
+        try run(bin, ["start", "--cwd", launch.workingDirectory, "--"] + prog)
         return LaunchOutcome()
     }
 }

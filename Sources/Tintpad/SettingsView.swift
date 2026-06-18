@@ -150,7 +150,7 @@ struct GeneralSettingsView: View {
                     Button("Re-detect") { installed = TerminalRegistry.installed }
                 }
                 Toggle("Open in a new tab instead of a window", isOn: store.bind(\.openInNewTab))
-                Text("Honored by Ghostty, iTerm2, and Terminal. Other terminals always open a new window.")
+                Text("Honored by Ghostty, iTerm2, Terminal, and WezTerm. Other terminals always open a new window.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 
