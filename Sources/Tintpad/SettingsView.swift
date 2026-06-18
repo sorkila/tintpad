@@ -101,9 +101,10 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 
     var color: Color {
         switch self {
+        // Distinct, harmonious tiles that don't collide with the brand orange accent.
         case .general: .gray; case .appearance: .pink; case .hotkeys: .blue
-        case .repos: .orange; case .agents: .green; case .prompts: .teal
-        case .recents: .indigo; case .github: Color(white: 0.25); case .about: .gray
+        case .repos: .cyan; case .agents: .green; case .prompts: .teal
+        case .recents: .indigo; case .github: Color(white: 0.25); case .about: .brown
         }
     }
 
