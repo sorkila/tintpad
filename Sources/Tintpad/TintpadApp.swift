@@ -70,6 +70,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Ask for notification permission so headless dispatch can notify on done.
         DispatchService.shared.requestAuthorization()
 
+        // Finishing onboarding summons the palette so the user lands in the app.
+        NotificationCenter.default.addObserver(
+            forName: .tintpadSummonPalette, object: nil, queue: .main
+        ) { [weak self] _ in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { self?.panelController.show() }
+        }
+
         // First-run onboarding.
         if !AppStore.shared.settings.hasOnboarded {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {

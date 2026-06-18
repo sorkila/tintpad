@@ -38,6 +38,8 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
         AppStore.shared.settings.hasOnboarded = true
         AppStore.shared.save()
         window?.close()
+        // Land the user straight in the palette instead of "nothing happened".
+        NotificationCenter.default.post(name: .tintpadSummonPalette, object: nil)
     }
 
     func windowWillClose(_ notification: Notification) {

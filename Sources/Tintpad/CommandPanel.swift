@@ -5,6 +5,8 @@ extension Notification.Name {
     /// Posted whenever the command panel is shown, so the SwiftUI palette can
     /// reset transient state and refocus the search field.
     static let tintpadPanelDidShow = Notification.Name("tintpadPanelDidShow")
+    /// Posted to request the palette be summoned (e.g. right after onboarding).
+    static let tintpadSummonPalette = Notification.Name("tintpadSummonPalette")
 }
 
 /// The floating command palette window.
