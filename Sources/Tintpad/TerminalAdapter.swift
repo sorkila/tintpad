@@ -294,6 +294,12 @@ enum AppleScriptRunner {
         }
         script.executeAndReturnError(&error)
         if let error {
+            let num = (error[NSAppleScript.errorNumber] as? Int) ?? 0
+            // -1743 = not authorized to send Apple events: make it actionable.
+            if num == -1743 {
+                throw TerminalLaunchError.launchFailed(
+                    "Tintpad isn't allowed to control your terminal yet. Grant it in System Settings → Privacy & Security → Automation, then try again.")
+            }
             let msg = error[NSAppleScript.errorMessage] as? String ?? "\(error)"
             throw TerminalLaunchError.launchFailed("AppleScript: \(msg)")
         }

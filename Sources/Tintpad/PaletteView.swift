@@ -338,6 +338,7 @@ struct PaletteView: View {
             hairline
             resultList
             if model.isPendingDangerous { confirmBanner }
+            else if model.status != nil { statusBanner }
             hairline
             footer
         }
@@ -657,13 +658,30 @@ struct PaletteView: View {
         .padding(.horizontal, 12).padding(.vertical, 8)
     }
 
-    @ViewBuilder private var statusOrPreview: some View {
+    /// Full-width, wrapping, selectable banner for status + errors — readable,
+    /// unlike the old one-line truncated footer text.
+    @ViewBuilder private var statusBanner: some View {
         if let status = model.status {
-            Text(status)
-                .font(.system(size: 11))
-                .foregroundStyle(.primary.opacity(0.55))
-                .lineLimit(1).truncationMode(.middle)
-        } else if let repo = model.selectedRepo {
+            let isError = status.hasPrefix("⚠")
+            let text = isError ? String(status.dropFirst(2)) : status
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: isError ? "exclamationmark.triangle.fill" : "info.circle.fill")
+                    .font(.system(size: 12))
+                    .foregroundStyle(isError ? dangerTint : accent)
+                Text(text)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.primary.opacity(0.85))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .background((isError ? dangerTint : accent).opacity(0.10))
+        }
+    }
+
+    @ViewBuilder private var statusOrPreview: some View {
+        if let repo = model.selectedRepo {
             HStack(spacing: 9) {
                 if let prompt = model.selectedPrompt {
                     Label(prompt.title, systemImage: "text.bubble")
