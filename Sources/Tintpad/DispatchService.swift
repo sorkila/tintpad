@@ -74,7 +74,12 @@ final class DispatchService {
             }
         }
 
-        try p.run()
+        do {
+            try p.run()
+        } catch {
+            try? handle.close()   // terminationHandler never fires if run() throws
+            throw error
+        }
         active[id] = p
         store.recordLaunch(repoID: repo.id)
         store.recordSession(repo: repo, agent: agent, mode: mode, prompt: prompt)

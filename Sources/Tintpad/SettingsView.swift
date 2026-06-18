@@ -343,7 +343,7 @@ struct AboutSettingsView: View {
             Divider().padding(.horizontal, 80)
 
             VStack(spacing: 6) {
-                LabeledContent("Version", value: "0.1.0-dev")
+                LabeledContent("Version", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.0")
                 LabeledContent("Data", value: "~/Library/Application Support/Tintpad")
             }
             .font(.system(.callout, design: .monospaced)).frame(maxWidth: 420)
@@ -360,7 +360,7 @@ struct AboutSettingsView: View {
                     .font(.callout.weight(.medium))
                     .foregroundStyle(.black)
                     .padding(.horizontal, 14).padding(.vertical, 7)
-                    .background(Color(red: 1.0, green: 0.86, blue: 0.0), in: Capsule())
+                    .background(store.settings.tintAccent.color, in: Capsule())
             }
             .buttonStyle(.plain)
             .padding(.top, 4)

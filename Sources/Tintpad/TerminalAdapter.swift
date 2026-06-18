@@ -279,7 +279,10 @@ struct WarpAdapter: TerminalAdapter {
 
 // MARK: - AppleScript
 
-private func appleScriptEscape(_ s: String) -> String {
+/// Escape a string for embedding in an AppleScript double-quoted literal.
+/// Order matters: backslash first (so the quote-escape's backslashes aren't
+/// re-escaped), then the double quote, then collapse CR/LF to spaces.
+func appleScriptEscape(_ s: String) -> String {
     s.replacingOccurrences(of: "\\", with: "\\\\")
      .replacingOccurrences(of: "\"", with: "\\\"")
      .replacingOccurrences(of: "\r", with: " ")
