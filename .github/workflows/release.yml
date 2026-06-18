@@ -24,6 +24,18 @@ permissions:
 jobs:
   release:
     runs-on: macos-15   # match CI; bump to macos-26 once available
+    # Secrets are mapped to job env so they can be used in `if:` conditions —
+    # the `secrets` context itself is NOT allowed in `if:` (it causes a workflow
+    # startup failure on every push).
+    env:
+      SIGN_IDENTITY: ${{ secrets.SIGN_IDENTITY }}
+      SIGNING_CERT_P12: ${{ secrets.SIGNING_CERT_P12 }}
+      SIGNING_CERT_PWD: ${{ secrets.SIGNING_CERT_PWD }}
+      NOTARY_PROFILE: ${{ secrets.NOTARY_PROFILE }}
+      NOTARY_KEY: ${{ secrets.NOTARY_KEY }}
+      NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+      NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
+      SPARKLE_ED_KEY: ${{ secrets.SPARKLE_ED_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -39,10 +51,7 @@ jobs:
       # produces an unsigned artifact.
 
       - name: Import signing certificate
-        if: ${{ secrets.SIGN_IDENTITY != '' && secrets.SIGNING_CERT_P12 != '' }}
-        env:
-          SIGNING_CERT_P12: ${{ secrets.SIGNING_CERT_P12 }}
-          SIGNING_CERT_PWD: ${{ secrets.SIGNING_CERT_PWD }}
+        if: ${{ env.SIGN_IDENTITY != '' && env.SIGNING_CERT_P12 != '' }}
         run: |
           set -euo pipefail
           KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
@@ -60,12 +69,7 @@ jobs:
           rm -f "$CERT"
 
       - name: Set up notary profile
-        if: ${{ secrets.SIGN_IDENTITY != '' && secrets.NOTARY_KEY != '' }}
-        env:
-          NOTARY_PROFILE: ${{ secrets.NOTARY_PROFILE }}
-          NOTARY_KEY: ${{ secrets.NOTARY_KEY }}
-          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
-          NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
+        if: ${{ env.SIGN_IDENTITY != '' && env.NOTARY_KEY != '' }}
         run: |
           set -euo pipefail
           KEY="$RUNNER_TEMP/notary.p8"
@@ -79,18 +83,14 @@ jobs:
       # vars are set; otherwise emits an unsigned bundle.
 
       - name: Package
-        env:
-          # Empty string when the secret is unset — package.sh treats that as "skip".
-          SIGN_IDENTITY: ${{ secrets.SIGN_IDENTITY }}
-          NOTARY_PROFILE: ${{ secrets.NOTARY_PROFILE }}
+        # SIGN_IDENTITY / NOTARY_PROFILE come from the job env above; package.sh
+        # treats empty values as "skip signing".
         run: ./Scripts/package.sh
 
       # --- Sparkle appcast signature (signed builds only, optional) -----------
 
       - name: Sign appcast entry (Sparkle)
-        if: ${{ secrets.SIGN_IDENTITY != '' && secrets.SPARKLE_ED_KEY != '' }}
-        env:
-          SPARKLE_ED_KEY: ${{ secrets.SPARKLE_ED_KEY }}
+        if: ${{ env.SIGN_IDENTITY != '' && env.SPARKLE_ED_KEY != '' }}
         run: |
           set -euo pipefail
           DMG=".build/release/Tintpad.dmg"
