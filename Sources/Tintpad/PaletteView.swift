@@ -303,6 +303,18 @@ struct PaletteView: View {
     @State private var shown = false
     private let corner: CGFloat = 18
 
+    // Dynamic Type: anchor the palette's sizes so the default is pixel-identical
+    // and they scale with the system text size. The whole panel is clamped to
+    // xxLarge below so this fixed-width HUD can't blow out its layout.
+    @ScaledMetric(relativeTo: .body) private var searchSize: CGFloat = 18
+    @ScaledMetric(relativeTo: .body) private var glyphSize: CGFloat = 17
+    @ScaledMetric(relativeTo: .body) private var nameSize: CGFloat = 13.5
+    @ScaledMetric(relativeTo: .body) private var pathSize: CGFloat = 11
+    @ScaledMetric(relativeTo: .body) private var metaSize: CGFloat = 11
+    @ScaledMetric(relativeTo: .body) private var headerSize: CGFloat = 10
+    @ScaledMetric(relativeTo: .body) private var emptySize: CGFloat = 13
+    @ScaledMetric(relativeTo: .body) private var chipSize: CGFloat = 9.5
+
     private var isDark: Bool { scheme == .dark }
 
     /// The model is owned by the controller (created + monitored at launch) so
@@ -341,6 +353,9 @@ struct PaletteView: View {
         }
         .scaleEffect(shown ? 1 : 0.985, anchor: .top)
         .opacity(shown ? 1 : 0)
+        // Scale text with the system size, but cap it so this fixed-width HUD
+        // stays usable (accessibility sizes would otherwise overflow the rows).
+        .dynamicTypeSize(...DynamicTypeSize.xxLarge)
         .onAppear { model.startMonitoring(); model.reset(); searchFocused = true; animateIn() }
         .onReceive(NotificationCenter.default.publisher(for: .tintpadPanelDidShow)) { _ in
             model.reset()
@@ -399,14 +414,14 @@ struct PaletteView: View {
                 } else if model.promptRepo != nil {
                     Image(systemName: "text.bubble").font(.system(size: 14))
                 } else {
-                    Text("❯").font(.system(size: 17, weight: .bold, design: .monospaced))
+                    Text("❯").font(.system(size: glyphSize, weight: .bold, design: .monospaced))
                 }
             }
             .foregroundStyle(accent)
             .accessibilityHidden(true)
             TextField(searchPlaceholder, text: $model.query)
                 .textFieldStyle(.plain)
-                .font(.system(size: 18, weight: .regular))
+                .font(.system(size: searchSize, weight: .regular))
                 .foregroundStyle(.primary.opacity(0.95))
                 .focused($searchFocused)
                 .accessibilityLabel("Search repositories")
@@ -505,7 +520,7 @@ struct PaletteView: View {
 
     private func sectionHeader(_ title: String) -> some View {
         Text(title.uppercased())
-            .font(.system(size: 10, weight: .semibold))
+            .font(.system(size: headerSize, weight: .semibold))
             .tracking(0.6)
             .foregroundStyle(.primary.opacity(0.45))
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -516,7 +531,7 @@ struct PaletteView: View {
         Text(model.allRepos.isEmpty
              ? "No repos yet — ⌘R to scan, or add roots in Settings"
              : "No match for “\(model.query)”")
-            .font(.system(size: 13, weight: .regular))
+            .font(.system(size: emptySize, weight: .regular))
             .foregroundStyle(.primary.opacity(0.5))
             .padding(.vertical, 40)
     }
@@ -545,7 +560,7 @@ struct PaletteView: View {
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 7) {
                     Text(repo.name)
-                        .font(.system(size: 13.5, weight: .semibold))
+                        .font(.system(size: nameSize, weight: .semibold))
                         .foregroundStyle(.primary.opacity(selected ? 1 : 0.85))
                     if repo.pinned {
                         Image(systemName: "pin.fill").font(.system(size: 8)).foregroundStyle(accent.opacity(0.8))
@@ -553,14 +568,14 @@ struct PaletteView: View {
                     }
                 }
                 Text(displayPath(repo.path))
-                    .font(.system(size: 11, weight: .regular))
+                    .font(.system(size: pathSize, weight: .regular))
                     .foregroundStyle(.primary.opacity(selected ? 0.5 : 0.42))
                     .lineLimit(1).truncationMode(.head)
             }
             Spacer(minLength: 12)
             if selected, let agent {
                 Text(agent.name)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: metaSize, weight: .medium))
                     .foregroundStyle(.primary.opacity(0.55))
             }
             if showMode, let mode { modeChip(mode) }
@@ -590,7 +605,7 @@ struct PaletteView: View {
         // which vanished on the light glass).
         let color = mode.isDangerous ? dangerTint : Color.primary
         return Text(mode.name.uppercased())
-            .font(.system(size: 9.5, weight: .bold))
+            .font(.system(size: chipSize, weight: .bold))
             .tracking(0.4)
             .foregroundStyle(mode.isDangerous ? dangerTint : .primary.opacity(0.7))
             .padding(.horizontal, 7).padding(.vertical, 3)
