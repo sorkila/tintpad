@@ -105,7 +105,9 @@ struct. See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/ARCHITECTURE.md](docs/A
 
 Tintpad is **free and MIT**, the whole thing. If it earns a spot in your day, leave a tip:
 [**Buy me a coffee →**](https://www.buymeacoffee.com/eriknielsen). Supporters get custom
-accent tints and my thanks. That's the only difference.
+accent tints and my thanks, that's the only difference. To claim the tints, tip then email
+your receipt to [erik@sorkila.com](mailto:erik@sorkila.com) and I'll send you an unlock key
+(it verifies offline, no account).
 
 ## License
 

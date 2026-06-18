@@ -34,11 +34,20 @@ for local testing.
 - Fill `version` + the printed `sha256` into `Casks/tintpad.rb`, push to
   `sorkila/homebrew-tap`. See `docs/HOMEBREW.md`.
 
-## 3. Licensing server
+## 3. Supporter keys (manual fulfillment)
+The only Supporter perk is custom accent tints. Fulfillment is manual at launch (low volume):
+a Buy Me a Coffee tip, then the supporter emails their receipt and you send a key.
+
+```sh
+# generates a key that verifies offline against the embedded public key, and
+# prints a ready-to-send email. The key is self-verified before it prints.
+swift Scripts/sign-license.swift buyer@example.com
+```
 - Private signing key + format + a working sample key: `secrets/license-private-key.txt` (gitignored).
-- On purchase (Lemon Squeezy / Paddle webhook), sign `{"email","plan":"pro","iat"}`
-  with the Ed25519 private key and email the buyer `base64(payload).base64(sig)`.
-- The app verifies offline against the embedded public key in `LicenseManager.swift`.
+- The app verifies the key offline against the embedded public key in `LicenseManager.swift`.
+  The buyer pastes it in Settings, About, "Paste supporter key", Activate.
+- To automate later: a Lemon Squeezy / Gumroad / Paddle webhook can call a small signing
+  endpoint that runs the same logic as `Scripts/sign-license.swift` and emails the key.
 
 ## 4. Distribution
 - Homebrew cask pointing at the notarized DMG (mirror the LockPaw cask).

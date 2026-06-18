@@ -382,7 +382,7 @@ struct AboutSettingsView: View {
             }
         } else {
             VStack(spacing: 8) {
-                Text("Everything's free. If Tintpad saves you time, chip in — Supporters get custom accent tints (and my thanks).")
+                Text("Everything's free. If Tintpad saves you time, chip in. Supporters get custom accent tints: tip, email your receipt to erik@sorkila.com, and I'll send a key to paste below.")
                     .font(.callout).foregroundStyle(.secondary)
                     .multilineTextAlignment(.center).frame(maxWidth: 460)
                 HStack {
