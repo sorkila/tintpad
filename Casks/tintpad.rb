@@ -1,15 +1,8 @@
 cask "tintpad" do
-  # TODO: bump to the real release tag after a notarized build ships.
+  # version + sha256 are filled automatically by Scripts/release.sh.
   version "0.0.0"
+  sha256 "0000000000000000000000000000000000000000000000000000000000000000"
 
-  # TODO: replace with the real DMG sha256. Get it with:
-  #   shasum -a 256 .build/release/Tintpad.dmg
-  # Then delete the `:no_check` line below and uncomment the literal.
-  sha256 :no_check
-  # sha256 "REPLACE_WITH_DMG_SHA256"
-
-  # TODO: confirm the release asset name matches the DMG produced by
-  # ./Scripts/package.sh (defaults to Tintpad.dmg).
   url "https://github.com/sorkila/tintpad/releases/download/v#{version}/Tintpad.dmg",
       verified: "github.com/sorkila/tintpad/"
 

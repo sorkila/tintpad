@@ -25,7 +25,11 @@ It hands off to the terminal you already use. It doesn't try to be one.
 
 > Not a usage monitor. Not an IDE. Not a terminal. The launcher the agent menu-bar apps forgot.
 
-<!-- TODO: drop a demo.gif here (summon → pick → terminal opens). It carries the whole pitch. -->
+<div align="center">
+  <img src="docs/assets/demo.gif" alt="Tintpad: summon → fuzzy-find a repo → your terminal opens there with the agent running" width="640" />
+</div>
+
+<!-- Drop the recording at docs/assets/demo.gif — see docs/DEMO.md for the 60-second how-to. -->
 
 ## Why
 
