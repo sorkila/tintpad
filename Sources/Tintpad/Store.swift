@@ -90,12 +90,7 @@ final class AppStore: ObservableObject {
 
     /// Repos ordered for the palette: pinned first, then by decayed frecency.
     func orderedRepos(now: Date = Date()) -> [Repo] {
-        let half = settings.frecencyHalfLifeDays
-        return repos.sorted { a, b in
-            if a.pinned != b.pinned { return a.pinned }
-            return Frecency.decayedScore(a, now: now, halfLifeDays: half)
-                 > Frecency.decayedScore(b, now: now, halfLifeDays: half)
-        }
+        Frecency.ordered(repos, now: now, halfLifeDays: settings.frecencyHalfLifeDays)
     }
 
     // MARK: - Agent operations

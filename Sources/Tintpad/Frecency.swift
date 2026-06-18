@@ -19,6 +19,21 @@ enum Frecency {
         return repo.frecencyScore * factor
     }
 
+    /// Pinned first, then by decayed score; ties broken deterministically
+    /// (most-recently-launched, then name) so equal-score repos never shuffle.
+    static func ordered(_ repos: [Repo], now: Date, halfLifeDays: Double) -> [Repo] {
+        repos.sorted { a, b in
+            if a.pinned != b.pinned { return a.pinned }
+            let sa = decayedScore(a, now: now, halfLifeDays: halfLifeDays)
+            let sb = decayedScore(b, now: now, halfLifeDays: halfLifeDays)
+            if abs(sa - sb) > 0.0001 { return sa > sb }
+            let la = a.lastLaunchedAt ?? .distantPast
+            let lb = b.lastLaunchedAt ?? .distantPast
+            if la != lb { return la > lb }
+            return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
+        }
+    }
+
     /// Record a visit: decay the stored score to `now`, add one unit, re-anchor.
     static func recordVisit(_ repo: inout Repo, now: Date, halfLifeDays: Double) {
         let current = decayedScore(repo, now: now, halfLifeDays: halfLifeDays)

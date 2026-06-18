@@ -18,16 +18,17 @@ struct LaunchOutcome {
     var note: String?
 }
 
-enum TerminalLaunchError: Error, CustomStringConvertible {
+enum TerminalLaunchError: Error, CustomStringConvertible, LocalizedError {
     case notInstalled
     case launchFailed(String)
 
     var description: String {
         switch self {
-        case .notInstalled: return "not installed"
-        case .launchFailed(let m): return m
+        case .notInstalled: return "That terminal isn't installed."
+        case .launchFailed(let m): return "Couldn't open the terminal — \(m)"
         }
     }
+    var errorDescription: String? { description }
 }
 
 /// One implementation per terminal app. Detection is bundle-id based; launch

@@ -12,6 +12,19 @@ final class FrecencyTests: XCTestCase {
         XCTAssertEqual(decayed, 4, accuracy: 0.001)
     }
 
+    func testEqualScoresBreakTieByRecencyThenName() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        // Equal score (0, never launched) → sort by name.
+        var c = Repo(path: "/c", name: "charlie")
+        var a = Repo(path: "/a", name: "alpha")
+        let ordered = Frecency.ordered([c, a], now: now, halfLifeDays: 30)
+        XCTAssertEqual(ordered.map(\.name), ["alpha", "charlie"])
+        // Same score but one launched more recently → it comes first.
+        a.frecencyScore = 1; a.lastLaunchedAt = now.addingTimeInterval(-100)
+        c.frecencyScore = 1; c.lastLaunchedAt = now.addingTimeInterval(-10)
+        XCTAssertEqual(Frecency.ordered([a, c], now: now, halfLifeDays: 30).map(\.name), ["charlie", "alpha"])
+    }
+
     func testRecordVisitIncrementsAndReanchors() {
         var repo = Repo(path: "/x", name: "x")
         let now = Date(timeIntervalSince1970: 2_000_000)
@@ -106,6 +119,18 @@ final class LaunchResolutionTests: XCTestCase {
         XCTAssertTrue(launch.openInTab)
         XCTAssertEqual(launch.workingDirectory, "/tmp/wt/feature")
         XCTAssertEqual(launch.command, "/bin/echo")
+    }
+}
+
+final class ErrorMessageTests: XCTestCase {
+    func testFriendlyLocalizedDescriptions() {
+        XCTAssertEqual((TerminalLaunchError.notInstalled as LocalizedError).errorDescription,
+                       "That terminal isn't installed.")
+        let resolve = CommandTemplate.ResolveError.binaryNotFound("claude")
+        XCTAssertEqual((resolve as LocalizedError).errorDescription,
+                       "“claude” isn’t on your PATH — check it’s installed, then Re-scan.")
+        // No raw "error N" Swift boilerplate leaks through.
+        XCTAssertFalse((resolve as Error).localizedDescription.contains("error "))
     }
 }
 

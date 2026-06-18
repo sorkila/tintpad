@@ -16,16 +16,17 @@ enum CommandTemplate {
         var worktreePath: String?
     }
 
-    enum ResolveError: Error, CustomStringConvertible {
+    enum ResolveError: Error, CustomStringConvertible, LocalizedError {
         case binaryNotFound(String)
         case emptyCommand
 
         var description: String {
             switch self {
-            case .binaryNotFound(let b): return "\(b) not found on PATH — try “Re-scan agents”"
-            case .emptyCommand: return "Command template is empty"
+            case .binaryNotFound(let b): return "“\(b)” isn’t on your PATH — check it’s installed, then Re-scan."
+            case .emptyCommand: return "This agent’s command template is empty."
             }
         }
+        var errorDescription: String? { description }
     }
 
     /// The fully substituted, human-readable command (binary NOT yet absolutized)
