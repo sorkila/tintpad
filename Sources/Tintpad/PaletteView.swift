@@ -611,6 +611,7 @@ struct PaletteView: View {
                 FooterButton(key: "⇧⇥", label: "mode") { model.cycleMode() }
                 FooterButton(key: "⌘L", label: "prompt") { model.enterPromptMode() }
                 FooterButton(key: "⌘↵", label: "editor") { model.handleReturn(modifiers: .command) }
+                FooterButton(key: "⌘,", label: "settings") { model.openSettings() }
             }
             Spacer(minLength: 12)
             statusOrPreview
