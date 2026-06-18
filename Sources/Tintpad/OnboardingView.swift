@@ -86,7 +86,7 @@ struct OnboardingView: View {
                 }
             }
 
-            step(3, "Permissions", "On first launch Tintpad may ask to control your terminal (Automation), and Ghostty needs Accessibility to open a window. Allow these so handoff works.") {
+            step(3, "Permissions", permissionsBlurb) {
                 EmptyView()
             }
 
@@ -101,6 +101,26 @@ struct OnboardingView: View {
         .fixedSize(horizontal: false, vertical: true)
         .background(Color(red: 0.07, green: 0.07, blue: 0.07))
         .onAppear { terminalSel = AppStore.shared.settings.preferredTerminalBundleID ?? "" }
+    }
+
+    /// The terminal that handoff will actually use (explicit choice, or first detected).
+    private var resolvedTerminalID: String {
+        terminalSel.isEmpty ? (TerminalRegistry.installed.first?.bundleID ?? "") : terminalSel
+    }
+
+    /// Permission copy scoped to the chosen terminal — Accessibility is only ever
+    /// mentioned for Ghostty (which has no command-open API), not as a blanket ask.
+    private var permissionsBlurb: String {
+        switch resolvedTerminalID {
+        case "com.mitchellh.ghostty":
+            return "Ghostty has no command-open API on macOS, so Tintpad types the command for you. That needs Accessibility — macOS will ask once, on first launch. No other terminal needs it."
+        case "com.googlecode.iterm2", "com.apple.Terminal":
+            return "Tintpad opens your terminal with AppleScript, so macOS asks for Automation once, on first launch. That's the only prompt."
+        case "":
+            return "Depending on your terminal, macOS may ask once for Automation (iTerm2/Terminal) or Accessibility (Ghostty). Nothing is asked up front."
+        default:
+            return "No extra permissions needed — Tintpad launches your terminal directly."
+        }
     }
 
     @ViewBuilder

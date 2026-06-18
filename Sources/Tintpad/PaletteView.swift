@@ -347,6 +347,17 @@ struct PaletteView: View {
             searchFocused = true
             animateIn()
         }
+        // Speak status changes and the dangerous-mode confirmation to VoiceOver.
+        .onChange(of: model.status) { _, s in
+            if let s { AccessibilityNotification.Announcement(s).post() }
+        }
+        .onChange(of: model.isPendingDangerous) { _, pending in
+            if pending, let d = model.pendingDangerousDescription {
+                AccessibilityNotification.Announcement(
+                    "Confirm dangerous launch: \(d). Press return again to launch, or escape to cancel."
+                ).post()
+            }
+        }
     }
 
     /// Quick scale + fade summon, replayed on every show (skipped if Reduce Motion).
