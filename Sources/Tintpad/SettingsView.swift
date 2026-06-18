@@ -149,6 +149,9 @@ struct GeneralSettingsView: View {
                     Spacer()
                     Button("Re-detect") { installed = TerminalRegistry.installed }
                 }
+                Toggle("Open in a new tab instead of a window", isOn: store.bind(\.openInNewTab))
+                Text("Honored by Ghostty, iTerm2, and Terminal. Other terminals always open a new window.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
 
             Section("Editor") {

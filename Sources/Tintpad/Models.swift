@@ -157,6 +157,9 @@ struct Settings: Codable {
     var panelWidth: Double = 640
     /// Multi-step launch: also open the editor when launching an agent.
     var alsoOpenEditor: Bool = false
+    /// Open the agent in a new tab of the preferred terminal instead of a new
+    /// window (honored where the terminal supports it: Ghostty, iTerm2, Terminal).
+    var openInNewTab: Bool = false
     /// Optional root folder where new worktrees are created (nil = sibling of repo).
     var worktreeRoot: String?
     /// Pro license key (Ed25519-signed); nil = free tier.
@@ -182,6 +185,7 @@ struct Settings: Codable {
         appearance = g(.appearance, .dark)
         panelWidth = g(.panelWidth, 640)
         alsoOpenEditor = g(.alsoOpenEditor, false)
+        openInNewTab = g(.openInNewTab, false)
         hasOnboarded = g(.hasOnboarded, false)
     }
 

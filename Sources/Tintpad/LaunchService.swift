@@ -22,7 +22,9 @@ enum LaunchService {
         }
 
         let terminal = TerminalRegistry.preferred(settings: store.settings)
-        let outcome = try terminal.launch(TerminalLaunch(workingDirectory: workingDir, command: command))
+        let outcome = try terminal.launch(TerminalLaunch(
+            workingDirectory: workingDir, command: command,
+            openInTab: store.settings.openInNewTab))
         store.recordLaunch(repoID: repo.id)
         store.recordSession(repo: repo, agent: agent, mode: mode, prompt: prompt)
         return outcome

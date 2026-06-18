@@ -7,6 +7,9 @@ struct TerminalLaunch {
     let workingDirectory: String
     /// The full command to run (binary already resolved to an absolute path).
     let command: String
+    /// Open in a new tab rather than a new window, where the terminal supports
+    /// it. CLI-only terminals (kitty/Alacritty/WezTerm/Warp) ignore this.
+    var openInTab: Bool = false
 }
 
 /// Result of a launch. `note` carries user-facing info (e.g. Warp's clipboard
@@ -104,11 +107,12 @@ struct GhosttyAdapter: TerminalAdapter {
     func launch(_ launch: TerminalLaunch) throws -> LaunchOutcome {
         guard isInstalled else { throw TerminalLaunchError.notInstalled }
         let cmd = "cd \(shellQuote(launch.workingDirectory)) && \(launch.command)"
+        let newKey = launch.openInTab ? "t" : "n"   // ⌘T tab / ⌘N window
         let script = """
         tell application "Ghostty" to activate
         delay 0.35
         tell application "System Events"
-            keystroke "n" using command down
+            keystroke "\(newKey)" using command down
             delay 0.45
             keystroke "\(appleScriptEscape(cmd))"
             key code 36
@@ -178,10 +182,21 @@ struct ITerm2Adapter: TerminalAdapter {
     func launch(_ launch: TerminalLaunch) throws -> LaunchOutcome {
         guard isInstalled else { throw TerminalLaunchError.notInstalled }
         let cmd = "cd \(shellQuote(launch.workingDirectory)) && \(launch.command)"
+        // New tab in the current window (falling back to a new window if none),
+        // or a fresh window.
+        let make = launch.openInTab
+            ? """
+              if (count of windows) = 0 then
+                  set s to current session of (create window with default profile)
+              else
+                  set s to current session of (create tab with default profile)
+              end if
+              """
+            : "set s to current session of (create window with default profile)"
         let script = """
         tell application "iTerm2"
-            set w to (create window with default profile)
-            tell current session of w to write text "\(appleScriptEscape(cmd))"
+            \(make)
+            tell s to write text "\(appleScriptEscape(cmd))"
             activate
         end tell
         """
@@ -198,7 +213,18 @@ struct AppleTerminalAdapter: TerminalAdapter {
 
     func launch(_ launch: TerminalLaunch) throws -> LaunchOutcome {
         let cmd = "cd \(shellQuote(launch.workingDirectory)) && \(launch.command)"
-        let script = """
+        // Window: `do script` opens a fresh window. Tab: there's no AppleScript
+        // for "new tab", so open one with ⌘T (System Events) and run there.
+        let script = launch.openInTab ? """
+        tell application "Terminal" to activate
+        if (count of windows of application "Terminal") = 0 then
+            tell application "Terminal" to do script "\(appleScriptEscape(cmd))"
+        else
+            tell application "System Events" to keystroke "t" using command down
+            delay 0.3
+            tell application "Terminal" to do script "\(appleScriptEscape(cmd))" in front window
+        end if
+        """ : """
         tell application "Terminal"
             do script "\(appleScriptEscape(cmd))"
             activate
