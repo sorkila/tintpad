@@ -4,3 +4,6 @@
 .DS_Store
 /Package.resolved
 secrets/
+
+# Internal strategy docs — kept local, never public
+private/

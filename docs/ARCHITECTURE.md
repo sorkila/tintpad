@@ -27,4 +27,4 @@ Native Swift/SwiftUI menu-bar (accessory) app. SPM executable, no external app f
 ## Tests
 `swift test` — pure-logic unit tests (frecency, command-template sanitization/injection, license verify, git parse, discovery). `Scripts/uitest.sh` — synthetic-input GUI smoke test (local only; needs Accessibility/Automation grants).
 
-See also: [`AUDIT.md`](AUDIT.md) (security/quality), [`RELEASE.md`](RELEASE.md), [`GTM.md`](GTM.md), [`reviews/`](reviews/).
+See also: [`AUDIT.md`](AUDIT.md) (security/quality), [`RELEASE.md`](RELEASE.md), [`HOMEBREW.md`](HOMEBREW.md).
