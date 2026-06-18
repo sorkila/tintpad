@@ -81,7 +81,9 @@ struct OnboardingView: View {
                         Text(t.displayName).tag(t.bundleID)
                     }
                 }
-                .labelsHidden().frame(maxWidth: 220)
+                .labelsHidden()
+                .frame(maxWidth: 220, alignment: .leading)
+                .padding(.leading, -8)   // cancel the pop-up's label inset → aligns with the leading line
                 .onChange(of: terminalSel) { _, v in
                     AppStore.shared.settings.preferredTerminalBundleID = v.isEmpty ? nil : v
                     AppStore.shared.save()
@@ -131,8 +133,9 @@ struct OnboardingView: View {
     }
 
     private func requestAccessibility() {
-        let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
-        _ = AXIsProcessTrustedWithOptions([key: true] as CFDictionary)  // prompts + adds to the list
+        // Literal value of kAXTrustedCheckOptionPrompt (that global isn't
+        // concurrency-safe under Swift 6). Prompts + adds Tintpad to the list.
+        _ = AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
         openPrivacy("Privacy_Accessibility")
     }
 
