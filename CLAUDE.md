@@ -42,6 +42,10 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
 - All command building goes through `CommandTemplate`, every interpolated value is
   sanitized (control chars stripped) and POSIX single-quoted. Never hand-build shell or AppleScript strings.
 - Resizable surfaces (Settings, onboarding) use the scalable `TypeRamp` (Dynamic Type), the palette is a fixed-size HUD with tuned point sizes (with `@ScaledMetric`, clamped to xxLarge).
+- **Prose has no em dashes and no prose semicolons**, in markdown docs and website copy
+  (a deliberate, enforced house style, use commas). Code, identifiers, and code comments
+  are exempt, and third-party files (e.g. an upstream awesome-list with em-dash separators)
+  match their own house style.
 - Monetization is a tip jar: `AppStore.allows()` returns true for everything except
   `customTint` (the Supporter perk). Don't add functional gates.
 - **Supporter unlock is manual fulfillment** (low volume): tipper emails their receipt,
@@ -102,8 +106,10 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
 
 ## Repo layout
 - `Sources/Tintpad/`, app. `Tests/TintpadTests/`, unit tests. `Resources/`, Info.plist, icns, entitlements.
-- `web/`, marketing site + `appcast.xml` + `assets/` (demo.mp4, og.png), auto-deploys to
-  tintpad.com via `.github/workflows/deploy-web.yml`.
+- `web/`, marketing site: a single hand-written `index.html` (no build step, kept lean ~18KB),
+  `appcast.xml`, and `assets/` (demo.mp4, demo-poster.jpg, og.png). Uses umami analytics + full
+  Open Graph / Twitter-card meta (og.png is the share card). Auto-deploys to tintpad.com via
+  `.github/workflows/deploy-web.yml`.
 - `Scripts/`, package / dev-install / release / sign-license / uitest. `Casks/tintpad.rb`, Homebrew cask
   (mirrored into the separate `sorkila/homebrew-tap` repo, which is what `brew` installs from).
 - `docs/`, ARCHITECTURE, AUDIT, RELEASE, HOMEBREW, DEMO, good-first-issues. `ROADMAP.md`, `CHANGELOG.md` at root.
