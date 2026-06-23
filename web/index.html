@@ -46,6 +46,9 @@
   nav{display:flex;justify-content:space-between;align-items:center;padding:24px 0;font-size:14px}
   .logo{display:flex;align-items:center;gap:9px;font-weight:550;letter-spacing:-.01em}
   .logo img{width:23px;height:23px;border-radius:6px}
+  .logo .beta{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+    color:var(--accent);background:var(--accent-soft);border:1px solid rgba(255,115,51,.3);
+    border-radius:99px;padding:1px 7px;line-height:1.5}
   nav .links a{color:var(--dim);margin-left:22px;transition:color .15s}
   nav .links a:hover{color:var(--text)}
 
@@ -174,7 +177,7 @@
 <body>
 <div class="wrap">
   <nav>
-    <span class="logo"><img src="assets/icon.png" alt=""/>tintpad</span>
+    <span class="logo"><img src="assets/icon.png" alt=""/>tintpad<span class="beta">beta</span></span>
     <span class="links"><a href="#how">How</a><a href="#price">Price</a><a href="#faq">FAQ</a><a href="https://github.com/sorkila/tintpad">Source</a></span>
   </nav>
 
