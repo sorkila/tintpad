@@ -111,7 +111,7 @@ jobs:
           ditto -c -k --keepParent ".build/release/Tintpad.app" "Tintpad.zip"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Tintpad-app
           path: Tintpad.zip
