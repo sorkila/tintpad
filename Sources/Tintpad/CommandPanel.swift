@@ -80,8 +80,13 @@ final class CommandPanelController: NSObject {
         if panel?.isVisible == true { hide() } else { show() }
     }
 
+    /// Screenshot harness (`TINTPAD_SHOWCASE=1`): summon the palette at launch
+    /// and keep it up when it loses focus, so demo/OG captures and design work
+    /// can drive it from a shell. Never true in a normal run.
+    static var isShowcase: Bool { ProcessInfo.processInfo.environment["TINTPAD_SHOWCASE"] == "1" }
+
     func panelResignedKey() {
-        guard !suppressAutoHide else { return }
+        guard !suppressAutoHide, !Self.isShowcase else { return }
         hide()
     }
 
@@ -106,6 +111,20 @@ final class CommandPanelController: NSObject {
         panel.makeKeyAndOrderFront(nil)
         // Tell the SwiftUI palette to reset + focus the field on every summon.
         NotificationCenter.default.post(name: .tintpadPanelDidShow, object: nil)
+        if Self.isShowcase { dumpRect(panel) }
+    }
+
+    /// Write the panel's frame in screencapture coordinates (top-left origin)
+    /// so a capture script can crop to it exactly. Showcase mode only.
+    private func dumpRect(_ panel: NSPanel) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            guard let screen = NSScreen.screens.first else { return }
+            let f = panel.frame
+            let pad: CGFloat = 40   // include the window shadow
+            let top = screen.frame.maxY - f.maxY
+            let line = "\(Int(f.minX - pad)),\(Int(top - pad)),\(Int(f.width + pad * 2)),\(Int(f.height + pad * 2))"
+            try? line.write(toFile: "/tmp/tintpad-panel-rect", atomically: true, encoding: .utf8)
+        }
     }
 
     func hide() {
@@ -118,15 +137,41 @@ final class CommandPanelController: NSObject {
 
     private func makePanel() -> CommandPanel {
         let width = AppStore.shared.settings.panelWidth
-        let rect = NSRect(x: 0, y: 0, width: width, height: 420)
+        let rect = NSRect(x: 0, y: 0, width: width, height: 320)
         let panel = CommandPanel(contentRect: rect)
         panel.controller = self
-        let root = PaletteView(model: model)
+        let root = PaletteView(model: model) { [weak self] height in
+            self?.resize(toContentHeight: height)
+        }
         let hosting = NSHostingView(rootView: root)
         hosting.frame = panel.contentView?.bounds ?? rect
         hosting.autoresizingMask = [.width, .height]
         panel.contentView = hosting
         return panel
+    }
+
+    /// Grow/shrink the panel to fit its content, pinned at the top edge so the
+    /// search field never moves under the cursor while you type.
+    ///
+    /// The palette reports the height it wants for its *content*.
+    ///
+    /// This is a `.titled` panel, so AppKit reserves a ~32pt titlebar strip at
+    /// the top: the window's frame has always been that much taller than the
+    /// glass you actually see, and SwiftUI lays out inside the matching safe
+    /// area. Passing a content height straight to `setFrame` therefore hands the
+    /// palette 32pt less than it asked for, which clipped the last row. Add the
+    /// insets back. (Opting out of the safe area instead — on the hosting view
+    /// or with `.ignoresSafeArea()` — either loops AppKit's constraint pass or
+    /// hides the prompt line behind the unpainted strip.)
+    private func resize(toContentHeight height: CGFloat) {
+        guard let panel else { return }
+        let insets = panel.contentView?.safeAreaInsets ?? NSEdgeInsetsZero
+        let target = height + insets.top + insets.bottom
+        guard abs(panel.frame.height - target) > 0.5 else { return }
+        var frame = panel.frame
+        frame.origin.y += frame.height - target   // keep the top edge fixed
+        frame.size.height = target
+        panel.setFrame(frame, display: true, animate: false)
     }
 
     private func center(_ panel: NSPanel) {

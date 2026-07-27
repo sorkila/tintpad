@@ -77,6 +77,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { self?.panelController.show() }
         }
 
+        // Screenshot harness: summon the palette straight away so it can be
+        // captured without driving the global hotkey. See CommandPanelController.
+        if CommandPanelController.isShowcase {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.panelController.show() }
+            return
+        }
+
         // First-run onboarding.
         if !AppStore.shared.settings.hasOnboarded {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
