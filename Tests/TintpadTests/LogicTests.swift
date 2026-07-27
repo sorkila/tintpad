@@ -288,3 +288,18 @@ final class MonogramTests: XCTestCase {
         }
     }
 }
+
+final class KeyPolicyTests: XCTestCase {
+    func testTabIsOursWhenNoAssistiveTechIsActive() {
+        XCTAssertFalse(KeyPolicy.tabShouldTraverse(voiceOver: false, fullKeyboardAccess: false),
+                       "⇥ should still cycle agents for ordinary keyboard use")
+    }
+
+    func testVoiceOverReclaimsTab() {
+        XCTAssertTrue(KeyPolicy.tabShouldTraverse(voiceOver: true, fullKeyboardAccess: false))
+    }
+
+    func testFullKeyboardAccessReclaimsTab() {
+        XCTAssertTrue(KeyPolicy.tabShouldTraverse(voiceOver: false, fullKeyboardAccess: true))
+    }
+}

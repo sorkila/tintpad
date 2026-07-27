@@ -3,6 +3,20 @@ import SwiftUI
 
 private struct PendingLaunch { let repo: Repo; let agent: Agent; let mode: RunMode }
 
+/// Keyboard policy decisions that depend on assistive-tech state, kept pure so
+/// they can be reasoned about and tested without the environment.
+enum KeyPolicy {
+    /// Tab is two things at once: our shortcut for cycling agents, and the key
+    /// assistive tech uses to move focus between the field, the list, and the
+    /// footer. Swallowing it unconditionally traps VoiceOver and Full Keyboard
+    /// Access users in the search field. When either is on, Tab is left alone
+    /// and the footer's "agent" and "mode" hints (real buttons, with labels)
+    /// carry the same actions.
+    static func tabShouldTraverse(voiceOver: Bool, fullKeyboardAccess: Bool) -> Bool {
+        voiceOver || fullKeyboardAccess
+    }
+}
+
 /// Holds the palette's mutable state and behavior. Lives as an `ObservableObject`
 /// so a scoped `NSEvent` key monitor can drive navigation/actions reliably —
 /// `.onKeyPress` on a `TextField` swallows arrow keys, so we don't rely on it.
@@ -19,6 +33,13 @@ final class PaletteModel: ObservableObject {
     @Published var promptRepo: Repo?
 
     fileprivate var pendingDangerous: PendingLaunch?
+
+    /// Injectable so the Tab policy can be exercised without VoiceOver running.
+    var tabTraverses: () -> Bool = {
+        KeyPolicy.tabShouldTraverse(
+            voiceOver: NSWorkspace.shared.isVoiceOverEnabled,
+            fullKeyboardAccess: NSApp.isFullKeyboardAccessEnabled)
+    }
 
     private let store: AppStore
     private let onClose: () -> Void
@@ -99,7 +120,7 @@ final class PaletteModel: ObservableObject {
         if store.repos.isEmpty { store.runAutoDiscovery() }
     }
 
-    private func handle(_ event: NSEvent) -> Bool {
+    func handle(_ event: NSEvent) -> Bool {
         let mods = event.modifierFlags
         let chars = event.charactersIgnoringModifiers?.lowercased()
         switch event.keyCode {
@@ -108,6 +129,8 @@ final class PaletteModel: ObservableObject {
         case 36, 76: handleReturn(modifiers: mods); return true  // ↩ / ⌅
         case 53: handleEscape(); return true    // esc
         case 48:                                // ⇥ agent / ⇧⇥ mode
+            // Leave Tab to focus traversal when assistive tech needs it (a11y #1).
+            if tabTraverses() { return false }
             mods.contains(.shift) ? cycleMode() : cycleAgent()
             return true
         default: break
@@ -344,6 +367,7 @@ struct PaletteView: View {
     @FocusState private var searchFocused: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var hovered: Int?
     @State private var shown = false
 
@@ -401,17 +425,24 @@ struct PaletteView: View {
             statusLine
         }
         .background {
-            ZStack {
-                GlassBackground(material: isDark ? .hudWindow : .popover)
-                // Enough scrim for a HUD's contrast, not so much that the panel
-                // stops acknowledging the desktop it's floating over.
-                (isDark ? Color.black : Color.white).opacity(isDark ? 0.38 : 0.62)
+            if reduceTransparency {
+                // Reduce Transparency means "stop making me read through things",
+                // so the blur is dropped outright rather than merely dimmed. This
+                // is the only state where the palette is fully opaque.
+                (isDark ? Color(white: 0.10) : Color(white: 0.97))
+            } else {
+                ZStack {
+                    GlassBackground(material: isDark ? .hudWindow : .popover)
+                    // Enough scrim to keep text legible over an arbitrary desktop,
+                    // without the panel ceasing to acknowledge what it floats over.
+                    (isDark ? Color.black : Color.white).opacity(isDark ? 0.45 : 0.66)
+                }
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: Metric.corner, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: Metric.corner, style: .continuous)
-                .strokeBorder(isDark ? Color.white.opacity(0.13) : Color.black.opacity(0.12),
+                .strokeBorder(isDark ? Color.white.opacity(0.18) : Color.black.opacity(0.16),
                               lineWidth: 1)
         }
         .scaleEffect(shown ? 1 : 0.995, anchor: .top)
@@ -491,7 +522,7 @@ struct PaletteView: View {
     }
 
     private var rule: some View {
-        Rectangle().fill(Color.primary.opacity(0.09)).frame(height: 1)
+        Rectangle().fill(Color.primary.opacity(0.13)).frame(height: 1)
     }
 
     // MARK: - Prompt line
@@ -503,7 +534,7 @@ struct PaletteView: View {
         HStack(spacing: 0) {
             Text(promptPrefix)
                 .font(.system(size: nameSize, weight: .medium, design: .monospaced))
-                .foregroundStyle(.primary.opacity(0.38))
+                .foregroundStyle(.primary.opacity(0.52))
                 .accessibilityHidden(true)
             Text(" ❯ ")
                 .font(.system(size: nameSize, weight: .bold, design: .monospaced))
@@ -520,7 +551,7 @@ struct PaletteView: View {
             if !model.query.isEmpty, model.worktreeRepo == nil, model.promptRepo == nil {
                 Text("\(model.filtered.count)")
                     .font(.system(size: metaSize, design: .monospaced))
-                    .foregroundStyle(.primary.opacity(0.3))
+                    .foregroundStyle(.primary.opacity(0.45))
                     .monospacedDigit()
             }
         }
@@ -566,13 +597,13 @@ struct PaletteView: View {
                 .foregroundStyle(accent)
             Text(body)
                 .font(.system(size: 12.5, design: .monospaced))
-                .foregroundStyle(.primary.opacity(0.5))
+                .foregroundStyle(.primary.opacity(0.62))
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
             if let detail {
                 Text(detail)
                     .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.primary.opacity(0.38))
+                    .foregroundStyle(.primary.opacity(0.52))
                     .lineLimit(1).truncationMode(.middle)
                     .padding(.top, 2)
             }
@@ -629,7 +660,7 @@ struct PaletteView: View {
         Text(title)
             .font(.system(size: labelSize, weight: .semibold, design: .monospaced))
             .tracking(0.12)
-            .foregroundStyle(.primary.opacity(0.26))
+            .foregroundStyle(.primary.opacity(0.45))
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.leading, Col.name(mark: markSize))
             .padding(.bottom, 3)
@@ -644,7 +675,7 @@ struct PaletteView: View {
              ? "no repos — ⌘R to scan, or add roots in settings"
              : "no match: \(model.query)")
             .font(.system(size: 12, design: .monospaced))
-            .foregroundStyle(.primary.opacity(0.4))
+            .foregroundStyle(.primary.opacity(0.58))
             .frame(height: 96)
     }
 
@@ -658,7 +689,7 @@ struct PaletteView: View {
             // ⌘1–⌘9. Past nine there's no shortcut, so there's no number.
             Text(index < 9 ? "\(index + 1)" : "")
                 .font(.system(size: metaSize, weight: .medium, design: .monospaced))
-                .foregroundStyle(selected ? here(dangerous) : .primary.opacity(0.22))
+                .foregroundStyle(selected ? here(dangerous) : .primary.opacity(0.36))
                 .monospacedDigit()
                 .frame(width: Col.index, alignment: .trailing)
                 .accessibilityHidden(true)
@@ -669,7 +700,7 @@ struct PaletteView: View {
                 .accessibilityHidden(true)
             Text(repo.name)
                 .font(.system(size: nameSize, weight: selected ? .semibold : .medium, design: .monospaced))
-                .foregroundStyle(.primary.opacity(selected ? 1 : 0.72))
+                .foregroundStyle(.primary.opacity(selected ? 1 : 0.84))
                 .lineLimit(1)
                 .layoutPriority(2)
             if repo.pinned {
@@ -684,13 +715,13 @@ struct PaletteView: View {
             if selected {
                 Text(displayPath(repo.path))
                     .font(.system(size: metaSize, design: .monospaced))
-                    .foregroundStyle(.primary.opacity(0.38))
+                    .foregroundStyle(.primary.opacity(0.58))
                     .lineLimit(1).truncationMode(.head)
                     .layoutPriority(-1)
                 if let agent {
                     Text(agent.name.lowercased())
                         .font(.system(size: metaSize, design: .monospaced))
-                        .foregroundStyle(.primary.opacity(0.5))
+                        .foregroundStyle(.primary.opacity(0.64))
                         .lineLimit(1)
                 }
             }
@@ -855,7 +886,7 @@ struct PaletteView: View {
                     Text(branch)
                         .font(.system(size: 10, design: .monospaced))
                 }
-                .foregroundStyle(.primary.opacity(0.33))
+                .foregroundStyle(.primary.opacity(0.5))
                 .lineLimit(1)
                 .accessibilityLabel("On branch \(branch)")
             }
@@ -877,15 +908,17 @@ private struct KeyHint: View {
             HStack(spacing: 5) {
                 Text(key)
                     .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.primary.opacity(hovering ? 0.75 : 0.5))
+                    .foregroundStyle(.primary.opacity(hovering ? 0.85 : 0.62))
                 Text(label)
                     .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(.primary.opacity(hovering ? 0.55 : 0.32))
+                    .foregroundStyle(.primary.opacity(hovering ? 0.68 : 0.48))
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(label), \(key)")
+        // Spoken as the action alone: the key glyph is a sighted affordance, and
+        // ⇥ in particular is not bound when assistive navigation is active.
+        .accessibilityLabel(label)
         // Hover highlight only — no manual NSCursor.set(), which can leave a
         // stray cursor if the panel closes mid-hover.
         .onHover { hovering = $0 }
