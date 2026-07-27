@@ -41,7 +41,22 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
 ## Conventions
 - All command building goes through `CommandTemplate`, every interpolated value is
   sanitized (control chars stripped) and POSIX single-quoted. Never hand-build shell or AppleScript strings.
-- Resizable surfaces (Settings, onboarding) use the scalable `TypeRamp` (Dynamic Type), the palette is a fixed-size HUD with tuned point sizes (with `@ScaledMetric`, clamped to xxLarge).
+- Resizable surfaces (Settings, onboarding) use the scalable `TypeRamp` (Dynamic Type), the palette is a monospace HUD on a fixed grid (its own `@ScaledMetric` point sizes, clamped to xxLarge).
+- **Agent marks** (`AgentMarks.swift`). A brand mark where artwork exists, a `Monogram`
+  everywhere else, so a third agent never falls back to a generic glyph. Monograms are
+  assigned across the **whole agent set** (`AppStore.monogram(for:)`, the single source of
+  truth) so they stay distinct, one letter until two collide. Marks are rasterized on
+  demand at the exact pixel size they will be drawn, since pre-rendering at one size and
+  letting SwiftUI rescale resamples twice and arrives soft. Each brand carries an
+  `optical` correction because icons in a set must match in **ink, not bounding box**
+  (Claude's airy radial needs to be drawn larger and held brighter than Codex's dense blob).
+- **Palette design rules** (`PaletteView`, documented on the type). The accent means
+  "here, now" and nothing else, danger red means "skips permissions", and those are the
+  only two colors. Agent brand color appears on the selected row only. Every element does
+  work (the row numbers are ⌘1–⌘9, the count shows what the filter cut). Repeated ink is
+  deleted, so a path shows only on the row you are about to launch. **Type and the grid
+  metrics scale together** via `@ScaledMetric`, because the panel height is computed from
+  those metrics and drifts if only one of them scales.
 - **Prose has no em dashes and no prose semicolons**, in markdown docs and website copy
   (a deliberate, enforced house style, use commas). Code, identifiers, and code comments
   are exempt, and third-party files (e.g. an upstream awesome-list with em-dash separators)
@@ -64,6 +79,15 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   == `.id(index)` == `selection`) and **no stack-wide `.animation(value: selection)`**, mixing
   UUID + index identities + animation made SwiftUI treat selection changes as remove/insert
   ("deselect"/jumping).
+- **Palette panel height (the 32pt that isn't there):** the palette computes the exact
+  height it wants and `CommandPanelController.resize(toContentHeight:)` applies it. The
+  panel is `.titled`, so AppKit reserves a ~32pt titlebar strip: the **window frame has
+  always been 32pt taller than the glass you actually see**, and SwiftUI lays out inside
+  the matching `safeAreaInsets.top`. So the resize must add those insets back, or the
+  palette gets 32pt less than it asked for and silently clips its last row. Do **not**
+  "fix" this by opting out of the safe area. `hosting.safeAreaRegions = []` sends AppKit
+  into a runaway Update-Constraints loop and crashes, and `.ignoresSafeArea()` on the root
+  hides the prompt line behind the unpainted strip.
 - **Frecency comparator must be transitive**, no epsilon "≈ tie" band, it breaks strict
   weak ordering and makes `sort()` reshuffle the list every render.
 - **Agent CLI flags are version-specific.** Verify against the installed CLI's `--help`.

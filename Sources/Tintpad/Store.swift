@@ -100,6 +100,17 @@ final class AppStore: ObservableObject {
         return agents.first { $0.id == id }
     }
 
+    /// The agent's monogram, assigned across the whole set so it stays distinct
+    /// from the others. Lives here so the palette and Settings can't disagree
+    /// about what letter an agent is.
+    func monogram(for agent: Agent?) -> String {
+        guard let agent else { return "?" }
+        guard let idx = agents.firstIndex(where: { $0.id == agent.id }) else {
+            return Monogram.assign([agent.name]).first ?? "?"
+        }
+        return Monogram.assign(agents.map(\.name))[idx]
+    }
+
     func addAgent(_ agent: Agent) {
         agents.append(agent)
         save()

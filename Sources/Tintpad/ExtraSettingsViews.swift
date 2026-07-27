@@ -99,7 +99,8 @@ struct RecentsSettingsView: View {
         HStack(spacing: 12) {
             AgentBrandIcon(agent: store.agent(s.agentID),
                            tint: store.agent(s.agentID)?.tintHex.flatMap(Color.init(hex:)) ?? .accentColor,
-                           selected: true)
+                           selected: true,
+                           monogram: store.monogram(for: store.agent(s.agentID)))
             VStack(alignment: .leading, spacing: 2) {
                 Text(s.repoName).font(.body.weight(.medium))
                 HStack(spacing: 6) {

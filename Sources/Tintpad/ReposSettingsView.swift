@@ -103,7 +103,8 @@ private struct RepoRow: View {
         HStack(spacing: 12) {
             AgentBrandIcon(agent: agent,
                            tint: agent?.tintHex.flatMap(Color.init(hex:)) ?? .accentColor,
-                           selected: true)
+                           selected: true,
+                           monogram: store.monogram(for: agent))
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(repo.name).font(.body.weight(.medium))

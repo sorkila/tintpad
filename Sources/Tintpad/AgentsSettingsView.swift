@@ -90,7 +90,8 @@ private struct AgentEditor: View {
                 HStack(spacing: 12) {
                     AgentBrandIcon(agent: agent,
                                    tint: agent.tintHex.flatMap(Color.init(hex:)) ?? .accentColor,
-                                   selected: true)
+                                   selected: true,
+                                   monogram: AppStore.shared.monogram(for: agent))
                     TextField("Name", text: $agent.name)
                         .textFieldStyle(.plain).font(.title3.weight(.semibold))
                 }

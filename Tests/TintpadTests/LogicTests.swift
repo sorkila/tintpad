@@ -250,3 +250,41 @@ final class RepoDiscoveryTests: XCTestCase {
         try? FileManager.default.removeItem(atPath: root)
     }
 }
+
+final class MonogramTests: XCTestCase {
+    func testUnambiguousNamesGetOneLetter() {
+        XCTAssertEqual(Monogram.assign(["Gemini", "Aider", "Codex"]), ["G", "A", "C"])
+    }
+
+    func testCollidingNamesGrowAndNonCollidingStaySingle() {
+        // Only the C's collide; Gemini keeps its clean single letter.
+        let out = Monogram.assign(["Claude Code", "Codex", "Gemini"])
+        XCTAssertEqual(out[2], "G")
+        XCTAssertNotEqual(out[0], out[1])
+        XCTAssertEqual(Set(out).count, 3)
+    }
+
+    func testSingleWordCollisionUsesFirstTwoLetters() {
+        let out = Monogram.assign(["Codex", "Coder"])
+        XCTAssertEqual(Set(out).count, 2, "shared 'Co' prefix must still resolve")
+    }
+
+    func testAssignmentIsStableAndOrderPreserving() {
+        let names = ["Claude Code", "Codex", "Cursor"]
+        XCTAssertEqual(Monogram.assign(names), Monogram.assign(names))
+        XCTAssertEqual(Monogram.assign(names).count, names.count)
+    }
+
+    func testLeadingNonLettersAndEmptyNames() {
+        XCTAssertEqual(Monogram.assign(["  opencode"]), ["O"])
+        XCTAssertEqual(Monogram.assign(["!!!"]), ["?"])
+    }
+
+    func testOfMatchesAssignForTheSameSet() {
+        let names = ["Claude Code", "Codex", "Gemini"]
+        let all = Monogram.assign(names)
+        for (i, n) in names.enumerated() {
+            XCTAssertEqual(Monogram.of(n, in: names), all[i])
+        }
+    }
+}
