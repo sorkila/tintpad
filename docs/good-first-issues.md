@@ -6,6 +6,8 @@ Small, real, well-scoped. Pick one, open a PR. Read
 should be green before you start.
 
 Each issue below maps to actual code. Paths are under `Sources/Tintpad/`.
+Anything marked **✅ Shipped** has already landed and is kept here only so the
+numbering stays stable, please skip those.
 
 ---
 
@@ -57,39 +59,30 @@ and a worked example are in CONTRIBUTING.md under "Adding a terminal adapter."
 
 ## 3. Fix the Tab / Shift-Tab VoiceOver keyboard trap in the palette
 
-**Labels:** `bug`, `accessibility`, `good first issue`
-**Difficulty:** medium
-
-VoiceOver users can get stuck in `PaletteView.swift`: Tab and Shift-Tab don't
-move focus the way the rotor expects, so the palette becomes a trap. Audit the
-focus order and `focusable` / `accessibility` modifiers so Tab cycles forward,
-Shift-Tab cycles back, and focus can always leave the field and the results
-list. Don't break the existing arrow-key + Enter dispatch flow.
-
-**Acceptance criteria**
-
-- Tab and Shift-Tab move focus predictably through search field and results.
-- VoiceOver can enter and exit the palette without getting stuck.
-- Arrow-key navigation and Enter-to-dispatch still work unchanged.
-- Verified with VoiceOver on (note the steps in the PR).
+**✅ Shipped.** `PaletteView` no longer swallows Tab when VoiceOver or Full
+Keyboard Access is active, so focus traversal works normally (`KeyPolicy`, unit
+tested). Ordinary keyboard use keeps ⇥ and ⇧⇥ for cycling agent and mode, and
+the footer's "agent" and "mode" hints are labelled buttons carrying the same
+actions for anyone who cannot use the shortcut.
 
 ---
 
-## 4. Support Dynamic Type in the palette and settings
+## 4. Support Dynamic Type in settings and onboarding
 
 **Labels:** `enhancement`, `accessibility`, `good first issue`
 **Difficulty:** medium
 
-Fixed point sizes mean the app ignores the system text-size setting. Replace
-hard-coded `.font(.system(size:))` calls with semantic text styles (or scale
-them with `@ScaledMetric`) in `PaletteView.swift` and the settings views so
-layout follows accessibility text sizes. Check that rows don't clip or overlap
-at the larger sizes.
+`PaletteView` is done: its type and grid metrics scale together with
+`@ScaledMetric`, which they have to, because the panel's computed height is
+derived from those metrics. Roughly ten hard-coded `.font(.system(size:))` calls
+remain in `OnboardingView.swift` and `SettingsView.swift`. Replace those with
+semantic text styles (the shared `TypeRamp` in `Tokens.swift` is the intended
+home) and check nothing clips or overlaps at the larger sizes.
 
 **Acceptance criteria**
 
-- Palette and main settings respect the system text-size / accessibility sizes.
-- Larger sizes don't clip, truncate badly, or break row layout.
+- Settings and onboarding respect the system text-size and accessibility sizes.
+- Larger sizes don't clip, truncate badly, or break layout.
 - Default size looks the same as before.
 - Screenshots at default and a large accessibility size in the PR.
 
@@ -117,20 +110,11 @@ disk unless you want a "copy to clipboard" button. No telemetry.
 
 ## 6. Break frecency ties deterministically
 
-**Labels:** `enhancement`, `good first issue`
-**Difficulty:** easy
-
-When two repos have an equal decayed score in `Frecency.swift`, ordering is
-undefined, so the palette list can shuffle between launches. Add a stable
-tie-break, most recently visited first, then name, so equal-score repos always
-sort the same way. Touch only the comparator, don't change the decay math.
-
-**Acceptance criteria**
-
-- Equal-score repos sort by most-recent-visit, then by name.
-- Ordering is stable across relaunches for unchanged data.
-- The decay/score calculation is unchanged.
-- A test asserts the tie-break order.
+**✅ Shipped.** `Frecency.ordered` breaks equal scores by most-recent-launch then
+name, covered by `testEqualScoresBreakTieByRecencyThenName`. Note for anyone
+touching it: the comparator must stay **transitive**, so no epsilon "close
+enough" tie band. That breaks strict weak ordering and makes `sort()` reshuffle
+the list on every render.
 
 ---
 
@@ -159,17 +143,8 @@ dispatch log (issue 5) if it lands.
 
 ## 8. Record a demo GIF for the README
 
-**Labels:** `docs`, `good first issue`
-**Difficulty:** easy
-
-The README tells, a GIF shows. Record a short loop of the hotkey summoning the
-palette, picking a repo, and an agent landing in the terminal at that repo. Keep
-it tight (a few seconds), reasonably sized, and drop it in `docs/assets/`, then
-reference it near the top of `README.md`.
-
-**Acceptance criteria**
-
-- Short looping GIF (a few seconds) saved under `docs/assets/`.
-- Shows: summon palette, pick repo, agent opens in terminal at that repo.
-- Embedded in `README.md`.
-- File size is sane for a README (compress it).
+**✅ Shipped**, and now **out of date**. `docs/assets/demo.gif` and the site's
+`web/assets/demo.mp4`, `demo-poster.jpg` and `og.png` all show the pre-HUD
+palette, so they advertise a UI that no longer exists. Re-shooting them is a
+genuinely useful contribution. See [DEMO.md](DEMO.md), which now documents the
+`TINTPAD_SHOWCASE=1` capture harness.

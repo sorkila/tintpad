@@ -67,6 +67,9 @@ swift run                  # dev run
 - **Worktrees**, <kbd>⌃W</kbd> spins up an isolated branch checkout and launches the agent in it.
 - **Headless dispatch**, <kbd>⌃↵</kbd> runs an agent in the background and notifies you when it's done.
 - **Prompt library, per-repo presets, GitHub import, open-in-editor.**
+- **Keyboard-first and accessible**, Dynamic Type in the palette, VoiceOver labels and
+  announcements, Reduce Motion and Reduce Transparency honored, and Tab left alone for
+  focus traversal when assistive tech needs it.
 - **Local-only.** No accounts, no telemetry, nothing leaves your Mac.
 
 ## Keys
@@ -76,6 +79,7 @@ swift run                  # dev run
 | <kbd>⌥⌘Space</kbd> | Summon (change in Settings → Hotkeys) |
 | <kbd>↑</kbd> / <kbd>↓</kbd> | Navigate |
 | <kbd>↵</kbd> | Launch default agent + mode |
+| <kbd>⌘1</kbd>–<kbd>⌘9</kbd> | Jump straight to a numbered row and launch it |
 | <kbd>⌘↵</kbd> | Open repo in editor |
 | <kbd>⌥↵</kbd> | Launch YOLO (dangerous) |
 | <kbd>⇧↵</kbd> | Launch Safe |

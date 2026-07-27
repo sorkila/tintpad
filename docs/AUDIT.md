@@ -83,9 +83,14 @@ rotation. Add cleanup (keep last N / prune by age).
 terminal command-building (extract a pure `buildCommand` to test without launching), store
 persistence/migration, license-apply flow, frecency ordering.
 
-### Q6, Accessibility (VoiceOver) labels, **Info**
-Keyboard-first is excellent, Reduce Motion is honored. Missing: VoiceOver labels/traits on
-palette rows and controls. Add `.accessibilityLabel`/`.accessibilityElement` for screen readers.
+### Q6, Accessibility (VoiceOver) labels, **Info, largely addressed**
+Keyboard-first is excellent, Reduce Motion is honored. Since this was written, palette rows
+carry `.accessibilityElement`/`.accessibilityLabel` with selected and button traits, status
+changes and pending skip-permissions launches are announced, Tab is released to focus
+traversal when VoiceOver or Full Keyboard Access is on, Dynamic Type scales the palette's
+type and grid together, and Reduce Transparency drops the blur for an opaque panel.
+Still open: Settings and onboarding keep about ten hard-coded font sizes, and the raised
+contrast has not been measured against 4.5:1 with a real checker over a worst-case desktop.
 
 ### Q7, No CI, **Info**
 Add GitHub Actions: `swift build` + `swift test` on push, optional release job.
