@@ -2,7 +2,7 @@
 
 All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepachangelog.com), this project aims for [Semantic Versioning](https://semver.org).
 
-## [Unreleased]
+## [0.2.0] — 2026-07-28
 
 The 2.0 pass: the palette rebuilt around one idea, the app hardened by a
 three-way engineering audit, and the launch flow taught to remember.
