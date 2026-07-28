@@ -129,5 +129,4 @@ your receipt to [erik@sorkila.com](mailto:erik@sorkila.com) and I'll send you an
 
 ## License
 
-[MIT](LICENSE) © 2026 Erik Nielsen ([Sörkila](https://sorkila.com)). The bundled
-IBM Plex Mono typeface is © IBM Corp., under the [SIL Open Font License 1.1](https://openfontlicense.org).
+[MIT](LICENSE) © 2026 Erik Nielsen ([Sörkila](https://sorkila.com)).

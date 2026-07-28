@@ -72,10 +72,9 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   clickable (visible counterpart of ⇥/⇧⇥, real flags in the tooltip). Less but better:
   nothing renders that repeats another element or decorates. ←/→ move through the strip only while the field is empty (they
   must keep moving the caret otherwise); ↑/↓, ⌘1–⌘9, ⌘0 unchanged. One voice of type:
-  **IBM Plex Mono** (bundled, SIL OFL, registered by `BrandFont.register()` at launch,
-  system-mono fallback), at exactly two sizes (`fieldSize`/`metaSize`), weight carries
-  the hierarchy — always via `Font.mono`/`Font.monoStyle`, never `design: .monospaced`
-  directly. Agent brand color appears on the selected tile only. **Type and the grid metrics scale together** via
+  SF Mono at exactly two sizes (`fieldSize`/`metaSize`), weight carries the hierarchy —
+  always via `Font.mono`/`Font.monoStyle` (the one place the voice is defined), never
+  `design: .monospaced` directly. Agent brand color appears on the selected tile only. **Type and the grid metrics scale together** via
   `@ScaledMetric`, because the panel height is computed from those metrics and drifts
   if only one of them scales.
 - **Prose has no em dashes and no prose semicolons**, in markdown docs and website copy
