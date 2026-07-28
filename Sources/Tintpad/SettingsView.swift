@@ -7,14 +7,11 @@ struct SettingsView: View {
     @State private var selection: SettingsTab = .general
     // Settings never needs a collapsed sidebar — pin it open and drop the toggle.
     @State private var columns = NavigationSplitViewVisibility.all
-    // The glyph column scales with the subheadline glyphs it aligns (a11y #3).
-    @ScaledMetric(relativeTo: .subheadline) private var glyphColumn: CGFloat = 20
-
     var body: some View {
         NavigationSplitView(columnVisibility: $columns) {
-            // Stark sidebar: monochrome glyphs, the brand tint appears only on
-            // the selected row — same rule as the palette, the accent means
-            // "here, now" and nothing else. No decorative color tiles.
+            // Stark sidebar: text only, the brand tint appears only on the
+            // selected label — same rule as the palette, the accent means
+            // "here, now" and nothing else.
             List(selection: $selection) {
                 Section { rows([.general, .appearance, .hotkeys]) }
                 Section { rows([.repos, .agents, .prompts]) } header: { sectionHeader("Workspace") }
@@ -46,20 +43,17 @@ struct SettingsView: View {
     }
 
     private func rows(_ tabs: [SettingsTab]) -> some View {
+        // Text only: the labels are short, the groups are labeled, and a
+        // glyph next to each word was saying everything twice. The accent
+        // marks "here, now" — macOS list selection stays a quiet gray, so
+        // the label itself carries it.
         ForEach(tabs) { tab in
-            Label {
-                Text(tab.title).font(TypeRamp.sidebarLabel)
-            } icon: {
-                Image(systemName: tab.icon)
-                    .font(.subheadline.weight(.semibold))
-                    // The accent marks "here, now", nothing else — macOS list
-                    // selection stays a quiet gray, so the glyph carries it.
-                    .foregroundStyle(tab == selection
-                        ? AnyShapeStyle(store.settings.tintAccent.color)
-                        : AnyShapeStyle(.secondary))
-                    .frame(width: glyphColumn)
-            }
-            .tag(tab)
+            Text(tab.title)
+                .font(TypeRamp.sidebarLabel)
+                .foregroundStyle(tab == selection
+                    ? AnyShapeStyle(store.settings.tintAccent.color)
+                    : AnyShapeStyle(.primary))
+                .tag(tab)
         }
     }
 
@@ -93,15 +87,6 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .general: "General"; case .hotkeys: "Hotkeys"; case .repos: "Repos"
         case .agents: "Agents"; case .prompts: "Prompts"; case .recents: "Recents"
         case .github: "GitHub"; case .appearance: "Appearance"; case .about: "About"
-        }
-    }
-
-    var icon: String {
-        switch self {
-        case .general: "gearshape.fill"; case .hotkeys: "keyboard.fill"; case .repos: "folder.fill"
-        case .agents: "terminal.fill"; case .prompts: "text.bubble.fill"
-        case .recents: "clock.arrow.circlepath"; case .github: "arrow.triangle.branch"
-        case .appearance: "paintpalette.fill"; case .about: "info.circle.fill"
         }
     }
 

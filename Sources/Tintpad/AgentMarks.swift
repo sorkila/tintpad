@@ -111,60 +111,6 @@ enum BrandImages {
 }
 
 // MARK: - Palette mark
-
-/// The palette's agent mark on a fixed module: a brand mark where one exists, a
-/// monogram everywhere else.
-///
-/// Color is the signal, so it's spent only where it means something. The
-/// selected row gets the agent's real color, every other row a neutral grey, at
-/// the brand's resting opacity so airy and dense marks read as equal weight.
-struct AgentMark: View {
-    let agent: Agent?
-    /// The agent's own color, used on the selected row.
-    let tint: Color
-    /// Pre-assigned so it stays distinct from the other agents on screen.
-    let monogram: String
-    let selected: Bool
-    let dark: Bool
-    var size: CGFloat = 14
-
-    private var brand: AgentBrand { AgentBrand.detect(agent) }
-
-    /// Neutral grey has to change with the ground, or it vanishes into it.
-    private var neutral: Color { dark ? Color(white: 0.88) : Color(white: 0.22) }
-
-    var body: some View {
-        Group {
-            if let image = BrandImages.mark(brand, tint: selected ? tint : neutral, pts: size) {
-                image
-            } else {
-                monogramView
-            }
-        }
-        .frame(width: size, height: size)
-        .opacity(selected ? 1 : brand.optical.restingOpacity)
-    }
-
-    /// One or two letters set in the same monospace as the row, so an agent
-    /// without artwork still looks like it belongs to the list.
-    private var monogramView: some View {
-        Text(monogram)
-            // Bold, because a letterform has to hold as much ink as a mark to
-            // sit level with one in the same column.
-            .font(.system(size: monogram.count > 1 ? size * 0.58 : size * 0.80,
-                          weight: .bold, design: .monospaced))
-            .foregroundStyle(selected ? tint : neutral)
-            .lineLimit(1)
-            .minimumScaleFactor(0.6)
-            .frame(width: size, height: size)
-            .fixedSize()
-    }
-}
-
-// MARK: - Settings mark
-
-/// The agent icon used on resizable surfaces: a faint brand-tinted tile with the
-/// mark (or monogram) inside.
 struct AgentBrandIcon: View {
     let agent: Agent?
     let tint: Color

@@ -28,6 +28,12 @@ struct TintpadApp: App {
         MenuBarExtra {
             Button("Summon palette") { delegate.panelController.show() }
                 .keyboardShortcut(.space, modifiers: [.option, .command])
+            // The resume affordance lives here, not as palette chrome — menus
+            // are where macOS teaches shortcuts (⌘0 also works in the palette).
+            Button("Resume last session") {
+                if case .launched = LaunchService.resumeLast(store: store) {} else { NSSound.beep() }
+            }
+            .disabled(!LaunchService.canResumeLast(store: store))
             Divider()
             Button("Settings…") { delegate.panelController.openSettings() }
                 .keyboardShortcut(",", modifiers: .command)

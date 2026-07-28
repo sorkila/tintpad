@@ -716,16 +716,6 @@ struct PaletteView: View {
                     .font(.system(size: metaSize, design: .monospaced))
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
-            } else if model.hasLastSession, model.worktreeRepo == nil, model.promptRepo == nil {
-                // The idle corner teaches the one shortcut that has no tile:
-                // replay the last session.
-                Button { model.resumeLastSession() } label: {
-                    Text("⌘0 resume")
-                        .font(.system(size: metaSize, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Resume last session")
             }
         }
         .padding(.horizontal, 20)
@@ -858,11 +848,12 @@ struct PaletteView: View {
                     .fill(selected ? repoFill.opacity(isDark ? 0.3 : 0.2)
                                    : Color.primary.opacity(isDark ? (hovered ? 0.09 : 0.055)
                                                                   : (hovered ? 0.07 : 0.045)))
+                // A ring means danger, nothing else — selection already has
+                // the fill, the glow, the scale, and the name.
                 RoundedRectangle(cornerRadius: Metric.tileCorner, style: .continuous)
                     .strokeBorder(
                         dangerous ? dangerTint.opacity(selected ? 0.85 : 0.45)
-                                  : selected ? Color.primary.opacity(0.55)
-                                             : repoColor.opacity(hovered ? 0.35 : 0),
+                                  : repoColor.opacity(hovered && !selected ? 0.35 : 0),
                         lineWidth: selected ? 1.5 : 1)
                 // The short name is the identity — no badges competing with it.
                 // The agent lives in the launch pill, where agent info belongs.
@@ -987,12 +978,6 @@ struct PaletteView: View {
                 planText("prompt — ↵ launches with it, esc goes back")
             } else if let repo = model.selectedRepo, let agent = model.activeAgent(for: repo) {
                 let mode = model.displayMode(agent: agent, repo: repo)
-                // The agent's mark sits with the agent's name — its one home.
-                AgentMark(agent: agent,
-                          tint: agent.tintHex.flatMap(Color.init(hex:)) ?? accent,
-                          monogram: model.monogram(for: agent),
-                          selected: true, dark: isDark, size: 12)
-                    .accessibilityHidden(true)
                 segment(agent.name.lowercased(),
                         help: "Agent — click or ⇥ to switch") { model.cycleAgent() }
                 planDot
