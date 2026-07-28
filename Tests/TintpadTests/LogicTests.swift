@@ -150,6 +150,65 @@ final class AppleScriptEscapeTests: XCTestCase {
     }
 }
 
+final class LaunchDefaultsTests: XCTestCase {
+    private let safe = RunMode(name: "Safe", flags: "", isDangerous: false, description: "")
+    private let def = RunMode.defaultMode()
+    private let yolo = RunMode(name: "YOLO", flags: "--yolo", isDangerous: true, description: "")
+
+    private func makeAgent(_ name: String) -> Agent {
+        Agent(name: name, commandTemplate: "\(name) {mode}", acceptsPrompt: true, tintHex: nil,
+              symbol: "terminal", modes: [safe, def, yolo], defaultModeID: def.id)
+    }
+
+    func testPinnedModeWinsOverLastUsedAndAgentDefault() {
+        let agent = makeAgent("claude")
+        var repo = Repo(path: "/x", name: "x")
+        repo.defaultModeID = yolo.id
+        repo.lastModeID = safe.id
+        XCTAssertEqual(LaunchDefaults.mode(for: repo, agent: agent).id, yolo.id)
+    }
+
+    func testLastUsedModeWinsOverAgentDefault() {
+        let agent = makeAgent("claude")
+        var repo = Repo(path: "/x", name: "x")
+        repo.lastModeID = yolo.id
+        XCTAssertEqual(LaunchDefaults.mode(for: repo, agent: agent).id, yolo.id)
+    }
+
+    func testStaleLastModeFromAnotherAgentFallsThrough() {
+        let agent = makeAgent("claude")
+        var repo = Repo(path: "/x", name: "x")
+        repo.lastModeID = UUID()   // a mode that belongs to no current agent
+        XCTAssertEqual(LaunchDefaults.mode(for: repo, agent: agent).id, def.id)
+    }
+
+    func testOverrideBeatsEverything() {
+        let agent = makeAgent("claude")
+        var repo = Repo(path: "/x", name: "x")
+        repo.defaultModeID = yolo.id
+        repo.lastModeID = yolo.id
+        XCTAssertEqual(LaunchDefaults.mode(for: repo, agent: agent, overrideID: safe.id).id, safe.id)
+    }
+
+    func testAgentPrecedencePinnedThenLastUsedThenFirst() {
+        let claude = makeAgent("claude")
+        let codex = makeAgent("codex")
+        var repo = Repo(path: "/x", name: "x")
+        XCTAssertEqual(LaunchDefaults.agent(for: repo, agents: [claude, codex])?.id, claude.id)
+        repo.lastAgentID = codex.id
+        XCTAssertEqual(LaunchDefaults.agent(for: repo, agents: [claude, codex])?.id, codex.id)
+        repo.defaultAgentID = claude.id
+        XCTAssertEqual(LaunchDefaults.agent(for: repo, agents: [claude, codex])?.id, claude.id)
+    }
+
+    func testRemovedLastAgentFallsBackToFirst() {
+        let claude = makeAgent("claude")
+        var repo = Repo(path: "/x", name: "x")
+        repo.lastAgentID = UUID()   // agent since deleted
+        XCTAssertEqual(LaunchDefaults.agent(for: repo, agents: [claude])?.id, claude.id)
+    }
+}
+
 final class LaunchResolutionTests: XCTestCase {
     private func agent(_ template: String) -> Agent {
         Agent(name: "T", commandTemplate: template, acceptsPrompt: true, tintHex: nil,
@@ -237,6 +296,34 @@ final class GitInfoTests: XCTestCase {
     }
 }
 
+final class GitStatusTests: XCTestCase {
+    private func sh(_ args: [String], cwd: String) {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        p.arguments = args
+        p.currentDirectoryURL = URL(fileURLWithPath: cwd)
+        try? p.run(); p.waitUntilExit()
+    }
+
+    func testCleanDirtyAndNonRepo() throws {
+        try XCTSkipUnless(FileManager.default.isExecutableFile(atPath: "/usr/bin/git"))
+        let dir = NSTemporaryDirectory() + "tintpad-dirty-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+
+        // Not a repo yet → unknown, never a guess.
+        XCTAssertNil(GitStatus.isDirty(at: dir))
+
+        sh(["init", "-q"], cwd: dir)
+        sh(["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "init"], cwd: dir)
+        XCTAssertEqual(GitStatus.isDirty(at: dir), false)
+
+        // An untracked file counts as dirty — that is what the working tree shows.
+        FileManager.default.createFile(atPath: dir + "/new.txt", contents: Data("x".utf8))
+        XCTAssertEqual(GitStatus.isDirty(at: dir), true)
+    }
+}
+
 final class RepoDiscoveryTests: XCTestCase {
     func testFindsGitRepos() throws {
         let root = NSTemporaryDirectory() + "tintpad-disc-\(UUID().uuidString)"
@@ -286,6 +373,21 @@ final class MonogramTests: XCTestCase {
         for (i, n) in names.enumerated() {
             XCTAssertEqual(Monogram.of(n, in: names), all[i])
         }
+    }
+}
+
+final class RepoTintTests: XCTestCase {
+    func testHueIsDeterministicAndInRange() {
+        for name in ["Tintpad", "Kuta", "Velm", "SB3K", "The Prototype Lab"] {
+            let h = RepoTint.hue(for: name)
+            XCTAssertEqual(h, RepoTint.hue(for: name), "hue must be stable")
+            XCTAssertGreaterThanOrEqual(h, 20)
+            XCTAssertLessThan(h, 340, "danger-red band is reserved")
+        }
+    }
+
+    func testCaseInsensitive() {
+        XCTAssertEqual(RepoTint.hue(for: "Kuta"), RepoTint.hue(for: "kuta"))
     }
 }
 

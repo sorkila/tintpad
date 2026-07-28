@@ -148,7 +148,16 @@ private struct RepoRow: View {
     }
 
     private var agentBinding: Binding<UUID?> {
-        Binding(get: { repo.defaultAgentID }, set: { var r = repo; r.defaultAgentID = $0; r.defaultModeID = nil; store.updateRepo(r) })
+        Binding(get: { repo.defaultAgentID }, set: { newID in
+            // Only a real agent change invalidates the pinned mode (modes are
+            // agent-specific). Re-selecting the same agent must not wipe it —
+            // that silently erased per-repo YOLO pins.
+            guard newID != repo.defaultAgentID else { return }
+            var r = repo
+            r.defaultAgentID = newID
+            r.defaultModeID = nil
+            store.updateRepo(r)
+        })
     }
 
     private var modeBinding: Binding<UUID?> {

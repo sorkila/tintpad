@@ -181,7 +181,13 @@ final class AppStore: ObservableObject {
     private let maxSessions = 50
 
     /// Record a launch as a session (newest first, de-duped by repo+agent+mode).
+    /// Also stamps the repo's last-used agent + mode, so the palette can offer
+    /// "the way you opened it last" when no explicit default is pinned.
     func recordSession(repo: Repo, agent: Agent, mode: RunMode, prompt: String?, now: Date = Date()) {
+        if let idx = repos.firstIndex(where: { $0.id == repo.id }) {
+            repos[idx].lastAgentID = agent.id
+            repos[idx].lastModeID = mode.id
+        }
         let session = Session(
             repoID: repo.id, repoPath: repo.path, repoName: repo.name,
             agentID: agent.id, agentName: agent.name,

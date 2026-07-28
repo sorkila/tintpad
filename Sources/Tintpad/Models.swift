@@ -70,7 +70,34 @@ struct Repo: Identifiable, Codable, Hashable {
 
     var defaultAgentID: UUID?
     var defaultModeID: UUID?
+    /// What actually launched last time, stamped on every launch. Used as the
+    /// fallback when no explicit default is pinned, so a repo remembers how you
+    /// opened it. Optionals so older store.json files decode untouched.
+    var lastAgentID: UUID?
+    var lastModeID: UUID?
     var pinned: Bool = false
+}
+
+/// Pure resolution of which agent and mode a repo launches with. Precedence:
+/// explicit override (⇥/⇧⇥, this summon only) → per-repo pin (Settings) →
+/// last-used for this repo → agent default. Kept out of the view model so the
+/// precedence is unit-testable.
+enum LaunchDefaults {
+    static func agent(for repo: Repo, agents: [Agent], overrideID: UUID? = nil) -> Agent? {
+        if let id = overrideID, let a = agents.first(where: { $0.id == id }) { return a }
+        if let id = repo.defaultAgentID, let a = agents.first(where: { $0.id == id }) { return a }
+        if let id = repo.lastAgentID, let a = agents.first(where: { $0.id == id }) { return a }
+        return agents.first
+    }
+
+    /// A remembered mode ID from a different agent misses the `agent.modes`
+    /// lookup and falls through, so stale IDs can never resurrect a wrong mode.
+    static func mode(for repo: Repo, agent: Agent, overrideID: UUID? = nil) -> RunMode {
+        if let id = overrideID, let m = agent.modes.first(where: { $0.id == id }) { return m }
+        if let id = repo.defaultModeID, let m = agent.modes.first(where: { $0.id == id }) { return m }
+        if let id = repo.lastModeID, let m = agent.modes.first(where: { $0.id == id }) { return m }
+        return agent.defaultMode
+    }
 }
 
 // MARK: - Prompt library
