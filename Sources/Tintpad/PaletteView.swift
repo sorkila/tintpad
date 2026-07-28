@@ -607,6 +607,11 @@ struct PaletteView: View {
 
     var body: some View {
         Group {
+            // The compiler gate matters as much as the availability check:
+            // Liquid Glass symbols only exist in the macOS 26 SDK (Swift
+            // 6.2+), and older toolchains (CI's macos-15 image, contributors
+            // on Xcode 16) must still compile the fallback path.
+            #if compiler(>=6.2)
             if #available(macOS 26.0, *) {
                 // Blend distance just under the resting gap: pieces fuse into
                 // one glass body only while the summon settle has them close,
@@ -615,6 +620,9 @@ struct PaletteView: View {
             } else {
                 cluster
             }
+            #else
+            cluster
+            #endif
         }
         .scaleEffect(model.launching ? 0.985 : (shown ? 1 : 0.99), anchor: .top)
         .opacity(model.launching ? 0 : (shown ? 1 : 0))
@@ -1133,28 +1141,46 @@ private struct GlassPiece<S: InsettableShape>: ViewModifier {
                     .clipShape(shape)
                     .overlay(shape.strokeBorder(
                         isDark ? Color.white.opacity(0.16) : Color.black.opacity(0.14), lineWidth: 1))
-            } else if #available(macOS 26.0, *) {
-                // Legibility comes from vibrancy (hierarchical foreground
-                // styles on the glass), not from a heavy scrim — a whisper of
-                // frost is all the material needs over a worst-case window.
-                content
-                    .background((isDark ? Color.black : Color.white).opacity(isDark ? 0.18 : 0.15))
-                    .clipShape(shape)
-                    .glassEffect(interactive ? .regular.interactive() : .regular, in: shape)
             } else {
-                content
-                    .background {
-                        ZStack {
-                            GlassBackground(material: isDark ? .hudWindow : .popover)
-                            (isDark ? Color.black : Color.white).opacity(isDark ? 0.45 : 0.6)
-                        }
-                    }
-                    .clipShape(shape)
-                    .overlay(shape.strokeBorder(
-                        isDark ? Color.white.opacity(0.16) : Color.black.opacity(0.14), lineWidth: 1))
+                liquidOrLegacy(content)
             }
         }
         .shadow(color: .black.opacity(isDark ? 0.32 : 0.15),
                 radius: prominent ? 20 : 12, y: prominent ? 8 : 5)
+    }
+
+    /// Real Liquid Glass where the SDK and OS both allow it; the vibrancy
+    /// stack everywhere else. The `#if compiler` gate keeps older toolchains
+    /// (CI, Xcode 16 contributors) compiling — `#available` alone cannot,
+    /// because the symbols don't exist in their SDK at all.
+    @ViewBuilder private func liquidOrLegacy(_ content: Content) -> some View {
+        #if compiler(>=6.2)
+        if #available(macOS 26.0, *) {
+            // Legibility comes from vibrancy (hierarchical foreground
+            // styles on the glass), not from a heavy scrim — a whisper of
+            // frost is all the material needs over a worst-case window.
+            content
+                .background((isDark ? Color.black : Color.white).opacity(isDark ? 0.18 : 0.15))
+                .clipShape(shape)
+                .glassEffect(interactive ? .regular.interactive() : .regular, in: shape)
+        } else {
+            legacyGlass(content)
+        }
+        #else
+        legacyGlass(content)
+        #endif
+    }
+
+    private func legacyGlass(_ content: Content) -> some View {
+        content
+            .background {
+                ZStack {
+                    GlassBackground(material: isDark ? .hudWindow : .popover)
+                    (isDark ? Color.black : Color.white).opacity(isDark ? 0.45 : 0.6)
+                }
+            }
+            .clipShape(shape)
+            .overlay(shape.strokeBorder(
+                isDark ? Color.white.opacity(0.16) : Color.black.opacity(0.14), lineWidth: 1))
     }
 }
