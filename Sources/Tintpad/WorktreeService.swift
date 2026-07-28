@@ -38,11 +38,13 @@ enum WorktreeService {
     @discardableResult
     static func create(repoPath: String, branch: String, at path: String) throws -> String {
         let exists = branchExists(repoPath: repoPath, branch: branch)
+        // "--" pins positionals, and the branch rides as -b's value when new,
+        // so a user-typed name starting with "-" can never become a git option.
         var args = ["-C", repoPath, "worktree", "add"]
         if exists {
-            args += [path, branch]
+            args += ["--", path, branch]
         } else {
-            args += ["-b", branch, path]
+            args += ["-b", branch, "--", path]
         }
         try runGit(args)
         return path
@@ -79,7 +81,9 @@ enum WorktreeService {
     // MARK: - Internals
 
     private static func branchExists(repoPath: String, branch: String) -> Bool {
-        (try? runGit(["-C", repoPath, "rev-parse", "--verify", "--quiet", branch])) != nil
+        // Full ref path: unambiguous, and a "-" prefix can't become an option.
+        (try? runGit(["-C", repoPath, "rev-parse", "--verify", "--quiet",
+                      "refs/heads/\(branch)"])) != nil
     }
 
     @discardableResult

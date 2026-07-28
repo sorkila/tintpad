@@ -29,23 +29,35 @@ final class AppStore: ObservableObject {
     private func load() {
         isLoading = true
         defer { isLoading = false }
-        guard let data = try? Data(contentsOf: fileURL),
-              let doc = try? JSONDecoder.tintpad.decode(StoreDocument.self, from: data) else {
-            // First run: seed defaults and persist.
-            let seeded = StoreDocument.seeded()
-            repos = seeded.repos
-            agents = seeded.agents
-            prompts = seeded.prompts
-            sessions = seeded.sessions
-            settings = seeded.settings
-            persist()   // write directly; save() is suppressed while loading
+        if let data = try? Data(contentsOf: fileURL),
+           let doc = try? JSONDecoder.tintpad.decode(StoreDocument.self, from: data) {
+            repos = doc.repos
+            agents = doc.agents.isEmpty ? AgentSeed.defaults : doc.agents
+            prompts = doc.prompts
+            sessions = doc.sessions
+            settings = doc.settings
             return
         }
-        repos = doc.repos
-        agents = doc.agents.isEmpty ? AgentSeed.defaults : doc.agents
-        prompts = doc.prompts
-        sessions = doc.sessions
-        settings = doc.settings
+        // A store exists but didn't load (corrupt, sync conflict, transient
+        // read error): preserve the evidence before anything can write over
+        // it. Reseeding must never destroy the only copy of the user's data.
+        let hadFile = FileManager.default.fileExists(atPath: fileURL.path)
+        if hadFile {
+            let stamp = Int(Date().timeIntervalSince1970)
+            let backup = fileURL.deletingLastPathComponent()
+                .appendingPathComponent("store.corrupt-\(stamp).json")
+            try? FileManager.default.copyItem(at: fileURL, to: backup)
+            NSLog("Tintpad: store.json failed to load — preserved a copy at \(backup.path)")
+        }
+        let seeded = StoreDocument.seeded()
+        repos = seeded.repos
+        agents = seeded.agents
+        prompts = seeded.prompts
+        sessions = seeded.sessions
+        settings = seeded.settings
+        // Persist immediately only on a true first run; after a failed load
+        // the seed stays in memory until something actually changes.
+        if !hadFile { persist() }
     }
 
     func save() {
@@ -56,8 +68,14 @@ final class AppStore: ObservableObject {
     private func persist() {
         let doc = StoreDocument(version: 1, repos: repos, agents: agents,
                                 prompts: prompts, sessions: sessions, settings: settings)
-        guard let data = try? JSONEncoder.tintpad.encode(doc) else { return }
-        try? data.write(to: fileURL, options: .atomic)
+        do {
+            let data = try JSONEncoder.tintpad.encode(doc)
+            try data.write(to: fileURL, options: .atomic)
+        } catch {
+            // A failed save must at least leave a trace — silent loss of
+            // repos/sessions/license on disk-full is worse than a log line.
+            NSLog("Tintpad: failed to save store.json: \(error.localizedDescription)")
+        }
     }
 
     // MARK: - Repo operations
@@ -123,6 +141,9 @@ final class AppStore: ObservableObject {
     }
 
     func removeAgent(_ id: UUID) {
+        // The last agent is load-bearing: without one the palette dead-keys
+        // (⏎ and ⇥ silently no-op) until the next launch reseeds.
+        guard agents.count > 1 else { return }
         agents.removeAll { $0.id == id }
         save()
     }
@@ -207,10 +228,30 @@ final class AppStore: ObservableObject {
     // MARK: - Discovery
 
     /// Scan the configured root folders (1–2 levels) for `.git` directories and
-    /// add any new repos. Returns the number added.
+    /// add any new repos. Returns the number added. Synchronous — only for
+    /// explicit user actions (⌘R, the Scan button); launch paths use the
+    /// background variant below.
     @discardableResult
     func runAutoDiscovery() -> Int {
         let found = RepoDiscovery.scan(roots: settings.rootScanFolders)
+        return merge(found)
+    }
+
+    /// The same scan off the main thread: root folders can live on slow
+    /// fileprovider volumes, and app launch or a palette summon must never
+    /// block on a directory walk.
+    func runAutoDiscoveryInBackground() {
+        let roots = settings.rootScanFolders
+        DispatchQueue.global(qos: .utility).async {
+            let found = RepoDiscovery.scan(roots: roots)
+            Task { @MainActor in
+                let added = self.merge(found)
+                if added > 0 { NSLog("Tintpad: discovered \(added) repos") }
+            }
+        }
+    }
+
+    private func merge(_ found: [String]) -> Int {
         let existing = Set(repos.map(\.path))
         var added = 0
         for path in found where !existing.contains(path) {

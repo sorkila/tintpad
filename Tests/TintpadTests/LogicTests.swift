@@ -67,6 +67,16 @@ final class CommandTemplateTests: XCTestCase {
         XCTAssertEqual(out, "claude")
     }
 
+    // The empty-slot cleanup must never rewrite spaces inside quoted values:
+    // "/Users/me/my  repo" is a legal path and must survive verbatim.
+    func testDoubleSpacesInsideQuotedValuesSurvive() {
+        let repo = Repo(path: "/Users/me/my  repo", name: "my  repo")
+        let c = CommandTemplate.Context(repo: repo, mode: .defaultMode(),
+                                        prompt: "fix  this", branch: nil, remote: nil)
+        let out = CommandTemplate.preview("cd {repoPath} && claude {mode} {prompt}", context: c)
+        XCTAssertEqual(out, "cd '/Users/me/my  repo' && claude 'fix  this'")
+    }
+
     func testPromptIsQuoted() {
         let out = CommandTemplate.preview("claude {prompt}", context: ctx(mode: .defaultMode(), prompt: "fix bug"))
         XCTAssertEqual(out, "claude 'fix bug'")

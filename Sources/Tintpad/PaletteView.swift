@@ -1,7 +1,14 @@
 import AppKit
 import SwiftUI
 
-private struct PendingLaunch { let repo: Repo; let agent: Agent; let mode: RunMode }
+private struct PendingLaunch {
+    let repo: Repo
+    let agent: Agent
+    let mode: RunMode
+    /// What ⏎ replays once the user confirms — launch, dispatch, prompt,
+    /// worktree, or resume all arm the same banner with their own action.
+    let fire: () -> Void
+}
 
 /// Keyboard policy decisions that depend on assistive-tech state, kept pure so
 /// they can be reasoned about and tested without the environment.
@@ -22,7 +29,17 @@ enum KeyPolicy {
 /// `.onKeyPress` on a `TextField` swallows arrow keys, so we don't rely on it.
 @MainActor
 final class PaletteModel: ObservableObject {
-    @Published var query = "" { didSet { selection = 0; clearTransient(); refreshGitContext() } }
+    // Typing changes which repo is selected, and overrides belong to the row
+    // they were made on — so a query change clears them along with transients.
+    @Published var query = "" {
+        didSet {
+            selection = 0
+            agentOverrideID = nil
+            modeOverrideID = nil
+            clearTransient()
+            refreshGitContext()
+        }
+    }
     @Published var selection = 0
     @Published var agentOverrideID: UUID?
     @Published var modeOverrideID: UUID?
@@ -97,17 +114,23 @@ final class PaletteModel: ObservableObject {
 
     func gitContext(for repo: Repo) -> GitContext? { gitContexts[repo.path] }
 
-    /// Kick off a fetch for the selected repo. The dirty check shells out, so
-    /// it runs detached and lands back on the main actor — the footer renders
-    /// from cache instantly and fills in when the answer arrives.
+    /// A plain GCD queue, deliberately not the Swift cooperative pool: the
+    /// dirty check blocks on subprocess I/O, and a repo on a stalled mount
+    /// must be able to hang a disposable GCD thread, never a pool thread.
+    private static let gitQueue = DispatchQueue(
+        label: "com.sorkila.tintpad.gitstatus", qos: .userInitiated, attributes: .concurrent)
+
+    /// Kick off a fetch for the selected repo. Runs on `gitQueue` and lands
+    /// back on the main actor — the pill renders from cache instantly and
+    /// fills in when the answer arrives.
     func refreshGitContext() {
         guard let path = selectedRepo?.path else { return }
         guard gitContexts[path] == nil, !gitInFlight.contains(path) else { return }
         gitInFlight.insert(path)
-        Task.detached(priority: .userInitiated) { [weak self] in
+        PaletteModel.gitQueue.async { [weak self] in
             let ctx = GitContext(branch: GitInfo.currentBranch(at: path),
                                  dirty: GitStatus.isDirty(at: path))
-            await self?.storeGitContext(ctx, for: path)
+            Task { @MainActor in self?.storeGitContext(ctx, for: path) }
         }
     }
 
@@ -148,9 +171,14 @@ final class PaletteModel: ObservableObject {
         promptRepo = nil
         selectedPromptID = nil
         // The working tree may have changed since the last summon — refetch.
+        // In-flight markers go too: a fetch that never returned must not lock
+        // its repo out of git context for the rest of the app's life.
         gitContexts.removeAll()
+        gitInFlight.removeAll()
         query = ""   // didSet refreshes git context for the new selection
-        if store.repos.isEmpty { store.runAutoDiscovery() }
+        // Off-main: a summon must render instantly even if the scan roots
+        // live on a slow volume — the strip fills in as repos arrive.
+        if store.repos.isEmpty { store.runAutoDiscoveryInBackground() }
     }
 
     func handle(_ event: NSEvent) -> Bool {
@@ -198,6 +226,9 @@ final class PaletteModel: ObservableObject {
     /// typing into the field, where ⌘<n> should stay inert.
     private func launchByIndex(_ index: Int) -> Bool {
         guard worktreeRepo == nil, promptRepo == nil else { return false }
+        // ⌘n while a dangerous confirm is pending cancels it — the jump must
+        // never fire a YOLO that was armed for a different repo.
+        if pendingDangerous != nil { clearTransient() }
         guard filtered.indices.contains(index) else { return false }
         selection = index
         agentOverrideID = nil
@@ -208,13 +239,26 @@ final class PaletteModel: ObservableObject {
 
     /// ⌘0 — relaunch the most recent session exactly (repo, agent, mode,
     /// prompt), same semantics as the global resume hotkey. Inert while the
-    /// field is capturing a worktree branch or a prompt, like ⌘1–⌘9.
+    /// field is capturing a worktree branch or a prompt, like ⌘1–⌘9. A pending
+    /// confirm is cancelled, never fired, and a dangerous last session arms
+    /// the same confirm banner as any other dangerous launch.
     @discardableResult
     func resumeLastSession() -> Bool {
         guard worktreeRepo == nil, promptRepo == nil else { return false }
-        guard hasLastSession else { status = "no session to resume yet"; return true }
-        if LaunchService.resumeLast(store: store) { onClose() }
-        else { status = "⚠ couldn't resume — that repo, agent, or mode is gone" }
+        clearTransient()
+        guard let session = store.lastSession else { status = "no session to resume yet"; return true }
+        let fire: () -> Void = { [weak self] in
+            guard let self else { return }
+            if LaunchService.resumeLast(store: store) { onClose() }
+            else { status = "⚠ couldn't resume the last session" }
+        }
+        if let agent = store.agent(session.agentID),
+           let mode = agent.modes.first(where: { $0.id == session.modeID }),
+           let repo = store.repos.first(where: { $0.id == session.repoID }) {
+            fireOrConfirm(repo: repo, agent: agent, mode: mode, fire)
+        } else {
+            fire()
+        }
         return true
     }
 
@@ -290,6 +334,7 @@ final class PaletteModel: ObservableObject {
     func enterWorktreeMode() {
         guard let repo = selectedRepo else { return }
         guard store.allows(.worktree) else { status = ProFeature.worktree.blurb; return }
+        promptRepo = nil   // the two field-capture modes are mutually exclusive
         worktreeRepo = repo
         query = ""
     }
@@ -307,11 +352,15 @@ final class PaletteModel: ObservableObject {
         guard !branch.isEmpty else { status = "Enter a branch name"; return }
         guard let agent = activeAgent(for: repo) else { return }
         let mode = resolveMode(agent: agent, repo: repo, modifiers: [])
-        do {
-            let outcome = try LaunchService.launchInWorktree(
-                repo: repo, agent: agent, mode: mode, branch: branch, prompt: selectedPrompt?.text, store: store)
-            if let note = outcome.note { status = note } else { onClose() }
-        } catch { status = "⚠ \(error)" }
+        let promptText = selectedPrompt?.text
+        fireOrConfirm(repo: repo, agent: agent, mode: mode) { [weak self] in
+            guard let self else { return }
+            do {
+                let outcome = try LaunchService.launchInWorktree(
+                    repo: repo, agent: agent, mode: mode, branch: branch, prompt: promptText, store: store)
+                if let note = outcome.note { status = note } else { onClose() }
+            } catch { status = "⚠ \(error)" }
+        }
     }
 
     // MARK: - Prompt mode
@@ -319,6 +368,7 @@ final class PaletteModel: ObservableObject {
     func enterPromptMode() {
         guard let repo = selectedRepo else { return }
         guard store.allows(.promptLibrary) else { status = ProFeature.promptLibrary.blurb; return }
+        worktreeRepo = nil   // the two field-capture modes are mutually exclusive
         promptRepo = repo
         query = ""
     }
@@ -330,7 +380,9 @@ final class PaletteModel: ObservableObject {
         let prompt = query.trimmingCharacters(in: .whitespaces)
         let mode = resolveMode(agent: agent, repo: repo, modifiers: [])
         if mode.isDangerous && !store.allows(.yoloMode) { status = ProFeature.yoloMode.blurb; return }
-        perform(repo: repo, agent: agent, mode: mode, prompt: prompt.isEmpty ? nil : prompt)
+        fireOrConfirm(repo: repo, agent: agent, mode: mode) { [weak self] in
+            self?.perform(repo: repo, agent: agent, mode: mode, prompt: prompt.isEmpty ? nil : prompt)
+        }
     }
 
     // MARK: - Actions
@@ -343,29 +395,51 @@ final class PaletteModel: ObservableObject {
     }
 
     func handleReturn(modifiers mods: NSEvent.ModifierFlags) {
-        if promptRepo != nil { launchWithTypedPrompt(); return }
-        if worktreeRepo != nil { createWorktreeAndLaunch(); return }
         if let pending = pendingDangerous {
             pendingDangerous = nil
-            perform(repo: pending.repo, agent: pending.agent, mode: pending.mode)
+            pending.fire()
             return
         }
+        if promptRepo != nil { launchWithTypedPrompt(); return }
+        if worktreeRepo != nil { createWorktreeAndLaunch(); return }
         guard let repo = selectedRepo else { return }
         if mods.contains(.command) { openInEditor(repo: repo); return }
         guard let agent = activeAgent(for: repo) else { return }
         let mode = resolveMode(agent: agent, repo: repo, modifiers: mods)
 
-        if mods.contains(.control) { dispatch(repo: repo, agent: agent, mode: mode); return }
-        if mode.isDangerous && !store.allows(.yoloMode) { status = ProFeature.yoloMode.blurb; return }
-        if mode.isDangerous && store.settings.confirmDangerousModes {
-            pendingDangerous = PendingLaunch(repo: repo, agent: agent, mode: mode)
+        if mods.contains(.control) {
+            // Headless dispatch is *less* visible than a terminal launch, so it
+            // must never be easier to reach a permission-skipping run with.
+            fireOrConfirm(repo: repo, agent: agent, mode: mode) { [weak self] in
+                self?.dispatch(repo: repo, agent: agent, mode: mode)
+            }
             return
         }
-        perform(repo: repo, agent: agent, mode: mode)
+        if mode.isDangerous && !store.allows(.yoloMode) { status = ProFeature.yoloMode.blurb; return }
+        fireOrConfirm(repo: repo, agent: agent, mode: mode) { [weak self] in
+            self?.perform(repo: repo, agent: agent, mode: mode)
+        }
     }
 
-    /// Click-to-launch (uses currently held modifiers).
+    /// The one danger gate: every path that would run a permission-skipping
+    /// mode arms the confirm banner (when the setting is on) instead of firing.
+    /// Launch, dispatch, prompt, worktree, and resume all pass through here —
+    /// no flow is quieter than the plain ⏎.
+    private func fireOrConfirm(repo: Repo, agent: Agent, mode: RunMode,
+                               _ fire: @escaping () -> Void) {
+        if mode.isDangerous && store.settings.confirmDangerousModes {
+            pendingDangerous = PendingLaunch(repo: repo, agent: agent, mode: mode, fire: fire)
+            return
+        }
+        fire()
+    }
+
+    /// Click-to-launch (uses currently held modifiers). Clicking any tile
+    /// while a dangerous confirm is pending cancels the pending launch — a
+    /// click must never fire a YOLO that was armed for a different repo.
     func activate(at index: Int) {
+        if pendingDangerous != nil { clearTransient() }
+        guard filtered.indices.contains(index) else { return }
         selection = index
         handleReturn(modifiers: NSEvent.modifierFlags)
     }

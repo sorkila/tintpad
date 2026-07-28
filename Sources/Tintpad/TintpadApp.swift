@@ -63,9 +63,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        // Populate repos in the background so the first summon is instant.
-        let added = AppStore.shared.runAutoDiscovery()
-        if added > 0 { NSLog("Tintpad: discovered \(added) repos at launch") }
+        // Populate repos genuinely in the background — the scan can touch
+        // slow fileprovider volumes and must never block launch.
+        AppStore.shared.runAutoDiscoveryInBackground()
 
         // Ask for notification permission so headless dispatch can notify on done.
         DispatchService.shared.requestAuthorization()

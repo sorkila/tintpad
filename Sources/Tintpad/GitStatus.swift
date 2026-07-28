@@ -21,9 +21,9 @@ enum GitStatus {
         p.standardError = FileHandle.nullDevice
         do { try p.run() } catch { return nil }
 
-        // Bounded (AUDIT Q1): a hung git gets killed, which also closes the
-        // pipe and unblocks the read below.
-        let killer = DispatchWorkItem { if p.isRunning { p.terminate() } }
+        // Bounded (AUDIT Q1): a hung git gets SIGTERM, and half a second later
+        // SIGKILL — a git that ignores SIGTERM must not outlive the timeout.
+        let killer = DispatchWorkItem { reap(p) }
         DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: killer)
         defer { killer.cancel() }
 
@@ -31,7 +31,10 @@ enum GitStatus {
         // status from deadlocking against a full 64KB pipe buffer.
         let firstByte = try? out.fileHandleForReading.read(upToCount: 1)
         if let firstByte, !firstByte.isEmpty {
-            if p.isRunning { p.terminate() }
+            // Close our read end before waiting: a child still writing gets
+            // EPIPE and exits instead of blocking forever on a full pipe.
+            try? out.fileHandleForReading.close()
+            reap(p)
             p.waitUntilExit()
             return true
         }
@@ -39,5 +42,15 @@ enum GitStatus {
         // was killed by the timeout.
         p.waitUntilExit()
         return p.terminationStatus == 0 ? false : nil
+    }
+
+    /// SIGTERM now, SIGKILL shortly after if it's still alive.
+    nonisolated private static func reap(_ p: Process) {
+        guard p.isRunning else { return }
+        let pid = p.processIdentifier
+        p.terminate()
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) {
+            if p.isRunning { kill(pid, SIGKILL) }
+        }
     }
 }

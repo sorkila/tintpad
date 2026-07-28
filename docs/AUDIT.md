@@ -118,3 +118,84 @@ Add GitHub Actions: `swift build` + `swift test` on push, optional release job.
 8. **Q6** ✅ VoiceOver labels on palette rows + search field. **Q7** ✅ GitHub Actions CI (`build` + `test`).
 
 Remaining: Phase 2 (release creds), full `Launcher` DI, broader error surfacing.
+
+---
+
+# 2026-07 audit, post-2.0 redesign
+
+_Three parallel audit passes (concurrency/lifecycle, robustness/error handling,
+security + palette state machine) over the Liquid Glass cluster codebase, every
+finding verified against source before inclusion. Fixed items were fixed the
+same day, commit-referenced below._
+
+## Fixed in this pass
+
+### Dangerous-mode confirm gate (was: five bypasses)
+- **Click/⌘n fired a pending YOLO for a different repo** (High). `activate(at:)`
+  and `launchByIndex` consumed the pending confirm armed for repo A when the
+  user clicked or jumped to repo B. Both now cancel a pending confirm instead.
+- **Dispatch, prompt, worktree, and resume skipped the confirm setting**
+  (Medium). All launch paths now route through one gate
+  (`PaletteModel.fireOrConfirm`), and the pending launch carries its own replay
+  action, so no flow is quieter than plain ⏎.
+- ⌘0 with a dangerous last session arms the same banner.
+
+### State machine
+- **Agent/mode overrides leaked across repos** (Medium): typing reset the
+  selection but kept the override, silently applying it to whichever repo
+  became row 0. `query.didSet` now clears overrides.
+- Worktree and prompt modes were not mutually exclusive (Medium): entering one
+  now exits the other.
+- `activate(at:)` validates the tapped index instead of clamping a stale one.
+
+### Data safety
+- **Corrupt store.json was silently reseeded and persisted over** (High), which
+  destroyed repos, sessions, settings, and the Supporter key with no trace. The
+  failed file is now preserved as `store.corrupt-<ts>.json`, and the seed only
+  persists on a true first run.
+- `persist()` no longer swallows write errors silently (logged).
+- Deleting the last agent (which dead-keyed the palette) is now refused.
+
+### Concurrency / robustness
+- **Git dirty-checks blocked the Swift cooperative pool** (High): a repo on a
+  stalled mount could pin pool threads app-wide. The check now runs on a
+  dedicated GCD queue, `GitStatus` escalates SIGTERM to SIGKILL, and the dirty
+  path closes its pipe before waiting so a chatty child can't deadlock.
+- `reset()` now clears `gitInFlight`, so a hung fetch can't lock a repo out of
+  git context for the app's lifetime.
+- Launch-time auto-discovery genuinely runs in the background now (it was
+  synchronous on the main thread despite its comment), same for the
+  empty-store summon path.
+- The global space-collapse in `CommandTemplate` rewrote double spaces inside
+  quoted paths and prompts (Medium): replaced with targeted empty-slot cleanup,
+  regression-tested.
+- Worktree branch names are pinned behind `--` / `refs/heads/` so a
+  dash-leading name can't parse as a git option.
+- Recents resume failures now beep instead of vanishing (June Q3 call site).
+
+## Verified clean
+Command quoting end to end including `{branch}`/`{remote}`/`{worktreePath}` and
+AppleScript escaping, DispatchService lifecycle + log rotation, the
+`tintpad://` scheme (summon-only), license key handling (public key only in the
+bundle), Store main-actor discipline, notification observer lifecycle,
+GitStatus argv/env hygiene.
+
+## Open, ranked
+1. **Main-actor `waitUntilExit` in clone/worktree/terminal adapters** (High for
+   clone, Medium otherwise): `GitHubService.clone` runs a full clone on the
+   main actor (its `Task {}` inherits MainActor), worktree add and adapter
+   `run()` can block the UI, and all three read pipes after exit (64KB
+   deadlock). Needs the same treatment GitStatus got, plus async clone.
+2. **No single-instance guard**: dev build + installed app last-writer-wins on
+   store.json.
+3. `resumeLast` collapses "gone" and "failed" into one message, and
+   `hasLastSession` advertises resumes that can't reconstruct.
+4. Ghostty keystroke adapter types into whatever is frontmost after its fixed
+   delays (no frontmost re-check), Terminal tab mode lacks the Accessibility
+   pre-check, Warp URL needs `URLComponents`.
+5. Frecency inflates scores for future-dated `lastLaunchedAt` (clock rollback).
+6. Settings `bind()` rewrites the whole store per keystroke (perf).
+7. Dispatch: no cancel/timeout/visibility for running agents, log name
+   collision within one second.
+8. Global resume hotkey bypasses the dangerous-mode confirm by design (no UI
+   surface to confirm in); documented tradeoff, revisit if it bites.
