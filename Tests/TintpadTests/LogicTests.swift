@@ -389,6 +389,15 @@ final class RepoTintTests: XCTestCase {
     func testCaseInsensitive() {
         XCTAssertEqual(RepoTint.hue(for: "Kuta"), RepoTint.hue(for: "kuta"))
     }
+
+    func testShortNames() {
+        XCTAssertEqual(RepoTint.shortName(for: "Kuta"), "KUTA")       // fits whole
+        XCTAssertEqual(RepoTint.shortName(for: "SB3K"), "SB3K")
+        XCTAssertEqual(RepoTint.shortName(for: "Tintpad"), "TIN")     // prefix
+        XCTAssertEqual(RepoTint.shortName(for: "The Prototype Lab"), "TPL")  // initials
+        XCTAssertEqual(RepoTint.shortName(for: "my-cool-repo"), "MCR")
+        XCTAssertEqual(RepoTint.shortName(for: ""), "?")
+    }
 }
 
 final class KeyPolicyTests: XCTestCase {

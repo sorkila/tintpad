@@ -62,15 +62,6 @@ final class PaletteModel: ObservableObject {
 
     func monogram(for agent: Agent?) -> String { store.monogram(for: agent) }
 
-    /// The repo's monogram, assigned across the whole repo set so tiles stay
-    /// distinct from each other — same machinery as agent monograms.
-    func repoMonogram(for repo: Repo) -> String {
-        guard let idx = store.repos.firstIndex(where: { $0.id == repo.id }) else {
-            return Monogram.assign([repo.name]).first ?? "?"
-        }
-        return Monogram.assign(store.repos.map(\.name))[idx]
-    }
-
     var filtered: [Repo] {
         let ordered = store.orderedRepos()
         guard !query.isEmpty else { return ordered }
@@ -748,18 +739,13 @@ struct PaletteView: View {
                                   : selected ? Color.primary.opacity(0.7)
                                              : repoColor.opacity(hovered ? 0.4 : 0.2),
                         lineWidth: selected ? 1.5 : 1)
-                Text(model.repoMonogram(for: repo))
-                    .font(.system(size: tileSize * 0.34, weight: .semibold, design: .monospaced))
+                // The short name is the identity — no badges competing with it.
+                // The agent lives in the launch pill, where agent info belongs.
+                Text(RepoTint.shortName(for: repo.name))
+                    .font(.system(size: tileSize * 0.24, weight: .semibold, design: .monospaced))
+                    .tracking(0.5)
                     .foregroundStyle(repoColor)
                     .accessibilityHidden(true)
-                // The agent rides along as a badge — informative, not the identity.
-                AgentMark(agent: agent,
-                          tint: agent?.tintHex.flatMap(Color.init(hex:)) ?? accent,
-                          monogram: model.monogram(for: agent),
-                          selected: selected, dark: isDark, size: 13)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity,
-                           alignment: .bottomTrailing)
-                    .padding(6)
                 if repo.pinned {
                     Image(systemName: "pin.fill")
                         .font(.system(size: 7))
@@ -887,6 +873,12 @@ struct PaletteView: View {
                 planText("prompt — ↵ launches with it, esc goes back")
             } else if let repo = model.selectedRepo, let agent = model.activeAgent(for: repo) {
                 let mode = model.displayMode(agent: agent, repo: repo)
+                // The agent's mark sits with the agent's name — its one home.
+                AgentMark(agent: agent,
+                          tint: agent.tintHex.flatMap(Color.init(hex:)) ?? accent,
+                          monogram: model.monogram(for: agent),
+                          selected: true, dark: isDark, size: 12)
+                    .accessibilityHidden(true)
                 segment(agent.name.lowercased(),
                         help: "Agent — click or ⇥ to switch") { model.cycleAgent() }
                 planDot
