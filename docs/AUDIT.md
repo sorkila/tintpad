@@ -83,9 +83,14 @@ rotation. Add cleanup (keep last N / prune by age).
 terminal command-building (extract a pure `buildCommand` to test without launching), store
 persistence/migration, license-apply flow, frecency ordering.
 
-### Q6, Accessibility (VoiceOver) labels, **Info**
-Keyboard-first is excellent, Reduce Motion is honored. Missing: VoiceOver labels/traits on
-palette rows and controls. Add `.accessibilityLabel`/`.accessibilityElement` for screen readers.
+### Q6, Accessibility (VoiceOver) labels, **Info, largely addressed**
+Keyboard-first is excellent, Reduce Motion is honored. Since this was written, palette rows
+carry `.accessibilityElement`/`.accessibilityLabel` with selected and button traits, status
+changes and pending skip-permissions launches are announced, Tab is released to focus
+traversal when VoiceOver or Full Keyboard Access is on, Dynamic Type scales the palette's
+type and grid together, and Reduce Transparency drops the blur for an opaque panel.
+Still open: Settings and onboarding keep about ten hard-coded font sizes, and the raised
+contrast has not been measured against 4.5:1 with a real checker over a worst-case desktop.
 
 ### Q7, No CI, **Info**
 Add GitHub Actions: `swift build` + `swift test` on push, optional release job.
@@ -113,3 +118,88 @@ Add GitHub Actions: `swift build` + `swift test` on push, optional release job.
 8. **Q6** ✅ VoiceOver labels on palette rows + search field. **Q7** ✅ GitHub Actions CI (`build` + `test`).
 
 Remaining: Phase 2 (release creds), full `Launcher` DI, broader error surfacing.
+
+---
+
+# 2026-07 audit, post-2.0 redesign
+
+_Three parallel audit passes (concurrency/lifecycle, robustness/error handling,
+security + palette state machine) over the Liquid Glass cluster codebase, every
+finding verified against source before inclusion. Fixed items were fixed the
+same day, commit-referenced below._
+
+## Fixed in this pass
+
+### Dangerous-mode confirm gate (was: five bypasses)
+- **Click/⌘n fired a pending YOLO for a different repo** (High). `activate(at:)`
+  and `launchByIndex` consumed the pending confirm armed for repo A when the
+  user clicked or jumped to repo B. Both now cancel a pending confirm instead.
+- **Dispatch, prompt, worktree, and resume skipped the confirm setting**
+  (Medium). All launch paths now route through one gate
+  (`PaletteModel.fireOrConfirm`), and the pending launch carries its own replay
+  action, so no flow is quieter than plain ⏎.
+- ⌘0 with a dangerous last session arms the same banner.
+
+### State machine
+- **Agent/mode overrides leaked across repos** (Medium): typing reset the
+  selection but kept the override, silently applying it to whichever repo
+  became row 0. `query.didSet` now clears overrides.
+- Worktree and prompt modes were not mutually exclusive (Medium): entering one
+  now exits the other.
+- `activate(at:)` validates the tapped index instead of clamping a stale one.
+
+### Data safety
+- **Corrupt store.json was silently reseeded and persisted over** (High), which
+  destroyed repos, sessions, settings, and the Supporter key with no trace. The
+  failed file is now preserved as `store.corrupt-<ts>.json`, and the seed only
+  persists on a true first run.
+- `persist()` no longer swallows write errors silently (logged).
+- Deleting the last agent (which dead-keyed the palette) is now refused.
+
+### Concurrency / robustness
+- **Git dirty-checks blocked the Swift cooperative pool** (High): a repo on a
+  stalled mount could pin pool threads app-wide. The check now runs on a
+  dedicated GCD queue, `GitStatus` escalates SIGTERM to SIGKILL, and the dirty
+  path closes its pipe before waiting so a chatty child can't deadlock.
+- `reset()` now clears `gitInFlight`, so a hung fetch can't lock a repo out of
+  git context for the app's lifetime.
+- Launch-time auto-discovery genuinely runs in the background now (it was
+  synchronous on the main thread despite its comment), same for the
+  empty-store summon path.
+- The global space-collapse in `CommandTemplate` rewrote double spaces inside
+  quoted paths and prompts (Medium): replaced with targeted empty-slot cleanup,
+  regression-tested.
+- Worktree branch names are pinned behind `--` / `refs/heads/` so a
+  dash-leading name can't parse as a git option.
+- Recents resume failures now beep instead of vanishing (June Q3 call site).
+
+## Verified clean
+Command quoting end to end including `{branch}`/`{remote}`/`{worktreePath}` and
+AppleScript escaping, DispatchService lifecycle + log rotation, the
+`tintpad://` scheme (summon-only), license key handling (public key only in the
+bundle), Store main-actor discipline, notification observer lifecycle,
+GitStatus argv/env hygiene.
+
+## Open, ranked
+
+_Second fix pass, same day: items 1-6 and the log-name collision from item 7
+of the original list are done._ Fixed: `ProcessRunner` (bounded, drained,
+SIGTERM then SIGKILL) now backs the terminal-adapter helper (15s), worktree
+git (120s, run off-main from the palette with a "creating worktree" status),
+and an async GitHub clone (600s, GCD-backed, awaited from the UI). WezTerm's
+window path is spawn-without-wait, since `wezterm start` *is* the terminal.
+Single-instance flock guard with an explanatory alert. `resumeLast` returns
+launched/unavailable/failed and the ⌘0 hint shows only when the session can
+actually be reconstructed. Ghostty re-checks frontmost before typing,
+Terminal's tab path pre-checks Accessibility, Warp uses `URLComponents`.
+Frecency clamps future-dated anchors (tested). Settings `bind()` debounces
+(flushed on quit). Dispatch log names carry a UUID suffix. The global resume
+hotkey now routes a dangerous last session through the palette so the confirm
+banner has a surface. The PATH probe's stderr goes to the null device.
+
+Still open, by choice or for a future pass:
+1. Dispatch running-agent visibility and cancel (feature work, not a defect:
+   dispatched agents intentionally outlive the app).
+2. `openSettings` re-enables auto-hide on a fixed 0.4s timer (Low, cosmetic
+   race).
+3. Full `Launcher` DI for end-to-end launch tests (long-standing nice-to-have).

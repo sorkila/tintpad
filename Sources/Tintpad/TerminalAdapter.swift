@@ -69,24 +69,21 @@ private func shellProgram(_ launch: TerminalLaunch) -> [String] {
     [ShellEnvironment.loginShell, "-i", "-c", keepOpenScript(launch)]
 }
 
-/// Runs a foreground process, throwing on nonzero exit with captured stderr.
+/// Runs a foreground helper, throwing on nonzero exit with captured stderr.
+/// Bounded: a launcher helper that takes 15s is broken, not busy — hanging
+/// the app on it would be worse (AUDIT 2026-07).
 private func run(_ executable: String, _ args: [String]) throws {
-    let p = Process()
-    p.executableURL = URL(fileURLWithPath: executable)
-    p.arguments = args
-    p.environment = ShellEnvironment.processEnvironment
-    let err = Pipe()
-    p.standardError = err
-    p.standardOutput = Pipe()
+    let result: ProcessRunner.Output
     do {
-        try p.run()
+        result = try ProcessRunner.run(executable, arguments: args,
+                                       environment: ShellEnvironment.processEnvironment,
+                                       timeout: 15)
     } catch {
         throw TerminalLaunchError.launchFailed("\(executable): \(error.localizedDescription)")
     }
-    p.waitUntilExit()
-    if p.terminationStatus != 0 {
-        let msg = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        throw TerminalLaunchError.launchFailed("exited \(p.terminationStatus): \(msg.trimmingCharacters(in: .whitespacesAndNewlines))")
+    if result.status != 0 {
+        throw TerminalLaunchError.launchFailed(
+            "exited \(result.status): \(result.stderr.trimmingCharacters(in: .whitespacesAndNewlines))")
     }
 }
 
@@ -117,12 +114,16 @@ struct GhosttyAdapter: TerminalAdapter {
         }
         let cmd = "cd \(shellQuote(launch.workingDirectory)) && \(launch.command)"
         let newKey = launch.openInTab ? "t" : "n"   // ⌘T tab / ⌘N window
+        // The frontmost checks pin the target: if focus moved during the
+        // delays, the command must NOT be typed into whatever stole it.
         let script = """
         tell application "Ghostty" to activate
         delay 0.35
         tell application "System Events"
+            if frontmost of process "Ghostty" is false then error "Ghostty lost focus — nothing was typed."
             keystroke "\(newKey)" using command down
             delay 0.45
+            if frontmost of process "Ghostty" is false then error "Ghostty lost focus — nothing was typed."
             keystroke "\(appleScriptEscape(cmd))"
             key code 36
         end tell
@@ -182,7 +183,14 @@ struct WezTermAdapter: TerminalAdapter {
            (try? run(bin, ["cli", "spawn", "--cwd", launch.workingDirectory, "--"] + prog)) != nil {
             return LaunchOutcome()
         }
-        try run(bin, ["start", "--cwd", launch.workingDirectory, "--"] + prog)
+        // With no GUI running, `wezterm start` IS the terminal process —
+        // waiting for its exit would wait for the window to close.
+        do {
+            try ProcessRunner.spawnDetached(bin, arguments: ["start", "--cwd", launch.workingDirectory, "--"] + prog,
+                                            environment: ShellEnvironment.processEnvironment)
+        } catch {
+            throw TerminalLaunchError.launchFailed("\(bin): \(error.localizedDescription)")
+        }
         return LaunchOutcome()
     }
 }
@@ -228,6 +236,12 @@ struct AppleTerminalAdapter: TerminalAdapter {
     let bundleID = "com.apple.Terminal"
 
     func launch(_ launch: TerminalLaunch) throws -> LaunchOutcome {
+        // The tab path types ⌘T via System Events, which needs Accessibility —
+        // fail with the actionable message, not a raw AppleScript error.
+        if launch.openInTab, !AXIsProcessTrusted() {
+            throw TerminalLaunchError.launchFailed(
+                "Opening a Terminal tab needs Accessibility. Grant Tintpad in System Settings → Privacy & Security → Accessibility, or switch off open-in-tab.")
+        }
         let cmd = "cd \(shellQuote(launch.workingDirectory)) && \(launch.command)"
         // Window: `do script` opens a fresh window. Tab: there's no AppleScript
         // for "new tab", so open one with ⌘T (System Events) and run there.
@@ -266,13 +280,17 @@ struct WarpAdapter: TerminalAdapter {
         pb.clearContents()
         pb.setString(full, forType: .string)
 
-        if let encoded = launch.workingDirectory
-            .addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-           let url = URL(string: "warp://action/new_window?path=\(encoded)") {
-            NSWorkspace.shared.open(url)
-        } else {
-            try run("/usr/bin/open", ["-nb", bundleID])
+        // URLComponents percent-encodes query values properly, so a path
+        // containing "&" or "=" can't smuggle extra parameters into the action.
+        var comps = URLComponents()
+        comps.scheme = "warp"
+        comps.host = "action"
+        comps.path = "/new_window"
+        comps.queryItems = [URLQueryItem(name: "path", value: launch.workingDirectory)]
+        if let url = comps.url, NSWorkspace.shared.open(url) {
+            return LaunchOutcome(note: "Command copied — paste in Warp (no command-injection API)")
         }
+        try run("/usr/bin/open", ["-nb", bundleID])
         return LaunchOutcome(note: "Command copied — paste in Warp (no command-injection API)")
     }
 }

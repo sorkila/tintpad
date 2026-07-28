@@ -37,6 +37,16 @@ final class FrecencyTests: XCTestCase {
         XCTAssertEqual(a, b, "frecency order must be stable as time advances")
     }
 
+    // A future-dated anchor (clock rollback, restored backup) must decay to
+    // at most the stored score, never amplify it.
+    func testFutureDatedAnchorDoesNotInflate() {
+        var repo = Repo(path: "/x", name: "x")
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        repo.frecencyScore = 2
+        repo.lastLaunchedAt = now.addingTimeInterval(86_400 * 30)   // 30 days ahead
+        XCTAssertEqual(Frecency.decayedScore(repo, now: now, halfLifeDays: 10), 2, accuracy: 0.001)
+    }
+
     func testRecordVisitIncrementsAndReanchors() {
         var repo = Repo(path: "/x", name: "x")
         let now = Date(timeIntervalSince1970: 2_000_000)
@@ -65,6 +75,16 @@ final class CommandTemplateTests: XCTestCase {
     func testEmptyModeCollapsesSpaces() {
         let out = CommandTemplate.preview("claude {mode} {prompt}", context: ctx(mode: .defaultMode(), prompt: nil))
         XCTAssertEqual(out, "claude")
+    }
+
+    // The empty-slot cleanup must never rewrite spaces inside quoted values:
+    // "/Users/me/my  repo" is a legal path and must survive verbatim.
+    func testDoubleSpacesInsideQuotedValuesSurvive() {
+        let repo = Repo(path: "/Users/me/my  repo", name: "my  repo")
+        let c = CommandTemplate.Context(repo: repo, mode: .defaultMode(),
+                                        prompt: "fix  this", branch: nil, remote: nil)
+        let out = CommandTemplate.preview("cd {repoPath} && claude {mode} {prompt}", context: c)
+        XCTAssertEqual(out, "cd '/Users/me/my  repo' && claude 'fix  this'")
     }
 
     func testPromptIsQuoted() {
@@ -147,6 +167,65 @@ final class AppleScriptEscapeTests: XCTestCase {
             if ch == "\"" { XCTAssertEqual(prev, "\\", "unescaped double quote in AppleScript literal: \(escaped)") }
             prev = ch
         }
+    }
+}
+
+final class LaunchDefaultsTests: XCTestCase {
+    private let safe = RunMode(name: "Safe", flags: "", isDangerous: false, description: "")
+    private let def = RunMode.defaultMode()
+    private let yolo = RunMode(name: "YOLO", flags: "--yolo", isDangerous: true, description: "")
+
+    private func makeAgent(_ name: String) -> Agent {
+        Agent(name: name, commandTemplate: "\(name) {mode}", acceptsPrompt: true, tintHex: nil,
+              symbol: "terminal", modes: [safe, def, yolo], defaultModeID: def.id)
+    }
+
+    func testPinnedModeWinsOverLastUsedAndAgentDefault() {
+        let agent = makeAgent("claude")
+        var repo = Repo(path: "/x", name: "x")
+        repo.defaultModeID = yolo.id
+        repo.lastModeID = safe.id
+        XCTAssertEqual(LaunchDefaults.mode(for: repo, agent: agent).id, yolo.id)
+    }
+
+    func testLastUsedModeWinsOverAgentDefault() {
+        let agent = makeAgent("claude")
+        var repo = Repo(path: "/x", name: "x")
+        repo.lastModeID = yolo.id
+        XCTAssertEqual(LaunchDefaults.mode(for: repo, agent: agent).id, yolo.id)
+    }
+
+    func testStaleLastModeFromAnotherAgentFallsThrough() {
+        let agent = makeAgent("claude")
+        var repo = Repo(path: "/x", name: "x")
+        repo.lastModeID = UUID()   // a mode that belongs to no current agent
+        XCTAssertEqual(LaunchDefaults.mode(for: repo, agent: agent).id, def.id)
+    }
+
+    func testOverrideBeatsEverything() {
+        let agent = makeAgent("claude")
+        var repo = Repo(path: "/x", name: "x")
+        repo.defaultModeID = yolo.id
+        repo.lastModeID = yolo.id
+        XCTAssertEqual(LaunchDefaults.mode(for: repo, agent: agent, overrideID: safe.id).id, safe.id)
+    }
+
+    func testAgentPrecedencePinnedThenLastUsedThenFirst() {
+        let claude = makeAgent("claude")
+        let codex = makeAgent("codex")
+        var repo = Repo(path: "/x", name: "x")
+        XCTAssertEqual(LaunchDefaults.agent(for: repo, agents: [claude, codex])?.id, claude.id)
+        repo.lastAgentID = codex.id
+        XCTAssertEqual(LaunchDefaults.agent(for: repo, agents: [claude, codex])?.id, codex.id)
+        repo.defaultAgentID = claude.id
+        XCTAssertEqual(LaunchDefaults.agent(for: repo, agents: [claude, codex])?.id, claude.id)
+    }
+
+    func testRemovedLastAgentFallsBackToFirst() {
+        let claude = makeAgent("claude")
+        var repo = Repo(path: "/x", name: "x")
+        repo.lastAgentID = UUID()   // agent since deleted
+        XCTAssertEqual(LaunchDefaults.agent(for: repo, agents: [claude])?.id, claude.id)
     }
 }
 
@@ -237,6 +316,34 @@ final class GitInfoTests: XCTestCase {
     }
 }
 
+final class GitStatusTests: XCTestCase {
+    private func sh(_ args: [String], cwd: String) {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        p.arguments = args
+        p.currentDirectoryURL = URL(fileURLWithPath: cwd)
+        try? p.run(); p.waitUntilExit()
+    }
+
+    func testCleanDirtyAndNonRepo() throws {
+        try XCTSkipUnless(FileManager.default.isExecutableFile(atPath: "/usr/bin/git"))
+        let dir = NSTemporaryDirectory() + "tintpad-dirty-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+
+        // Not a repo yet → unknown, never a guess.
+        XCTAssertNil(GitStatus.isDirty(at: dir))
+
+        sh(["init", "-q"], cwd: dir)
+        sh(["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "init"], cwd: dir)
+        XCTAssertEqual(GitStatus.isDirty(at: dir), false)
+
+        // An untracked file counts as dirty — that is what the working tree shows.
+        FileManager.default.createFile(atPath: dir + "/new.txt", contents: Data("x".utf8))
+        XCTAssertEqual(GitStatus.isDirty(at: dir), true)
+    }
+}
+
 final class RepoDiscoveryTests: XCTestCase {
     func testFindsGitRepos() throws {
         let root = NSTemporaryDirectory() + "tintpad-disc-\(UUID().uuidString)"
@@ -248,5 +355,113 @@ final class RepoDiscoveryTests: XCTestCase {
         XCTAssertTrue(found.contains { $0.hasSuffix("/myrepo") })
         XCTAssertFalse(found.contains { $0.hasSuffix("/not-a-repo") })
         try? FileManager.default.removeItem(atPath: root)
+    }
+}
+
+final class MonogramTests: XCTestCase {
+    func testUnambiguousNamesGetOneLetter() {
+        XCTAssertEqual(Monogram.assign(["Gemini", "Aider", "Codex"]), ["G", "A", "C"])
+    }
+
+    func testCollidingNamesGrowAndNonCollidingStaySingle() {
+        // Only the C's collide; Gemini keeps its clean single letter.
+        let out = Monogram.assign(["Claude Code", "Codex", "Gemini"])
+        XCTAssertEqual(out[2], "G")
+        XCTAssertNotEqual(out[0], out[1])
+        XCTAssertEqual(Set(out).count, 3)
+    }
+
+    func testSingleWordCollisionUsesFirstTwoLetters() {
+        let out = Monogram.assign(["Codex", "Coder"])
+        XCTAssertEqual(Set(out).count, 2, "shared 'Co' prefix must still resolve")
+    }
+
+    func testAssignmentIsStableAndOrderPreserving() {
+        let names = ["Claude Code", "Codex", "Cursor"]
+        XCTAssertEqual(Monogram.assign(names), Monogram.assign(names))
+        XCTAssertEqual(Monogram.assign(names).count, names.count)
+    }
+
+    func testLeadingNonLettersAndEmptyNames() {
+        XCTAssertEqual(Monogram.assign(["  opencode"]), ["O"])
+        XCTAssertEqual(Monogram.assign(["!!!"]), ["?"])
+    }
+
+    func testOfMatchesAssignForTheSameSet() {
+        let names = ["Claude Code", "Codex", "Gemini"]
+        let all = Monogram.assign(names)
+        for (i, n) in names.enumerated() {
+            XCTAssertEqual(Monogram.of(n, in: names), all[i])
+        }
+    }
+}
+
+final class ModeVocabularyTests: XCTestCase {
+    // Old stores carried invented names (Safe/YOLO). Migration renames only
+    // untouched seeds (name AND flags match), preserves IDs, and never
+    // clobbers user-customized vocabulary.
+    func testSeedModesMigrateToAgentVocabulary() {
+        var claude = AgentSeed.claudeCode
+        claude.modes = [
+            RunMode(name: "Safe", flags: "", isDangerous: false, description: ""),
+            RunMode(name: "YOLO", flags: "--dangerously-skip-permissions", isDangerous: true, description: ""),
+        ]
+        var codex = AgentSeed.codex
+        codex.modes = [
+            RunMode(name: "Safe", flags: "--ask-for-approval untrusted", isDangerous: false, description: ""),
+            RunMode(name: "YOLO", flags: "--dangerously-bypass-approvals-and-sandbox", isDangerous: true, description: ""),
+        ]
+        let oldID = claude.modes[1].id
+        let migrated = AgentSeed.migrateModeNames([claude, codex])
+        XCTAssertEqual(migrated[0].modes[1].name, "Skip permissions")
+        XCTAssertEqual(migrated[0].modes[1].id, oldID, "IDs survive, so pins and memory survive")
+        XCTAssertEqual(migrated[0].modes[0].name, "Safe", "no rename rule matched — untouched")
+        XCTAssertEqual(migrated[1].modes[0].name, "Untrusted")
+        XCTAssertEqual(migrated[1].modes[1].name, "Full access")
+    }
+
+    func testCustomizedNamesAreNeverClobbered() {
+        var agent = AgentSeed.claudeCode
+        agent.modes = [RunMode(name: "YOLO", flags: "--my-custom-flag", isDangerous: true, description: "")]
+        XCTAssertEqual(AgentSeed.migrateModeNames([agent])[0].modes[0].name, "YOLO")
+    }
+}
+
+final class RepoTintTests: XCTestCase {
+    func testHueIsDeterministicAndInRange() {
+        for name in ["Tintpad", "Kuta", "Velm", "SB3K", "The Prototype Lab"] {
+            let h = RepoTint.hue(for: name)
+            XCTAssertEqual(h, RepoTint.hue(for: name), "hue must be stable")
+            XCTAssertGreaterThanOrEqual(h, 20)
+            XCTAssertLessThan(h, 340, "danger-red band is reserved")
+        }
+    }
+
+    func testCaseInsensitive() {
+        XCTAssertEqual(RepoTint.hue(for: "Kuta"), RepoTint.hue(for: "kuta"))
+    }
+
+    func testShortNames() {
+        XCTAssertEqual(RepoTint.shortName(for: "Kuta"), "KUTA")       // fits whole
+        XCTAssertEqual(RepoTint.shortName(for: "SB3K"), "SB3K")
+        XCTAssertEqual(RepoTint.shortName(for: "Tintpad"), "TIN")     // prefix
+        XCTAssertEqual(RepoTint.shortName(for: "The Prototype Lab"), "TPL")  // initials
+        XCTAssertEqual(RepoTint.shortName(for: "my-cool-repo"), "MCR")
+        XCTAssertEqual(RepoTint.shortName(for: ""), "?")
+    }
+}
+
+final class KeyPolicyTests: XCTestCase {
+    func testTabIsOursWhenNoAssistiveTechIsActive() {
+        XCTAssertFalse(KeyPolicy.tabShouldTraverse(voiceOver: false, fullKeyboardAccess: false),
+                       "⇥ should still cycle agents for ordinary keyboard use")
+    }
+
+    func testVoiceOverReclaimsTab() {
+        XCTAssertTrue(KeyPolicy.tabShouldTraverse(voiceOver: true, fullKeyboardAccess: false))
+    }
+
+    func testFullKeyboardAccessReclaimsTab() {
+        XCTAssertTrue(KeyPolicy.tabShouldTraverse(voiceOver: false, fullKeyboardAccess: true))
     }
 }

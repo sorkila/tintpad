@@ -72,12 +72,16 @@ enum CommandTemplate {
         ]
         var result = template
         for (key, value) in replacements {
+            if value.isEmpty {
+                // An empty slot swallows one adjacent space so
+                // "claude {mode} {prompt}" tidies to "claude" — a targeted
+                // cleanup, never a global collapse, which would rewrite
+                // legitimate double spaces inside quoted paths and prompts.
+                result = result.replacingOccurrences(of: " " + key, with: "")
+            }
             result = result.replacingOccurrences(of: key, with: value)
         }
-        return result
-            .replacingOccurrences(of: "  ", with: " ")
-            .replacingOccurrences(of: "  ", with: " ")
-            .trimmingCharacters(in: .whitespaces)
+        return result.trimmingCharacters(in: .whitespaces)
     }
 
     /// Remove control characters (newlines, etc.) — they break AppleScript string

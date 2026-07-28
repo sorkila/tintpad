@@ -38,7 +38,7 @@ struct PromptsSettingsView: View {
                 TextField("Title", text: binding.title)
                 Section("Prompt text") {
                     TextEditor(text: binding.text)
-                        .font(.system(.body, design: .monospaced))
+                        .font(.monoStyle(.body))
                         .frame(minHeight: 160)
                 }
             }
@@ -99,7 +99,8 @@ struct RecentsSettingsView: View {
         HStack(spacing: 12) {
             AgentBrandIcon(agent: store.agent(s.agentID),
                            tint: store.agent(s.agentID)?.tintHex.flatMap(Color.init(hex:)) ?? .accentColor,
-                           selected: true)
+                           selected: true,
+                           monogram: store.monogram(for: store.agent(s.agentID)))
             VStack(alignment: .leading, spacing: 2) {
                 Text(s.repoName).font(.body.weight(.medium))
                 HStack(spacing: 6) {
@@ -120,7 +121,12 @@ struct RecentsSettingsView: View {
     private func resume(_ s: Session) {
         guard let repo = store.repos.first(where: { $0.id == s.repoID }),
               let agent = store.agent(s.agentID),
-              let mode = agent.modes.first(where: { $0.id == s.modeID }) else { return }
-        try? LaunchService.launchAgent(repo: repo, agent: agent, mode: mode, prompt: s.prompt, store: store)
+              let mode = agent.modes.first(where: { $0.id == s.modeID }) else {
+            NSSound.beep()   // the session can't be reconstructed anymore
+            return
+        }
+        do { try LaunchService.launchAgent(repo: repo, agent: agent, mode: mode,
+                                           prompt: s.prompt, store: store) }
+        catch { NSSound.beep() }
     }
 }

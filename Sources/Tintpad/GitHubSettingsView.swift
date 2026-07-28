@@ -15,7 +15,7 @@ struct GitHubSettingsView: View {
             Form {
                 Section("GitHub access") {
                     SecureField("Personal access token (repo scope)", text: $token)
-                        .font(.system(.body, design: .monospaced))
+                        .font(.monoStyle(.body))
                     HStack {
                         Button("Save token") { GitHubService.token = token }
                             .disabled(token.isEmpty)
@@ -89,13 +89,13 @@ struct GitHubSettingsView: View {
     private func clone(_ repo: GitHubService.Repo) {
         Task {
             do {
-                let path = try GitHubService.clone(repo, into: cloneRoot)
-                await MainActor.run {
-                    store.addRepo(path: path, via: .github)
-                    added.insert(repo.id)
-                }
+                // Async clone: the git work runs on a GCD queue, so this task
+                // (MainActor-inherited) just awaits — the UI stays live.
+                let path = try await GitHubService.clone(repo, into: cloneRoot)
+                store.addRepo(path: path, via: .github)
+                added.insert(repo.id)
             } catch {
-                await MainActor.run { self.error = "\(error)" }
+                self.error = "\(error)"
             }
         }
     }

@@ -22,14 +22,17 @@ it." That's the whole job right now.
   **[needs maintainer accounts]**
 - **Demo.** ✅ Done, `docs/assets/demo.gif` carries the README hero and a cropped
   video runs on tintpad.com: summon → pick → terminal opens with the agent running.
-- **Accessibility: the Tab/VoiceOver fix.** `PaletteView.handle` swallows Tab and
-  Shift-Tab to cycle agents, which blocks keyboard and VoiceOver users from moving
-  between the field, list, and footer. Intercept Tab only while the search field is
-  focused, or rebind agent-cycling. Esc still exits, so it's not a hard trap, but
-  it's the first thing a VoiceOver user hits. (a11y #1)
-- **Accessibility: Dynamic Type.** Hard-coded font sizes across `PaletteView`,
-  `OnboardingView`, and `SettingsView` ignore Larger Text. Move to semantic text
-  styles or `@ScaledMetric`, then verify the layout reflows at AX5. (a11y #3)
+- **Accessibility: the Tab/VoiceOver fix.** ✅ Done. Tab passes through to focus
+  traversal whenever VoiceOver or Full Keyboard Access is on (`KeyPolicy`), and the
+  footer's "agent" and "mode" hints are real labelled buttons carrying the same
+  actions. Ordinary keyboard use keeps ⇥ as the agent shortcut. (a11y #1)
+- **Accessibility: Dynamic Type.** `PaletteView` is done: its type and grid metrics
+  scale together via `@ScaledMetric`, which they must, because the panel's computed
+  height is derived from those metrics. Onboarding and the Settings panes are done
+  too: their hard-coded sizes moved to semantic text styles, with every paired
+  container (icon tiles, step circles, value chips, symbol previews) on a matching
+  `@ScaledMetric` so nothing outgrows its box. Remaining: an eyes-on sweep at AX5
+  to confirm the reflow. (a11y #3)
 - **More terminal adapters.** Seven today (Ghostty, iTerm2, kitty, WezTerm,
   Alacritty, Terminal, Warp). Each new one is a protocol and a struct, the most
   PR-friendly surface in the repo. Wanted: tmux/zellij sessions, Hyper, Tabby,
@@ -42,13 +45,15 @@ it." That's the whole job right now.
 
 ## Mid
 
-- **Dangerous-confirm VoiceOver announcement + status live region.** Fire an
-  `AccessibilityNotification.Announcement` when a skip-permissions launch is pending,
-  and mark the status view as a live region so it's spoken. Lower priority now that
-  confirm is off by default, but it's a correctness gap. (a11y #2)
-- **App contrast over the glass scrim.** Several foregrounds sit below 4.5:1 over
-  the blur, dividers, path text, headers, the empty state. Raise opacities and
-  honor `accessibilityReduceTransparency`. (a11y #4)
+- **Dangerous-confirm VoiceOver announcement + status live region.** ✅ Done.
+  `PaletteView` announces both status changes and a pending skip-permissions launch.
+  (a11y #2)
+- **App contrast.** Mostly done. Settings and onboarding had their pass (onboarding's
+  custom pairs computed against WCAG, the prominent button went from 2.7:1
+  white-on-accent to 6.6:1 black-on-accent, meaningful text no longer uses tertiary),
+  and the palette's quietest inks were raised to compute 4.5:1+ against its scrim.
+  Reduce Transparency drops the blur for a fully opaque card. Remaining: a worst-case
+  desktop spot-check of the glass card with a real checker. (a11y #4)
 - **Design tokens.** A real type ramp, spacing scale, and white-alpha system instead
   of scattered literals, plus a terminology sweep so the same thing has one name.
 - **Full launch-path tests.** `Launcher` dependency injection so the summon →

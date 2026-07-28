@@ -13,7 +13,9 @@ enum Frecency {
         guard let last = repo.lastLaunchedAt, repo.frecencyScore > 0 else {
             return repo.frecencyScore
         }
-        let elapsed = now.timeIntervalSince(last)
+        // Clamped at zero: a future-dated anchor (clock rollback, restored
+        // backup) must never *inflate* the score and pin a repo to the top.
+        let elapsed = max(0, now.timeIntervalSince(last))
         let halfLife = max(halfLifeDays, 0.001) * 86_400
         let factor = pow(0.5, elapsed / halfLife)
         return repo.frecencyScore * factor

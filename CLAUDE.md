@@ -19,7 +19,7 @@ in `Resources/Info.plist` then run `./Scripts/release.sh` to cut the next one.
 ## Commands
 ```sh
 swift build              # debug build
-swift test               # 24 unit tests (pure logic, keep green)
+swift test               # 45 unit tests (pure logic, keep green)
 swift run                # run from source (dev; unsigned)
 ./Scripts/package.sh     # assemble + sign .app/DMG in a TMPDIR scratch (signs if SIGN_IDENTITY set)
 ./Scripts/dev-install.sh # build → Developer ID sign → install to /Applications (local dev)
@@ -35,13 +35,48 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
 - **PaletteView.swift / CommandPanel.swift**, the palette (NSPanel + SwiftUI) and its controller.
 - **TerminalAdapter.swift**, 7 terminal adapters. **CommandTemplate.swift**, command building (the injection surface).
 - **LaunchService.swift**, `makeLaunch` (pure, tested) + injectable `resolveTerminal`.
+  `LaunchDefaults` (Models.swift) is the launch precedence: override → pin → last-used → default.
+- **ProcessRunner.swift**, the one way subprocesses run (timeout, drained pipes,
+  SIGTERM→SIGKILL). **GitStatus.swift**, bounded dirty check. **RepoTint.swift**, per-repo
+  hue + short name. **SingleInstance.swift**, flock guard.
 - **ShellEnvironment.swift**, login-shell PATH resolution. **Frecency.swift**, ranking.
 - **SettingsView.swift** (+ per-pane views), **OnboardingView.swift**, **LicenseManager.swift**, **Tokens.swift**.
 
 ## Conventions
 - All command building goes through `CommandTemplate`, every interpolated value is
   sanitized (control chars stripped) and POSIX single-quoted. Never hand-build shell or AppleScript strings.
-- Resizable surfaces (Settings, onboarding) use the scalable `TypeRamp` (Dynamic Type), the palette is a fixed-size HUD with tuned point sizes (with `@ScaledMetric`, clamped to xxLarge).
+- Resizable surfaces (Settings, onboarding) use the scalable `TypeRamp` (Dynamic Type), the palette is a monospace HUD on a fixed grid (its own `@ScaledMetric` point sizes, clamped to xxLarge).
+- **Agent marks** (`AgentMarks.swift`). A brand mark where artwork exists, a `Monogram`
+  everywhere else, so a third agent never falls back to a generic glyph. Monograms are
+  assigned across the **whole agent set** (`AppStore.monogram(for:)`, the single source of
+  truth) so they stay distinct, one letter until two collide. Marks are rasterized on
+  demand at the exact pixel size they will be drawn, since pre-rendering at one size and
+  letting SwiftUI rescale resamples twice and arrives soft. Each brand carries an
+  `optical` correction because icons in a set must match in **ink, not bounding box**
+  (Claude's airy radial needs to be drawn larger and held brighter than Codex's dense blob).
+- **Palette design rules** (`PaletteView`, documented on the type). A floating Liquid
+  Glass **cluster**, not a sheet: search pill, horizontal repo-tile strip (⌘Tab for
+  repos), launch pill — three discrete glass pieces with real gaps. On macOS 26 each
+  piece is real `glassEffect` in a shared `GlassEffectContainer`, pills are interactive
+  glass, and **legibility comes from vibrancy** (hierarchical foreground styles on the
+  glass, never flat `.opacity()` text over a heavy scrim — the frost is a whisper);
+  earlier systems get the legacy vibrancy stack. **The window draws no system
+  shadow** — each piece carries its own inside a transparent margin
+  (`PaletteView.windowMargin`), because AppKit shadows the rectangular frame and it
+  reads as a ghost box. **Every repo gets its tint** (`RepoTint`: a stable hue hashed
+  from the name, the danger-red band excluded): tile identity is the repo's colored
+  monogram, the agent mark is a small corner badge. The accent means "here, now"
+  (the text caret, the selection), danger red means "skips permissions" (dangerous tiles
+  are ringed red before you arrive). **The launch pill is the contract**: agent name, mode, `⑂ branch*` — no
+  carets, no path (the selected tile already carries the name), agent/mode words quietly
+  clickable (visible counterpart of ⇥/⇧⇥, real flags in the tooltip). Less but better:
+  nothing renders that repeats another element or decorates. ←/→ move through the strip only while the field is empty (they
+  must keep moving the caret otherwise); ↑/↓, ⌘1–⌘9, ⌘0 unchanged. One voice of type:
+  SF Mono at exactly two sizes (`fieldSize`/`metaSize`), weight carries the hierarchy —
+  always via `Font.mono`/`Font.monoStyle` (the one place the voice is defined), never
+  `design: .monospaced` directly. Agent brand color appears on the selected tile only. **Type and the grid metrics scale together** via
+  `@ScaledMetric`, because the panel height is computed from those metrics and drifts
+  if only one of them scales.
 - **Prose has no em dashes and no prose semicolons**, in markdown docs and website copy
   (a deliberate, enforced house style, use commas). Code, identifiers, and code comments
   are exempt, and third-party files (e.g. an upstream awesome-list with em-dash separators)
@@ -64,6 +99,15 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   == `.id(index)` == `selection`) and **no stack-wide `.animation(value: selection)`**, mixing
   UUID + index identities + animation made SwiftUI treat selection changes as remove/insert
   ("deselect"/jumping).
+- **Palette panel is borderless on purpose:** it was `.titled` for most of its life
+  (which reserves a ~32pt titlebar strip that `resize(toContentHeight:)` had to add
+  back, or the last row clipped), but on macOS 26 the system draws Liquid Glass window
+  chrome into that strip — a square-cornered ghost band behind the rounded glass. The
+  panel is now `[.nonactivatingPanel, .borderless]` with `canBecomeKey` overridden, the
+  insets are zero, and `resize` still reads the real `safeAreaInsets` so a future
+  style-mask change can't silently re-clip. If it ever goes back to `.titled`: do
+  **not** opt out of the safe area (`safeAreaRegions = []` loops AppKit's constraint
+  pass and crashes, `.ignoresSafeArea()` hides the prompt line).
 - **Frecency comparator must be transitive**, no epsilon "≈ tie" band, it breaks strict
   weak ordering and makes `sort()` reshuffle the list every render.
 - **Agent CLI flags are version-specific.** Verify against the installed CLI's `--help`.

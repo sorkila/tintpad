@@ -30,6 +30,9 @@ struct AgentsSettingsView: View {
                 Button { addAgent() } label: { Image(systemName: "plus") }
                     .help("Add agent")
                 Button { removeSelected() } label: { Image(systemName: "minus") }
+                    // The last agent is load-bearing — without one the palette
+                    // has nothing to launch (the store refuses too).
+                    .disabled(store.agents.count <= 1)
                     .disabled(selectedID == nil)
                 Spacer()
             }
@@ -58,7 +61,7 @@ struct AgentsSettingsView: View {
         let agent = Agent(
             name: "New Agent", commandTemplate: "mycli {mode} {prompt}",
             acceptsPrompt: true, tintHex: nil, symbol: "terminal",
-            modes: [RunMode.safe(), def], defaultModeID: def.id
+            modes: [def], defaultModeID: def.id
         )
         store.addAgent(agent)
         selectedID = agent.id
@@ -90,7 +93,8 @@ private struct AgentEditor: View {
                 HStack(spacing: 12) {
                     AgentBrandIcon(agent: agent,
                                    tint: agent.tintHex.flatMap(Color.init(hex:)) ?? .accentColor,
-                                   selected: true)
+                                   selected: true,
+                                   monogram: AppStore.shared.monogram(for: agent))
                     TextField("Name", text: $agent.name)
                         .textFieldStyle(.plain).font(.title3.weight(.semibold))
                 }
@@ -104,9 +108,9 @@ private struct AgentEditor: View {
 
             Section {
                 TextField("Command template", text: $agent.commandTemplate)
-                    .font(.system(.body, design: .monospaced))
+                    .font(.monoStyle(.body))
                 Text(previewCommand)
-                    .font(.system(.caption, design: .monospaced))
+                    .font(.monoStyle(.caption))
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
             } header: {
@@ -170,7 +174,7 @@ private struct ModeEditor: View {
                     .textFieldStyle(.roundedBorder).frame(maxWidth: 180)
                 if mode.isDangerous {
                     Text("DANGEROUS")
-                        .font(.system(size: 9, weight: .bold)).tracking(0.5)
+                        .font(.caption2.weight(.bold)).tracking(0.5)
                         .foregroundStyle(dangerTint)
                         .padding(.horizontal, 6).padding(.vertical, 2)
                         .background(dangerTint.opacity(0.16), in: Capsule())
@@ -208,7 +212,7 @@ private struct ModeEditor: View {
             Text(label).font(.caption).foregroundStyle(.secondary)
             TextField(placeholder, text: text)
                 .textFieldStyle(.roundedBorder)
-                .font(mono ? .system(.callout, design: .monospaced) : .body)
+                .font(mono ? .monoStyle(.callout) : .body)
         }
     }
 }
@@ -219,6 +223,8 @@ private struct ModeEditor: View {
 /// common dev glyphs — smoother than typing a raw SF Symbol name.
 private struct SymbolPicker: View {
     @Binding var symbol: String
+    // The preview box scales with its body-sized glyph (a11y #3).
+    @ScaledMetric(relativeTo: .body) private var previewBox: CGFloat = 26
 
     private let options = [
         "terminal", "command", "chevron.left.forwardslash.chevron.right", "curlybraces",
@@ -235,8 +241,8 @@ private struct SymbolPicker: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: preview)
-                .font(.system(size: 14, weight: .semibold))
-                .frame(width: 26, height: 26)
+                .font(.body.weight(.semibold))
+                .frame(width: previewBox, height: previewBox)
                 .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(.quaternary))
             TextField("symbol name", text: $symbol)
                 .textFieldStyle(.roundedBorder).frame(maxWidth: 170)

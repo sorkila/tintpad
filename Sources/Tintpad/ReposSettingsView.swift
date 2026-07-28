@@ -19,7 +19,7 @@ struct ReposSettingsView: View {
                         if i > 0 { Divider() }
                         HStack(spacing: 10) {
                             Image(systemName: "folder.fill").foregroundStyle(.secondary)
-                            Text(folder).font(.system(.caption, design: .monospaced)).lineLimit(1).truncationMode(.middle)
+                            Text(folder).font(.monoStyle(.caption)).lineLimit(1).truncationMode(.middle)
                             Spacer()
                             Button { removeRoot(folder) } label: { Image(systemName: "minus.circle.fill") }
                                 .buttonStyle(.borderless).foregroundStyle(.secondary)
@@ -101,13 +101,14 @@ private struct RepoRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            AgentBrandIcon(agent: agent,
-                           tint: agent?.tintHex.flatMap(Color.init(hex:)) ?? .accentColor,
-                           selected: true)
+            // The row identifies a repo, so it wears the repo's tint — the
+            // same badge grammar as the palette tiles. The agent is already
+            // named in the picker beside it.
+            RepoTintBadge(name: repo.name)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(repo.name).font(.body.weight(.medium))
-                Text(displayPath(repo.path)).font(.system(.caption, design: .monospaced))
+                Text(displayPath(repo.path)).font(.monoStyle(.caption))
                     .foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
             }
             Spacer()
@@ -147,10 +148,40 @@ private struct RepoRow: View {
     }
 
     private var agentBinding: Binding<UUID?> {
-        Binding(get: { repo.defaultAgentID }, set: { var r = repo; r.defaultAgentID = $0; r.defaultModeID = nil; store.updateRepo(r) })
+        Binding(get: { repo.defaultAgentID }, set: { newID in
+            // Only a real agent change invalidates the pinned mode (modes are
+            // agent-specific). Re-selecting the same agent must not wipe it —
+            // that silently erased per-repo YOLO pins.
+            guard newID != repo.defaultAgentID else { return }
+            var r = repo
+            r.defaultAgentID = newID
+            r.defaultModeID = nil
+            store.updateRepo(r)
+        })
     }
 
     private var modeBinding: Binding<UUID?> {
         Binding(get: { repo.defaultModeID }, set: { var r = repo; r.defaultModeID = $0; store.updateRepo(r) })
+    }
+}
+
+/// A miniature palette tile: the repo's short name in its whisper hue.
+private struct RepoTintBadge: View {
+    let name: String
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        let dark = scheme == .dark
+        RoundedRectangle(cornerRadius: 7, style: .continuous)
+            .fill(RepoTint.fill(for: name, dark: dark).opacity(dark ? 0.22 : 0.16))
+            .frame(width: 30, height: 30)
+            .overlay(
+                Text(RepoTint.shortName(for: name))
+                    .font(.mono(8, .semibold))
+                    .foregroundStyle(RepoTint.vivid(for: name, dark: dark))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                    .padding(.horizontal, 2))
+            .accessibilityHidden(true)
     }
 }

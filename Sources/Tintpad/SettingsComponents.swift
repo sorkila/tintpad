@@ -19,7 +19,7 @@ struct SettingsCard<Content: View>: View {
                 HStack {
                     if let title {
                         Text(title.uppercased())
-                            .font(.caption2.weight(.semibold)).tracking(0.6)
+                            .font(TypeRamp.sectionLabelMono).tracking(0.6)
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
@@ -54,14 +54,19 @@ struct EmptyStateView: View {
     let icon: String
     let title: String
     let subtitle: String
+    // Display-size glyph: no text style is 30pt, so scale the point size itself.
+    @ScaledMetric(relativeTo: .title) private var glyphSize: CGFloat = 30
 
     var body: some View {
         VStack(spacing: 8) {
             Image(systemName: icon)
-                .font(.system(size: 30, weight: .light))
+                .font(.system(size: glyphSize, weight: .light))
                 .foregroundStyle(.tertiary)
+            // Subtitle carries instructions, so it gets secondary, not tertiary —
+            // tertiary text fails 4.5:1 and the glyph above is the only element
+            // allowed to stay decorative (a11y #4).
             Text(title).font(.callout.weight(.medium)).foregroundStyle(.secondary)
-            Text(subtitle).font(.caption).foregroundStyle(.tertiary)
+            Text(subtitle).font(.caption).foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)

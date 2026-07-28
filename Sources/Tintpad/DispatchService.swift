@@ -50,7 +50,9 @@ final class DispatchService {
 
         pruneLogs()
         let id = UUID()
-        let stamp = "\(repo.name)-\(Int(Date().timeIntervalSince1970))"
+        // UUID suffix: two dispatches of the same repo within one second must
+        // not share a log file (interleaved output, cross-wired notifications).
+        let stamp = "\(repo.name)-\(Int(Date().timeIntervalSince1970))-\(UUID().uuidString.prefix(6))"
         let logURL = logDir.appendingPathComponent("\(stamp).log")
         FileManager.default.createFile(atPath: logURL.path, contents: nil)
         let handle = try FileHandle(forWritingTo: logURL)

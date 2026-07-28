@@ -7,31 +7,26 @@ struct SettingsView: View {
     @State private var selection: SettingsTab = .general
     // Settings never needs a collapsed sidebar — pin it open and drop the toggle.
     @State private var columns = NavigationSplitViewVisibility.all
-
     var body: some View {
         NavigationSplitView(columnVisibility: $columns) {
+            // Stark sidebar: text only, the brand tint appears only on the
+            // selected label — same rule as the palette, the accent means
+            // "here, now" and nothing else.
             List(selection: $selection) {
                 Section { rows([.general, .appearance, .hotkeys]) }
-                Section("Workspace") { rows([.repos, .agents, .prompts]) }
-                Section("Activity") { rows([.recents, .github]) }
+                Section { rows([.repos, .agents, .prompts]) } header: { sectionHeader("Workspace") }
+                Section { rows([.recents, .github]) } header: { sectionHeader("Activity") }
                 Section { rows([.about]) }
             }
+            .tint(store.settings.tintAccent.color)
             .navigationSplitViewColumnWidth(min: 200, ideal: 210, max: 240)
             .toolbar(removing: .sidebarToggle)
         } detail: {
             VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 12) {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(selection.color.gradient)
-                        .frame(width: 30, height: 30)
-                        .overlay(Image(systemName: selection.icon)
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(.white))
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(selection.title).font(TypeRamp.paneTitle)
-                        Text(selection.subtitle).font(TypeRamp.paneSubtitle).foregroundStyle(.secondary)
-                    }
-                    Spacer()
+                // The sidebar already says where you are — no repeated icon tile.
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(selection.title).font(TypeRamp.paneTitle)
+                    Text(selection.subtitle).font(TypeRamp.paneSubtitle).foregroundStyle(.secondary)
                 }
                 .padding(.horizontal, 22).padding(.vertical, 16)
                 Divider()
@@ -48,19 +43,24 @@ struct SettingsView: View {
     }
 
     private func rows(_ tabs: [SettingsTab]) -> some View {
+        // Text only: the labels are short, the groups are labeled, and a
+        // glyph next to each word was saying everything twice. The accent
+        // marks "here, now" — macOS list selection stays a quiet gray, so
+        // the label itself carries it.
         ForEach(tabs) { tab in
-            Label {
-                Text(tab.title)
-            } icon: {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(tab.color.gradient)
-                    .frame(width: 20, height: 20)
-                    .overlay(Image(systemName: tab.icon)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.white))
-            }
-            .tag(tab)
+            Text(tab.title)
+                .font(TypeRamp.sidebarLabel)
+                .foregroundStyle(tab == selection
+                    ? AnyShapeStyle(store.settings.tintAccent.color)
+                    : AnyShapeStyle(.primary))
+                .tag(tab)
         }
+    }
+
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title.uppercased())
+            .font(TypeRamp.sectionLabelMono).tracking(0.6)
+            .foregroundStyle(.secondary)
     }
 
     @ViewBuilder private var detailView: some View {
@@ -87,24 +87,6 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .general: "General"; case .hotkeys: "Hotkeys"; case .repos: "Repos"
         case .agents: "Agents"; case .prompts: "Prompts"; case .recents: "Recents"
         case .github: "GitHub"; case .appearance: "Appearance"; case .about: "About"
-        }
-    }
-
-    var icon: String {
-        switch self {
-        case .general: "gearshape.fill"; case .hotkeys: "keyboard.fill"; case .repos: "folder.fill"
-        case .agents: "terminal.fill"; case .prompts: "text.bubble.fill"
-        case .recents: "clock.arrow.circlepath"; case .github: "arrow.triangle.branch"
-        case .appearance: "paintpalette.fill"; case .about: "info.circle.fill"
-        }
-    }
-
-    var color: Color {
-        switch self {
-        // Distinct, harmonious tiles that don't collide with the brand orange accent.
-        case .general: .gray; case .appearance: .pink; case .hotkeys: .blue
-        case .repos: .cyan; case .agents: .green; case .prompts: .teal
-        case .recents: .indigo; case .github: Color(white: 0.25); case .about: .brown
         }
     }
 
@@ -173,7 +155,7 @@ struct GeneralSettingsView: View {
                     LabeledContent("Worktree root") {
                         HStack {
                             Text(store.settings.worktreeRoot ?? "Sibling of repo")
-                                .font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
+                                .font(.monoStyle(.caption)).foregroundStyle(.secondary)
                                 .lineLimit(1).truncationMode(.middle)
                             Button("Choose…") { chooseWorktreeRoot() }
                             if store.settings.worktreeRoot != nil {
@@ -181,7 +163,7 @@ struct GeneralSettingsView: View {
                             }
                         }
                     }
-                    Toggle("Confirm before launching a dangerous (YOLO) mode",
+                    Toggle("Confirm before launching a mode that skips permissions",
                            isOn: store.bind(\.confirmDangerousModes))
                 }
             }
@@ -226,11 +208,15 @@ struct GeneralSettingsView: View {
 
 struct AppearanceSettingsView: View {
     @ObservedObject var store: AppStore
+    // Paired with the callout-based type below so the chip and swatches keep
+    // fitting their content at accessibility sizes (a11y #3).
+    @ScaledMetric(relativeTo: .callout) private var chipWidth: CGFloat = 48
+    @ScaledMetric(relativeTo: .callout) private var swatchSize: CGFloat = 30
 
     var body: some View {
         Form {
             Section("Accent tint") {
-                Text("The tint colors selection, agent badges, and mode chips — it's the brand.")
+                Text("The tint is Tintpad's accent: the text caret, Settings, onboarding, and the menu bar. Repos keep their own hues.")
                     .font(.caption).foregroundStyle(.secondary)
                 HStack(spacing: 14) {
                     ForEach(TintAccent.allCases) { tint in
@@ -276,9 +262,9 @@ struct AppearanceSettingsView: View {
                 }
                 .tint(store.settings.tintAccent.color)
                 Text("\(Int((value.wrappedValue / snap).rounded() * snap))\(unit)")
-                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .font(TypeRamp.mono.weight(.medium))
                     .foregroundStyle(.secondary)
-                    .frame(width: 48, alignment: .trailing)
+                    .frame(width: chipWidth, alignment: .trailing)
                     .monospacedDigit()
             }
         }
@@ -295,15 +281,15 @@ struct AppearanceSettingsView: View {
         } label: {
             Circle()
                 .fill(tint.color)
-                .frame(width: 30, height: 30)
+                .frame(width: swatchSize, height: swatchSize)
                 .opacity(locked ? 0.4 : 1)
                 .overlay(Circle().strokeBorder(.primary.opacity(selected ? 0.9 : 0), lineWidth: 2)
                     .padding(-3))
                 .overlay(Image(systemName: "checkmark")
-                    .font(.system(size: 12, weight: .bold))
+                    .font(.callout.weight(.bold))
                     .foregroundStyle(.black.opacity(selected ? 0.8 : 0)))
                 .overlay(Image(systemName: "lock.fill")
-                    .font(.system(size: 10, weight: .bold))
+                    .font(.footnote.weight(.bold))
                     .foregroundStyle(.white.opacity(locked ? 0.9 : 0)))
         }
         .buttonStyle(.plain)
@@ -318,12 +304,15 @@ struct AboutSettingsView: View {
     @ObservedObject private var updater = UpdaterController.shared
     @State private var keyInput = ""
     @State private var feedback: String?
+    // Display-size mark: no text style is this large, so scale the size itself.
+    @ScaledMetric(relativeTo: .largeTitle) private var markSize: CGFloat = 72
 
     var body: some View {
         VStack(spacing: 14) {
-            Image(systemName: "command")
-                .font(.system(size: 46, weight: .medium))
-                .foregroundStyle(store.settings.tintAccent.color)
+            // The real app icon, not a stand-in glyph — one brand, everywhere.
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable().interpolation(.high)
+                .frame(width: markSize, height: markSize)
             HStack(spacing: 8) {
                 Text("Tintpad").font(.title.bold())
                 if store.isSupporter {
@@ -346,7 +335,7 @@ struct AboutSettingsView: View {
                 LabeledContent("Version", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.0")
                 LabeledContent("Data", value: "~/Library/Application Support/Tintpad")
             }
-            .font(.system(.callout, design: .monospaced)).frame(maxWidth: 420)
+            .font(.monoStyle(.callout)).frame(maxWidth: 420)
 
             HStack(spacing: 12) {
                 Button("Check for Updates…") { updater.checkForUpdates() }
@@ -376,7 +365,7 @@ struct AboutSettingsView: View {
             VStack(spacing: 6) {
                 Label("Supporter — thank you ♥", systemImage: "checkmark.seal.fill")
                     .foregroundStyle(.green)
-                Text(info.email).font(.system(.callout, design: .monospaced)).foregroundStyle(.secondary)
+                Text(info.email).font(.monoStyle(.callout)).foregroundStyle(.secondary)
                 Button("Remove key") { store.clearLicense(); keyInput = ""; feedback = nil }
                     .controlSize(.small)
             }
@@ -388,7 +377,7 @@ struct AboutSettingsView: View {
                 HStack {
                     TextField("Paste supporter key", text: $keyInput)
                         .textFieldStyle(.roundedBorder)
-                        .font(.system(.callout, design: .monospaced))
+                        .font(.monoStyle(.callout))
                     Button("Activate") {
                         if store.applyLicense(keyInput) {
                             feedback = nil

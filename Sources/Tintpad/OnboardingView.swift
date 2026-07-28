@@ -69,7 +69,8 @@ struct OnboardingView: View {
                     }
                 }
                 .frame(width: 60, height: 60)
-                Text("Welcome to Tintpad").font(.title.bold())
+                Text("Welcome to Tintpad")
+                    .font(.monoStyle(.title2, .bold))
                 Text("Summon a coding agent into your terminal at the right repo — in under two seconds, without the mouse.")
                     .font(.callout).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -116,6 +117,9 @@ struct OnboardingView: View {
 
             Button(action: onDone) {
                 Text(testOK ? "Done — start using Tintpad" : "Get started").frame(maxWidth: .infinity)
+                    // Black on the accent, like the step circles: white measures
+                    // 2.7:1 on this orange, black 7.7:1 (a11y #4).
+                    .foregroundStyle(.black.opacity(0.85))
             }
             .controlSize(.large).buttonStyle(.borderedProminent).tint(accent)
             .padding(.top, 4)
@@ -214,13 +218,15 @@ struct OnboardingView: View {
     private func step<C: View>(_ n: Int, _ title: String, _ subtitle: String,
                                @ViewBuilder control: () -> C) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            Text("\(n)")
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(.black)
-                .frame(width: 22, height: 22)
-                .background(accent, in: Circle())
+            // Step index in the palette's monospace voice — accent on dark
+            // measures 7:1, and two mono digits self-align across steps, so
+            // no fixed frame is needed at accessibility sizes (a11y #3/#4).
+            Text(String(format: "%02d", n))
+                .font(.monoStyle(.body, .semibold))
+                .foregroundStyle(accent)
+                .padding(.top, 1)
             VStack(alignment: .leading, spacing: 6) {
-                Text(title).font(.headline)
+                Text(title).font(.monoStyle(.headline))
                 Text(subtitle).font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 control()

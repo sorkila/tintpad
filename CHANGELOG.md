@@ -2,29 +2,94 @@
 
 All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepachangelog.com), this project aims for [Semantic Versioning](https://semver.org).
 
-## [Unreleased]
+## [0.2.0] — 2026-07-28
 
-### Added
-- Light mode (System / Light / Dark), the palette and Settings follow it.
-- Marketing site (`web/`) and full OSS repo kit (README, CONTRIBUTING, SECURITY, templates).
+The 2.0 pass: the palette rebuilt around one idea, the app hardened by a
+three-way engineering audit, and the launch flow taught to remember.
 
-### Changed
-- **Now fully open source (MIT) + tip jar.** Every functional feature is free, the optional
-  Supporter unlock only adds custom accent tints. "Pro" reworded to "Supporter" throughout.
-- Command building hardened: all interpolated template values are sanitized (control chars
-  stripped) and shell-quoted, AppleScript escaping handles newlines.
-- PATH pre-warm moved off the main thread with a timeout.
+### The palette: ⌘Tab for repos
+- **A floating Liquid Glass cluster, not a sheet.** Three discrete glass pieces
+  with real gaps: a search pill (`tintpad ❯`), a horizontal strip of repo tiles
+  you arrow through like the app switcher, and a launch pill that names the
+  contract. On macOS 26 each piece is real `glassEffect` in a shared
+  `GlassEffectContainer` (interactive pills, vibrancy-based legibility over a
+  whisper of frost); macOS 14/15 keep a vibrancy-stack fallback.
+- **Every repo gets its tint.** A stable hue hashed from the repo's name (the
+  danger-red band is reserved), its short name in that hue (`KUTA`, `SB3K`,
+  `TPL`), pinned repos first. Recognition works the way ⌘Tab works: color plus
+  letters, at a glance. Selection scales up on a spring and glows in its hue.
+- **The launch pill is the contract**: `❯ agent · mode` plus the repo's path
+  and `⑂ branch*` (dirty-checked in the background, cached per summon, never
+  blocking). The agent and mode words are quietly clickable, with the real
+  flags in the tooltip, and the caret turns red the moment ↵ would skip
+  permissions.
+- **One voice of type**: SF Mono at exactly two sizes, weight as hierarchy.
+  Settings and onboarding share the rule (mono speaks labels and identity, SF
+  Pro speaks prose), with a monochrome sidebar and the accent only on "here".
+- The panel window is borderless and draws no system shadow, which fixes the
+  square ghost band macOS 26 drew behind rounded glass. Pieces carry their own
+  shadows.
+- **Motion that means something.** On summon the three pieces spring apart from
+  one blended glass body (the container's blend distance sits just under the
+  resting gap, so they fuse only in transit). ↵ plays a 160ms launch gesture,
+  the selected tile pulses as the cluster releases downward, and worktree and
+  prompt modes crossfade instead of hard-cutting. All transform-only, all
+  skipped under Reduce Motion (which also closes instantly, because a delay
+  with no animation is just lag).
+- **A real icon.** The app icon and menu-bar glyph are now drawn from the
+  product's own grammar (a dark tile, the brand caret, a block cursor: a
+  prompt, waiting), generated reproducibly by `Scripts/make-icon.swift`. The
+  menu-bar glyph is a proper template image that follows the system
+  appearance instead of a hard-orange sticker.
 
-### Fixed
-- First summon after launch is responsive (key monitor installed eagerly).
-- Mode chip and low-contrast text are legible in light mode.
-- About box shows the real bundle version instead of a hard-coded placeholder.
-- "Buy me a coffee" button uses the brand accent (was a third-party yellow).
-- Dispatch no longer leaks a file handle if the background process fails to start.
+### Launch flow
+- **Repos remember how you opened them last.** Every launch stamps the repo's
+  agent and mode, and plain ↵ repeats it. An explicit per-repo default pinned
+  in Settings still wins (and the Settings agent picker no longer wipes that
+  pin when re-selecting the same agent, the bug that started this release).
+- **⌘0 resumes the last session exactly**, from the palette or the global
+  hotkey, and the hint only appears when the session can still be
+  reconstructed. Failures say the true thing ("isn't on your PATH" is not
+  "that repo is gone").
+- **One danger gate for every path.** Launch, dispatch, prompt, worktree, and
+  resume all arm the same confirm banner when a mode skips permissions, and a
+  pending confirm is cancelled (never fired) by clicking another tile, ⌘n, or
+  ⌘0. A dangerous last session triggered from the global hotkey routes through
+  the palette so the confirm has a surface.
+- Worktree creation runs off the main thread with a status line, and clones
+  from GitHub are fully async: the UI can no longer freeze on git.
 
-### Security
-- Added tests for the AppleScript escaping layer and for `{branch}`/`{remote}` quoting,
-  covering the injection surface end to end (shell single-quoting then AppleScript escaping).
+### Hardening (from a three-pass engineering audit, see docs/AUDIT.md)
+- A corrupt `store.json` is preserved as `store.corrupt-<ts>.json` instead of
+  being silently reseeded and overwritten (repos, sessions, and the Supporter
+  key survive), and save failures are no longer swallowed.
+- A single-instance flock guard stops a second copy (say a dev build) from
+  silently clobbering the first one's data.
+- `ProcessRunner` gives every subprocess a hard timeout, concurrently drained
+  pipes, and SIGTERM-then-SIGKILL. Ghostty re-checks it is frontmost before
+  typing a command, Terminal's tab path pre-checks Accessibility, Warp's URL
+  is built with `URLComponents`, and worktree branch names are pinned so a
+  dash-leading name can't become a git option.
+- Frecency clamps future-dated timestamps (clock rollback can't pin a repo to
+  the top), Settings writes are debounced and flushed on quit, dispatch log
+  names are collision-free, and the command template's space cleanup no longer
+  rewrites double spaces inside quoted paths and prompts.
+
+### Accessibility
+- Dynamic Type across Settings and onboarding: semantic text styles with every
+  paired container on a matching `@ScaledMetric`. The palette caps at xxLarge
+  by design (a fixed-width HUD).
+- Contrast measured, not eyeballed: onboarding's button went from 2.7:1 to
+  6.6:1, meaningful text left tertiary, and the palette's quietest inks clear
+  4.5:1. Tab stays free for focus traversal under VoiceOver and Full Keyboard
+  Access, tiles expose rotor actions for switching agent and mode, and Reduce
+  Motion and Reduce Transparency are honored everywhere.
+
+### Developer
+- 45 pure-logic unit tests (launch precedence, git dirty detection, repo
+  tints, injection surface, frecency edge cases). `docs/TESTING.md` is the
+  journey-based synthetic user testing plan. `TINTPAD_SHOWCASE=1` and
+  `TINTPAD_SHOWCASE_SETTINGS=1` drive screenshot harnesses.
 
 ## [0.1.0], unreleased (dev)
 - Initial build: global hotkey → palette → frecency repo search → agent + run mode →

@@ -29,35 +29,83 @@ final class AppStore: ObservableObject {
     private func load() {
         isLoading = true
         defer { isLoading = false }
-        guard let data = try? Data(contentsOf: fileURL),
-              let doc = try? JSONDecoder.tintpad.decode(StoreDocument.self, from: data) else {
-            // First run: seed defaults and persist.
-            let seeded = StoreDocument.seeded()
-            repos = seeded.repos
-            agents = seeded.agents
-            prompts = seeded.prompts
-            sessions = seeded.sessions
-            settings = seeded.settings
-            persist()   // write directly; save() is suppressed while loading
+        if let data = try? Data(contentsOf: fileURL),
+           let doc = try? JSONDecoder.tintpad.decode(StoreDocument.self, from: data) {
+            repos = doc.repos
+            let raw = doc.agents.isEmpty ? AgentSeed.defaults : doc.agents
+            agents = AgentSeed.migrateModeNames(raw)
+            prompts = doc.prompts
+            sessions = doc.sessions
+            settings = doc.settings
+            // A vocabulary migration that changed something is written back
+            // once, so the store speaks the new names from here on.
+            if agents != raw { persist() }
             return
         }
-        repos = doc.repos
-        agents = doc.agents.isEmpty ? AgentSeed.defaults : doc.agents
-        prompts = doc.prompts
-        sessions = doc.sessions
-        settings = doc.settings
+        // A store exists but didn't load (corrupt, sync conflict, transient
+        // read error): preserve the evidence before anything can write over
+        // it. Reseeding must never destroy the only copy of the user's data.
+        let hadFile = FileManager.default.fileExists(atPath: fileURL.path)
+        if hadFile {
+            let stamp = Int(Date().timeIntervalSince1970)
+            let backup = fileURL.deletingLastPathComponent()
+                .appendingPathComponent("store.corrupt-\(stamp).json")
+            try? FileManager.default.copyItem(at: fileURL, to: backup)
+            NSLog("Tintpad: store.json failed to load — preserved a copy at \(backup.path)")
+        }
+        let seeded = StoreDocument.seeded()
+        repos = seeded.repos
+        agents = seeded.agents
+        prompts = seeded.prompts
+        sessions = seeded.sessions
+        settings = seeded.settings
+        // Persist immediately only on a true first run; after a failed load
+        // the seed stays in memory until something actually changes.
+        if !hadFile { persist() }
     }
 
     func save() {
         guard !isLoading else { return }
+        pendingSave?.cancel()
+        pendingSave = nil
+        persist()
+    }
+
+    private var pendingSave: DispatchWorkItem?
+
+    /// Coalesced save for rapid-fire writers (sliders, text fields): a full
+    /// store encode + atomic write per keystroke is main-thread work the user
+    /// can feel. An explicit `save()` or app termination flushes early.
+    func saveSoon(after delay: TimeInterval = 0.4) {
+        guard !isLoading else { return }
+        pendingSave?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.pendingSave = nil
+            self?.persist()
+        }
+        pendingSave = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    /// Land any debounced write now (called on app termination).
+    func flushPendingSave() {
+        guard pendingSave != nil else { return }
+        pendingSave?.cancel()
+        pendingSave = nil
         persist()
     }
 
     private func persist() {
         let doc = StoreDocument(version: 1, repos: repos, agents: agents,
                                 prompts: prompts, sessions: sessions, settings: settings)
-        guard let data = try? JSONEncoder.tintpad.encode(doc) else { return }
-        try? data.write(to: fileURL, options: .atomic)
+        do {
+            let data = try JSONEncoder.tintpad.encode(doc)
+            try data.write(to: fileURL, options: .atomic)
+        } catch {
+            // A failed save must at least leave a trace — silent loss of
+            // repos/sessions/license on disk-full is worse than a log line.
+            NSLog("Tintpad: failed to save store.json: \(error.localizedDescription)")
+        }
     }
 
     // MARK: - Repo operations
@@ -100,6 +148,17 @@ final class AppStore: ObservableObject {
         return agents.first { $0.id == id }
     }
 
+    /// The agent's monogram, assigned across the whole set so it stays distinct
+    /// from the others. Lives here so the palette and Settings can't disagree
+    /// about what letter an agent is.
+    func monogram(for agent: Agent?) -> String {
+        guard let agent else { return "?" }
+        guard let idx = agents.firstIndex(where: { $0.id == agent.id }) else {
+            return Monogram.assign([agent.name]).first ?? "?"
+        }
+        return Monogram.assign(agents.map(\.name))[idx]
+    }
+
     func addAgent(_ agent: Agent) {
         agents.append(agent)
         save()
@@ -112,6 +171,9 @@ final class AppStore: ObservableObject {
     }
 
     func removeAgent(_ id: UUID) {
+        // The last agent is load-bearing: without one the palette dead-keys
+        // (⏎ and ⇥ silently no-op) until the next launch reseeds.
+        guard agents.count > 1 else { return }
         agents.removeAll { $0.id == id }
         save()
     }
@@ -148,11 +210,12 @@ final class AppStore: ObservableObject {
         save()
     }
 
-    /// A SwiftUI binding to a settings field that persists on every write.
+    /// A SwiftUI binding to a settings field that persists on every write
+    /// (debounced — sliders and text fields write on every tick).
     func bind<T>(_ keyPath: WritableKeyPath<Settings, T>) -> Binding<T> {
         Binding(
             get: { self.settings[keyPath: keyPath] },
-            set: { self.settings[keyPath: keyPath] = $0; self.save() }
+            set: { self.settings[keyPath: keyPath] = $0; self.saveSoon() }
         )
     }
 
@@ -170,7 +233,13 @@ final class AppStore: ObservableObject {
     private let maxSessions = 50
 
     /// Record a launch as a session (newest first, de-duped by repo+agent+mode).
+    /// Also stamps the repo's last-used agent + mode, so the palette can offer
+    /// "the way you opened it last" when no explicit default is pinned.
     func recordSession(repo: Repo, agent: Agent, mode: RunMode, prompt: String?, now: Date = Date()) {
+        if let idx = repos.firstIndex(where: { $0.id == repo.id }) {
+            repos[idx].lastAgentID = agent.id
+            repos[idx].lastModeID = mode.id
+        }
         let session = Session(
             repoID: repo.id, repoPath: repo.path, repoName: repo.name,
             agentID: agent.id, agentName: agent.name,
@@ -190,10 +259,30 @@ final class AppStore: ObservableObject {
     // MARK: - Discovery
 
     /// Scan the configured root folders (1–2 levels) for `.git` directories and
-    /// add any new repos. Returns the number added.
+    /// add any new repos. Returns the number added. Synchronous — only for
+    /// explicit user actions (⌘R, the Scan button); launch paths use the
+    /// background variant below.
     @discardableResult
     func runAutoDiscovery() -> Int {
         let found = RepoDiscovery.scan(roots: settings.rootScanFolders)
+        return merge(found)
+    }
+
+    /// The same scan off the main thread: root folders can live on slow
+    /// fileprovider volumes, and app launch or a palette summon must never
+    /// block on a directory walk.
+    func runAutoDiscoveryInBackground() {
+        let roots = settings.rootScanFolders
+        DispatchQueue.global(qos: .utility).async {
+            let found = RepoDiscovery.scan(roots: roots)
+            Task { @MainActor in
+                let added = self.merge(found)
+                if added > 0 { NSLog("Tintpad: discovered \(added) repos") }
+            }
+        }
+    }
+
+    private func merge(_ found: [String]) -> Int {
         let existing = Set(repos.map(\.path))
         var added = 0
         for path in found where !existing.contains(path) {

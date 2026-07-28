@@ -38,11 +38,13 @@ enum WorktreeService {
     @discardableResult
     static func create(repoPath: String, branch: String, at path: String) throws -> String {
         let exists = branchExists(repoPath: repoPath, branch: branch)
+        // "--" pins positionals, and the branch rides as -b's value when new,
+        // so a user-typed name starting with "-" can never become a git option.
         var args = ["-C", repoPath, "worktree", "add"]
         if exists {
-            args += [path, branch]
+            args += ["--", path, branch]
         } else {
-            args += ["-b", branch, path]
+            args += ["-b", branch, "--", path]
         }
         try runGit(args)
         return path
@@ -79,26 +81,27 @@ enum WorktreeService {
     // MARK: - Internals
 
     private static func branchExists(repoPath: String, branch: String) -> Bool {
-        (try? runGit(["-C", repoPath, "rev-parse", "--verify", "--quiet", branch])) != nil
+        // Full ref path: unambiguous, and a "-" prefix can't become an option.
+        (try? runGit(["-C", repoPath, "rev-parse", "--verify", "--quiet",
+                      "refs/heads/\(branch)"])) != nil
     }
 
     @discardableResult
     private static func runGit(_ args: [String]) throws -> String {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: gitBinary)
-        p.arguments = args
-        p.environment = ShellEnvironment.processEnvironment
-        let out = Pipe(); let err = Pipe()
-        p.standardOutput = out; p.standardError = err
-        do { try p.run() } catch {
+        // Bounded, pipes drained concurrently (AUDIT 2026-07): a hung
+        // credential helper or a >64KB chatty checkout can neither wedge the
+        // pipes nor wait forever. Callers run this off the main thread.
+        let result: ProcessRunner.Output
+        do {
+            result = try ProcessRunner.run(gitBinary, arguments: args,
+                                           environment: ShellEnvironment.processEnvironment,
+                                           timeout: 120)
+        } catch {
             throw WorktreeError.gitFailed("git: \(error.localizedDescription)")
         }
-        p.waitUntilExit()
-        let outData = out.fileHandleForReading.readDataToEndOfFile()
-        if p.terminationStatus != 0 {
-            let msg = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-            throw WorktreeError.gitFailed(msg.trimmingCharacters(in: .whitespacesAndNewlines))
+        if result.status != 0 {
+            throw WorktreeError.gitFailed(result.stderr.trimmingCharacters(in: .whitespacesAndNewlines))
         }
-        return String(data: outData, encoding: .utf8) ?? ""
+        return result.stdout
     }
 }
