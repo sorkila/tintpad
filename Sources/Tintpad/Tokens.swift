@@ -21,10 +21,18 @@ enum Radius {
 }
 
 /// Scalable type ramp for resizable surfaces (honors Dynamic Type).
+///
+/// The system-wide voice rule: **mono speaks labels and identity, SF Pro
+/// speaks prose.** The palette is all-mono (it has no prose); Settings and
+/// onboarding use mono for titles, sidebar labels, and section headers, and
+/// SF Pro for explanatory text, where reading comfort wins.
 enum TypeRamp {
-    static let paneTitle = Font.title3.weight(.semibold)
+    static let paneTitle = Font.system(.title3, design: .monospaced).weight(.semibold)
     static let paneSubtitle = Font.caption
-    static let sidebarLabel = Font.callout
+    static let sidebarLabel = Font.system(.callout, design: .monospaced)
     static let sectionLabel = Font.caption.weight(.semibold)
     static let mono = Font.system(.callout, design: .monospaced)
+    /// Uppercase tracked section label in the palette's monospace voice — the
+    /// thread that ties the resizable surfaces to the HUD.
+    static let sectionLabelMono = Font.system(.caption2, design: .monospaced).weight(.semibold)
 }

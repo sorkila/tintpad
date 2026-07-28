@@ -171,7 +171,7 @@ private struct ModeEditor: View {
                     .textFieldStyle(.roundedBorder).frame(maxWidth: 180)
                 if mode.isDangerous {
                     Text("DANGEROUS")
-                        .font(.system(size: 9, weight: .bold)).tracking(0.5)
+                        .font(.caption2.weight(.bold)).tracking(0.5)
                         .foregroundStyle(dangerTint)
                         .padding(.horizontal, 6).padding(.vertical, 2)
                         .background(dangerTint.opacity(0.16), in: Capsule())
@@ -220,6 +220,8 @@ private struct ModeEditor: View {
 /// common dev glyphs — smoother than typing a raw SF Symbol name.
 private struct SymbolPicker: View {
     @Binding var symbol: String
+    // The preview box scales with its body-sized glyph (a11y #3).
+    @ScaledMetric(relativeTo: .body) private var previewBox: CGFloat = 26
 
     private let options = [
         "terminal", "command", "chevron.left.forwardslash.chevron.right", "curlybraces",
@@ -236,8 +238,8 @@ private struct SymbolPicker: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: preview)
-                .font(.system(size: 14, weight: .semibold))
-                .frame(width: 26, height: 26)
+                .font(.body.weight(.semibold))
+                .frame(width: previewBox, height: previewBox)
                 .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(.quaternary))
             TextField("symbol name", text: $symbol)
                 .textFieldStyle(.roundedBorder).frame(maxWidth: 170)

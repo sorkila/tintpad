@@ -7,31 +7,29 @@ struct SettingsView: View {
     @State private var selection: SettingsTab = .general
     // Settings never needs a collapsed sidebar — pin it open and drop the toggle.
     @State private var columns = NavigationSplitViewVisibility.all
+    // The glyph column scales with the subheadline glyphs it aligns (a11y #3).
+    @ScaledMetric(relativeTo: .subheadline) private var glyphColumn: CGFloat = 20
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columns) {
+            // Stark sidebar: monochrome glyphs, the brand tint appears only on
+            // the selected row — same rule as the palette, the accent means
+            // "here, now" and nothing else. No decorative color tiles.
             List(selection: $selection) {
                 Section { rows([.general, .appearance, .hotkeys]) }
-                Section("Workspace") { rows([.repos, .agents, .prompts]) }
-                Section("Activity") { rows([.recents, .github]) }
+                Section { rows([.repos, .agents, .prompts]) } header: { sectionHeader("Workspace") }
+                Section { rows([.recents, .github]) } header: { sectionHeader("Activity") }
                 Section { rows([.about]) }
             }
+            .tint(store.settings.tintAccent.color)
             .navigationSplitViewColumnWidth(min: 200, ideal: 210, max: 240)
             .toolbar(removing: .sidebarToggle)
         } detail: {
             VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 12) {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(selection.color.gradient)
-                        .frame(width: 30, height: 30)
-                        .overlay(Image(systemName: selection.icon)
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(.white))
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(selection.title).font(TypeRamp.paneTitle)
-                        Text(selection.subtitle).font(TypeRamp.paneSubtitle).foregroundStyle(.secondary)
-                    }
-                    Spacer()
+                // The sidebar already says where you are — no repeated icon tile.
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(selection.title).font(TypeRamp.paneTitle)
+                    Text(selection.subtitle).font(TypeRamp.paneSubtitle).foregroundStyle(.secondary)
                 }
                 .padding(.horizontal, 22).padding(.vertical, 16)
                 Divider()
@@ -50,17 +48,25 @@ struct SettingsView: View {
     private func rows(_ tabs: [SettingsTab]) -> some View {
         ForEach(tabs) { tab in
             Label {
-                Text(tab.title)
+                Text(tab.title).font(TypeRamp.sidebarLabel)
             } icon: {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(tab.color.gradient)
-                    .frame(width: 20, height: 20)
-                    .overlay(Image(systemName: tab.icon)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.white))
+                Image(systemName: tab.icon)
+                    .font(.subheadline.weight(.semibold))
+                    // The accent marks "here, now", nothing else — macOS list
+                    // selection stays a quiet gray, so the glyph carries it.
+                    .foregroundStyle(tab == selection
+                        ? AnyShapeStyle(store.settings.tintAccent.color)
+                        : AnyShapeStyle(.secondary))
+                    .frame(width: glyphColumn)
             }
             .tag(tab)
         }
+    }
+
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title.uppercased())
+            .font(TypeRamp.sectionLabelMono).tracking(0.6)
+            .foregroundStyle(.secondary)
     }
 
     @ViewBuilder private var detailView: some View {
@@ -96,15 +102,6 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .agents: "terminal.fill"; case .prompts: "text.bubble.fill"
         case .recents: "clock.arrow.circlepath"; case .github: "arrow.triangle.branch"
         case .appearance: "paintpalette.fill"; case .about: "info.circle.fill"
-        }
-    }
-
-    var color: Color {
-        switch self {
-        // Distinct, harmonious tiles that don't collide with the brand orange accent.
-        case .general: .gray; case .appearance: .pink; case .hotkeys: .blue
-        case .repos: .cyan; case .agents: .green; case .prompts: .teal
-        case .recents: .indigo; case .github: Color(white: 0.25); case .about: .brown
         }
     }
 
@@ -226,11 +223,15 @@ struct GeneralSettingsView: View {
 
 struct AppearanceSettingsView: View {
     @ObservedObject var store: AppStore
+    // Paired with the callout-based type below so the chip and swatches keep
+    // fitting their content at accessibility sizes (a11y #3).
+    @ScaledMetric(relativeTo: .callout) private var chipWidth: CGFloat = 48
+    @ScaledMetric(relativeTo: .callout) private var swatchSize: CGFloat = 30
 
     var body: some View {
         Form {
             Section("Accent tint") {
-                Text("The tint colors selection, agent badges, and mode chips — it's the brand.")
+                Text("The tint colors the palette's caret and selection, agent badges, and Settings — it's the brand.")
                     .font(.caption).foregroundStyle(.secondary)
                 HStack(spacing: 14) {
                     ForEach(TintAccent.allCases) { tint in
@@ -276,9 +277,9 @@ struct AppearanceSettingsView: View {
                 }
                 .tint(store.settings.tintAccent.color)
                 Text("\(Int((value.wrappedValue / snap).rounded() * snap))\(unit)")
-                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .font(TypeRamp.mono.weight(.medium))
                     .foregroundStyle(.secondary)
-                    .frame(width: 48, alignment: .trailing)
+                    .frame(width: chipWidth, alignment: .trailing)
                     .monospacedDigit()
             }
         }
@@ -295,15 +296,15 @@ struct AppearanceSettingsView: View {
         } label: {
             Circle()
                 .fill(tint.color)
-                .frame(width: 30, height: 30)
+                .frame(width: swatchSize, height: swatchSize)
                 .opacity(locked ? 0.4 : 1)
                 .overlay(Circle().strokeBorder(.primary.opacity(selected ? 0.9 : 0), lineWidth: 2)
                     .padding(-3))
                 .overlay(Image(systemName: "checkmark")
-                    .font(.system(size: 12, weight: .bold))
+                    .font(.callout.weight(.bold))
                     .foregroundStyle(.black.opacity(selected ? 0.8 : 0)))
                 .overlay(Image(systemName: "lock.fill")
-                    .font(.system(size: 10, weight: .bold))
+                    .font(.footnote.weight(.bold))
                     .foregroundStyle(.white.opacity(locked ? 0.9 : 0)))
         }
         .buttonStyle(.plain)
@@ -318,11 +319,13 @@ struct AboutSettingsView: View {
     @ObservedObject private var updater = UpdaterController.shared
     @State private var keyInput = ""
     @State private var feedback: String?
+    // Display-size mark: no text style is 46pt, so scale the point size itself.
+    @ScaledMetric(relativeTo: .largeTitle) private var markSize: CGFloat = 46
 
     var body: some View {
         VStack(spacing: 14) {
             Image(systemName: "command")
-                .font(.system(size: 46, weight: .medium))
+                .font(.system(size: markSize, weight: .medium))
                 .foregroundStyle(store.settings.tintAccent.color)
             HStack(spacing: 8) {
                 Text("Tintpad").font(.title.bold())
