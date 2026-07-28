@@ -854,11 +854,13 @@ struct PaletteView: View {
         let scale: CGFloat = selected ? (model.launching ? 0.92 : 1.05) : (hovered ? 1.03 : 1)
         return VStack(spacing: 6) {
             ZStack {
+                // Flat, the native way: the idle tile is a neutral surface and
+                // the color lives in the letterform. The hue floods the tile
+                // only on selection — color as state, not decoration.
                 RoundedRectangle(cornerRadius: Metric.tileCorner, style: .continuous)
-                    .fill(LinearGradient(
-                        colors: [repoFill.opacity(isDark ? (selected ? 0.4 : 0.15) : (selected ? 0.28 : 0.11)),
-                                 repoFill.opacity(isDark ? (selected ? 0.18 : 0.05) : (selected ? 0.13 : 0.04))],
-                        startPoint: .top, endPoint: .bottom))
+                    .fill(selected ? repoFill.opacity(isDark ? 0.3 : 0.2)
+                                   : Color.primary.opacity(isDark ? (hovered ? 0.09 : 0.055)
+                                                                  : (hovered ? 0.07 : 0.045)))
                 RoundedRectangle(cornerRadius: Metric.tileCorner, style: .continuous)
                     .strokeBorder(
                         dangerous ? dangerTint.opacity(selected ? 0.85 : 0.45)
