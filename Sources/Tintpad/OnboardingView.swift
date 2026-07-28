@@ -70,7 +70,7 @@ struct OnboardingView: View {
                 }
                 .frame(width: 60, height: 60)
                 Text("Welcome to Tintpad")
-                    .font(.system(.title2, design: .monospaced).weight(.bold))
+                    .font(.monoStyle(.title2, .bold))
                 Text("Summon a coding agent into your terminal at the right repo — in under two seconds, without the mouse.")
                     .font(.callout).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -222,11 +222,11 @@ struct OnboardingView: View {
             // measures 7:1, and two mono digits self-align across steps, so
             // no fixed frame is needed at accessibility sizes (a11y #3/#4).
             Text(String(format: "%02d", n))
-                .font(.system(.body, design: .monospaced).weight(.semibold))
+                .font(.monoStyle(.body, .semibold))
                 .foregroundStyle(accent)
                 .padding(.top, 1)
             VStack(alignment: .leading, spacing: 6) {
-                Text(title).font(.system(.headline, design: .monospaced))
+                Text(title).font(.monoStyle(.headline))
                 Text(subtitle).font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 control()

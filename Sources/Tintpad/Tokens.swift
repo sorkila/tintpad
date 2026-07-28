@@ -1,4 +1,65 @@
+import CoreText
 import SwiftUI
+
+/// The product's typeface: IBM Plex Mono (SIL OFL, bundled in Resources/Fonts,
+/// license alongside). Registered once at launch, process-scoped. Every call
+/// site goes through `Font.mono`/`Font.monoStyle`, which fall back to the
+/// system mono if registration ever fails — the app must never render blank.
+enum BrandFont {
+    nonisolated(unsafe) private(set) static var available = false
+
+    static let regular = "IBMPlexMono"
+    static let medium = "IBMPlexMono-Medium"
+    static let semibold = "IBMPlexMono-SemiBold"
+    static let bold = "IBMPlexMono-Bold"
+
+    static func register() {
+        for name in ["IBMPlexMono-Regular", "IBMPlexMono-Medium",
+                     "IBMPlexMono-SemiBold", "IBMPlexMono-Bold"] {
+            guard let url = Bundle.module.url(forResource: name, withExtension: "ttf") else { continue }
+            CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
+        }
+        available = NSFont(name: regular, size: 12) != nil
+    }
+
+    static func psName(for weight: Font.Weight) -> String {
+        switch weight {
+        case .bold, .heavy, .black: return bold
+        case .semibold: return semibold
+        case .medium: return medium
+        default: return regular
+        }
+    }
+}
+
+extension Font {
+    /// The one voice at an exact size. Sizes arrive pre-scaled through
+    /// `@ScaledMetric`, so this uses `fixedSize` — `custom(_:size:)` would
+    /// scale with Dynamic Type a second time.
+    static func mono(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
+        guard BrandFont.available else {
+            return .system(size: size, weight: weight, design: .monospaced)
+        }
+        return .custom(BrandFont.psName(for: weight), fixedSize: size)
+    }
+
+    /// The one voice on a Dynamic Type text style (Settings, onboarding).
+    static func monoStyle(_ style: Font.TextStyle, _ weight: Font.Weight = .regular) -> Font {
+        guard BrandFont.available else {
+            return .system(style, design: .monospaced).weight(weight)
+        }
+        let base: CGFloat
+        switch style {
+        case .title2: base = 17
+        case .title3: base = 15
+        case .headline, .body: base = 13
+        case .callout: base = 12
+        case .subheadline: base = 11
+        default: base = 10   // footnote, caption, caption2
+        }
+        return .custom(BrandFont.psName(for: weight), size: base, relativeTo: style)
+    }
+}
 
 /// Design tokens — one source of truth for spacing, radii, and the type ramp.
 ///
@@ -27,11 +88,11 @@ enum Radius {
 /// onboarding use mono for titles, sidebar labels, and section headers, and
 /// SF Pro for explanatory text, where reading comfort wins.
 enum TypeRamp {
-    static let paneTitle = Font.system(.title3, design: .monospaced).weight(.semibold)
+    static let paneTitle = Font.monoStyle(.title3, .semibold)
     static let paneSubtitle = Font.caption
-    static let sidebarLabel = Font.system(.callout, design: .monospaced)
-    static let mono = Font.system(.callout, design: .monospaced)
+    static let sidebarLabel = Font.monoStyle(.callout)
+    static let mono = Font.monoStyle(.callout)
     /// Uppercase tracked section label in the palette's monospace voice — the
     /// thread that ties the resizable surfaces to the HUD.
-    static let sectionLabelMono = Font.system(.caption2, design: .monospaced).weight(.semibold)
+    static let sectionLabelMono = Font.monoStyle(.caption2, .semibold)
 }

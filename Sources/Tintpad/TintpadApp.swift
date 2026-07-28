@@ -70,6 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         NSApp.setActivationPolicy(.accessory)
+        BrandFont.register()   // before any UI renders
         AppAppearance.apply(AppStore.shared.settings.appearance)
 
         // Pre-warm the login-shell PATH off the main thread. Doing it on a

@@ -698,13 +698,13 @@ struct PaletteView: View {
         HStack(spacing: 0) {
             if !promptPrefix.isEmpty {
                 Text(promptPrefix + "  ")
-                    .font(.system(size: metaSize, weight: .semibold, design: .monospaced))
+                    .font(.mono(metaSize, .semibold))
                     .foregroundStyle(accent)
                     .accessibilityHidden(true)
             }
             TextField(placeholder, text: $model.query)
                 .textFieldStyle(.plain)
-                .font(.system(size: fieldSize, design: .monospaced))
+                .font(.mono(fieldSize))
                 .foregroundStyle(.primary)
                 .focused($searchFocused)
                 .tint(accent)   // the caret wears the brand, not system blue
@@ -713,7 +713,7 @@ struct PaletteView: View {
                 // How much the filter cut. Only shown while filtering, because
                 // "11 of 11" is not information.
                 Text("\(model.filtered.count)")
-                    .font(.system(size: metaSize, design: .monospaced))
+                    .font(.mono(metaSize))
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
             }
@@ -758,17 +758,17 @@ struct PaletteView: View {
     private func sidePanel(title: String, body: String, detail: String?) -> some View {
         VStack(alignment: .leading, spacing: 9) {
             Text(title)
-                .font(.system(size: metaSize, weight: .semibold, design: .monospaced))
+                .font(.mono(metaSize, .semibold))
                 .tracking(0.1)
                 .foregroundStyle(accent)
             Text(body)
-                .font(.system(size: metaSize, design: .monospaced))
+                .font(.mono(metaSize))
                 .foregroundStyle(.secondary)
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
             if let detail {
                 Text(detail)
-                    .font(.system(size: metaSize, design: .monospaced))
+                    .font(.mono(metaSize))
                     .foregroundStyle(.secondary)
                     .lineLimit(1).truncationMode(.middle)
                     .padding(.top, 2)
@@ -858,7 +858,7 @@ struct PaletteView: View {
                 // The short name is the identity — no badges competing with it.
                 // The agent lives in the launch pill, where agent info belongs.
                 Text(RepoTint.shortName(for: repo.name))
-                    .font(.system(size: tileSize * 0.24, weight: .semibold, design: .monospaced))
+                    .font(.mono(tileSize * 0.24, .semibold))
                     .tracking(0.5)
                     .foregroundStyle(repoColor)
                     .accessibilityHidden(true)
@@ -880,7 +880,7 @@ struct PaletteView: View {
             // Only the selected tile is named, the way ⌘Tab names only the
             // app you are on — the tiles already say who they are.
             Text(repo.name)
-                .font(.system(size: metaSize, weight: .semibold, design: .monospaced))
+                .font(.mono(metaSize, .semibold))
                 .foregroundStyle(.primary)
                 .lineLimit(1).truncationMode(.middle)
                 .frame(width: tileSize + 22)
@@ -903,7 +903,7 @@ struct PaletteView: View {
             Text(model.allRepos.isEmpty
                  ? "No repos yet — ⌘R scans your folders, or add roots in Settings"
                  : "No match for “\(model.query)”")
-                .font(.system(size: metaSize, design: .monospaced))
+                .font(.mono(metaSize))
                 .foregroundStyle(.secondary)
         }
         .frame(height: tileSize + 5 + tileLabelH)
@@ -930,10 +930,10 @@ struct PaletteView: View {
     private var confirmBanner: some View {
         HStack(spacing: 8) {
             Text("↵ again to launch \(model.pendingDangerousDescription ?? "") — skips all permissions")
-                .font(.system(size: metaSize, design: .monospaced))
+                .font(.mono(metaSize))
             Spacer(minLength: 8)
             Text("esc cancels")
-                .font(.system(size: metaSize, design: .monospaced))
+                .font(.mono(metaSize))
                 .foregroundStyle(dangerTint.opacity(0.65))
         }
         .foregroundStyle(dangerTint)
@@ -950,7 +950,7 @@ struct PaletteView: View {
             let text = isError ? String(status.dropFirst(2)) : status
             HStack(alignment: .top, spacing: 8) {
                 Text(text)
-                    .font(.system(size: metaSize, design: .monospaced))
+                    .font(.mono(metaSize))
                     .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
@@ -987,7 +987,7 @@ struct PaletteView: View {
             Spacer(minLength: 12)
             if let prompt = model.selectedPrompt {
                 Text(prompt.title.lowercased())
-                    .font(.system(size: metaSize, weight: .medium, design: .monospaced))
+                    .font(.mono(metaSize, .medium))
                     .foregroundStyle(accent)
                     .lineLimit(1)
             }
@@ -999,14 +999,14 @@ struct PaletteView: View {
 
     private var planDot: some View {
         Text("·")
-            .font(.system(size: metaSize, design: .monospaced))
+            .font(.mono(metaSize))
             .foregroundStyle(.tertiary)
             .accessibilityHidden(true)
     }
 
     private func planText(_ text: String, color: Color? = nil) -> some View {
         Text(text)
-            .font(.system(size: metaSize, design: .monospaced))
+            .font(.mono(metaSize))
             .foregroundStyle(color.map(AnyShapeStyle.init) ?? AnyShapeStyle(.secondary))
             .lineLimit(1)
     }
@@ -1032,7 +1032,7 @@ struct PaletteView: View {
                         Image(systemName: "arrow.triangle.branch")
                             .font(.system(size: 8.5, weight: .medium))
                         Text(dirty ? "\(branch)*" : branch)
-                            .font(.system(size: metaSize, design: .monospaced))
+                            .font(.mono(metaSize))
                     }
                     .foregroundStyle(dirty ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
                     .lineLimit(1)
@@ -1065,7 +1065,7 @@ private struct SegmentButton: View {
     var body: some View {
         Button(action: action) {
             Text(label)
-                .font(.system(size: size, weight: .medium, design: .monospaced))
+                .font(.mono(size, .medium))
                 .foregroundStyle(danger ? AnyShapeStyle(dangerTint)
                                         : hovering ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
                 .underline(hovering, color: danger ? dangerTint : .secondary)

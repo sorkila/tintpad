@@ -126,7 +126,7 @@ struct AgentBrandIcon: View {
                     image.opacity(selected ? 1 : 0.85)
                 } else {
                     Text(monogram.isEmpty ? fallbackMonogram : monogram)
-                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                        .font(.mono(12, .semibold))
                         .foregroundStyle(tint.opacity(selected ? 1 : 0.85))
                 }
             }

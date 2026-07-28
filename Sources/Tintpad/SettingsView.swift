@@ -155,7 +155,7 @@ struct GeneralSettingsView: View {
                     LabeledContent("Worktree root") {
                         HStack {
                             Text(store.settings.worktreeRoot ?? "Sibling of repo")
-                                .font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
+                                .font(.monoStyle(.caption)).foregroundStyle(.secondary)
                                 .lineLimit(1).truncationMode(.middle)
                             Button("Choose…") { chooseWorktreeRoot() }
                             if store.settings.worktreeRoot != nil {
@@ -335,7 +335,7 @@ struct AboutSettingsView: View {
                 LabeledContent("Version", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.0")
                 LabeledContent("Data", value: "~/Library/Application Support/Tintpad")
             }
-            .font(.system(.callout, design: .monospaced)).frame(maxWidth: 420)
+            .font(.monoStyle(.callout)).frame(maxWidth: 420)
 
             HStack(spacing: 12) {
                 Button("Check for Updates…") { updater.checkForUpdates() }
@@ -365,7 +365,7 @@ struct AboutSettingsView: View {
             VStack(spacing: 6) {
                 Label("Supporter — thank you ♥", systemImage: "checkmark.seal.fill")
                     .foregroundStyle(.green)
-                Text(info.email).font(.system(.callout, design: .monospaced)).foregroundStyle(.secondary)
+                Text(info.email).font(.monoStyle(.callout)).foregroundStyle(.secondary)
                 Button("Remove key") { store.clearLicense(); keyInput = ""; feedback = nil }
                     .controlSize(.small)
             }
@@ -377,7 +377,7 @@ struct AboutSettingsView: View {
                 HStack {
                     TextField("Paste supporter key", text: $keyInput)
                         .textFieldStyle(.roundedBorder)
-                        .font(.system(.callout, design: .monospaced))
+                        .font(.monoStyle(.callout))
                     Button("Activate") {
                         if store.applyLicense(keyInput) {
                             feedback = nil

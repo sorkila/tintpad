@@ -19,7 +19,7 @@ struct ReposSettingsView: View {
                         if i > 0 { Divider() }
                         HStack(spacing: 10) {
                             Image(systemName: "folder.fill").foregroundStyle(.secondary)
-                            Text(folder).font(.system(.caption, design: .monospaced)).lineLimit(1).truncationMode(.middle)
+                            Text(folder).font(.monoStyle(.caption)).lineLimit(1).truncationMode(.middle)
                             Spacer()
                             Button { removeRoot(folder) } label: { Image(systemName: "minus.circle.fill") }
                                 .buttonStyle(.borderless).foregroundStyle(.secondary)
@@ -108,7 +108,7 @@ private struct RepoRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(repo.name).font(.body.weight(.medium))
-                Text(displayPath(repo.path)).font(.system(.caption, design: .monospaced))
+                Text(displayPath(repo.path)).font(.monoStyle(.caption))
                     .foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
             }
             Spacer()

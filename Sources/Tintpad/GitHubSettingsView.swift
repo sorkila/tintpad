@@ -15,7 +15,7 @@ struct GitHubSettingsView: View {
             Form {
                 Section("GitHub access") {
                     SecureField("Personal access token (repo scope)", text: $token)
-                        .font(.system(.body, design: .monospaced))
+                        .font(.monoStyle(.body))
                     HStack {
                         Button("Save token") { GitHubService.token = token }
                             .disabled(token.isEmpty)

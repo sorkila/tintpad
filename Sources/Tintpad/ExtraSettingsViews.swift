@@ -38,7 +38,7 @@ struct PromptsSettingsView: View {
                 TextField("Title", text: binding.title)
                 Section("Prompt text") {
                     TextEditor(text: binding.text)
-                        .font(.system(.body, design: .monospaced))
+                        .font(.monoStyle(.body))
                         .frame(minHeight: 160)
                 }
             }

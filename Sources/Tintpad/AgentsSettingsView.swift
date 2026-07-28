@@ -108,9 +108,9 @@ private struct AgentEditor: View {
 
             Section {
                 TextField("Command template", text: $agent.commandTemplate)
-                    .font(.system(.body, design: .monospaced))
+                    .font(.monoStyle(.body))
                 Text(previewCommand)
-                    .font(.system(.caption, design: .monospaced))
+                    .font(.monoStyle(.caption))
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
             } header: {
@@ -212,7 +212,7 @@ private struct ModeEditor: View {
             Text(label).font(.caption).foregroundStyle(.secondary)
             TextField(placeholder, text: text)
                 .textFieldStyle(.roundedBorder)
-                .font(mono ? .system(.callout, design: .monospaced) : .body)
+                .font(mono ? .monoStyle(.callout) : .body)
         }
     }
 }

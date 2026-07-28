@@ -31,7 +31,7 @@ It doesn't try to be one.
   <img src="docs/assets/palette.png" alt="Tintpad: a floating glass strip of repo tiles over a terminal, with a launch line reading claude code, default, on branch main" width="720" />
 </div>
 
-The bottom line is the contract: `❯ claude code · default · ⑂ main*` — which agent, which
+The bottom line is the contract: `claude code · default · ⑂ main*` — which agent, which
 mode, which branch, and whether the tree is dirty. Nothing happens that this line didn't
 announce, and a mode that skips permissions shows up red before you ever press ↵.
 
@@ -129,4 +129,5 @@ your receipt to [erik@sorkila.com](mailto:erik@sorkila.com) and I'll send you an
 
 ## License
 
-[MIT](LICENSE) © 2026 Erik Nielsen ([Sörkila](https://sorkila.com))
+[MIT](LICENSE) © 2026 Erik Nielsen ([Sörkila](https://sorkila.com)). The bundled
+IBM Plex Mono typeface is © IBM Corp., under the [SIL Open Font License 1.1](https://openfontlicense.org).
