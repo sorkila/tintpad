@@ -216,7 +216,7 @@ struct AppearanceSettingsView: View {
     var body: some View {
         Form {
             Section("Accent tint") {
-                Text("The tint colors the palette's caret and selection, agent badges, and Settings — it's the brand.")
+                Text("The tint is Tintpad's accent: the text caret, Settings, onboarding, and the menu bar. Repos keep their own hues.")
                     .font(.caption).foregroundStyle(.secondary)
                 HStack(spacing: 14) {
                     ForEach(TintAccent.allCases) { tint in

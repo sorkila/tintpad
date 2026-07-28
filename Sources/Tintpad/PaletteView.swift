@@ -958,7 +958,7 @@ struct PaletteView: View {
 
     private var confirmBanner: some View {
         HStack(spacing: 8) {
-            Text("↵ again to launch \(model.pendingDangerousDescription ?? "") — skips all permissions")
+            Text("↵ again to launch \(model.pendingDangerousDescription ?? "")")
                 .font(.mono(metaSize))
             Spacer(minLength: 8)
             Text("esc cancels")

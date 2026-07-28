@@ -101,10 +101,10 @@ private struct RepoRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            AgentBrandIcon(agent: agent,
-                           tint: agent?.tintHex.flatMap(Color.init(hex:)) ?? .accentColor,
-                           selected: true,
-                           monogram: store.monogram(for: agent))
+            // The row identifies a repo, so it wears the repo's tint — the
+            // same badge grammar as the palette tiles. The agent is already
+            // named in the picker beside it.
+            RepoTintBadge(name: repo.name)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(repo.name).font(.body.weight(.medium))
@@ -162,5 +162,26 @@ private struct RepoRow: View {
 
     private var modeBinding: Binding<UUID?> {
         Binding(get: { repo.defaultModeID }, set: { var r = repo; r.defaultModeID = $0; store.updateRepo(r) })
+    }
+}
+
+/// A miniature palette tile: the repo's short name in its whisper hue.
+private struct RepoTintBadge: View {
+    let name: String
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        let dark = scheme == .dark
+        RoundedRectangle(cornerRadius: 7, style: .continuous)
+            .fill(RepoTint.fill(for: name, dark: dark).opacity(dark ? 0.22 : 0.16))
+            .frame(width: 30, height: 30)
+            .overlay(
+                Text(RepoTint.shortName(for: name))
+                    .font(.mono(8, .semibold))
+                    .foregroundStyle(RepoTint.vivid(for: name, dark: dark))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                    .padding(.horizontal, 2))
+            .accessibilityHidden(true)
     }
 }
