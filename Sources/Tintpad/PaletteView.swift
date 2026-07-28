@@ -347,7 +347,9 @@ final class PaletteModel: ObservableObject {
     func resolveMode(agent: Agent, repo: Repo, modifiers: NSEvent.ModifierFlags) -> RunMode {
         if modifiers.contains(.option), let danger = agent.dangerousMode { return danger }
         if modifiers.contains(.shift) {
-            return agent.modes.first { $0.name.lowercased() == "safe" } ?? agent.modes.first ?? .safe()
+            // "Safest available": the first non-dangerous mode, whatever the
+            // agent calls it (modes speak the agent's language, not ours).
+            return agent.modes.first { !$0.isDangerous } ?? agent.modes.first ?? .defaultMode()
         }
         return displayMode(agent: agent, repo: repo)
     }

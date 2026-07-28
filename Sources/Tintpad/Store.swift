@@ -32,10 +32,14 @@ final class AppStore: ObservableObject {
         if let data = try? Data(contentsOf: fileURL),
            let doc = try? JSONDecoder.tintpad.decode(StoreDocument.self, from: data) {
             repos = doc.repos
-            agents = doc.agents.isEmpty ? AgentSeed.defaults : doc.agents
+            let raw = doc.agents.isEmpty ? AgentSeed.defaults : doc.agents
+            agents = AgentSeed.migrateModeNames(raw)
             prompts = doc.prompts
             sessions = doc.sessions
             settings = doc.settings
+            // A vocabulary migration that changed something is written back
+            // once, so the store speaks the new names from here on.
+            if agents != raw { persist() }
             return
         }
         // A store exists but didn't load (corrupt, sync conflict, transient

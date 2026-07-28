@@ -163,7 +163,7 @@ struct GeneralSettingsView: View {
                             }
                         }
                     }
-                    Toggle("Confirm before launching a dangerous (YOLO) mode",
+                    Toggle("Confirm before launching a mode that skips permissions",
                            isOn: store.bind(\.confirmDangerousModes))
                 }
             }

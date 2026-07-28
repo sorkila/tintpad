@@ -4,8 +4,8 @@ import SwiftUI
 
 // MARK: - Run modes
 
-/// A named flag preset for an agent (Safe / Default / YOLO). Modes map the
-/// shared safety vocabulary onto each agent's specific flags.
+/// A named flag preset for an agent, named in the agent's own words
+/// (Default, Skip permissions, Full access, …) and mapped to its flags.
 struct RunMode: Identifiable, Codable, Hashable {
     var id: UUID = UUID()
     var name: String
@@ -15,9 +15,6 @@ struct RunMode: Identifiable, Codable, Hashable {
     var isDangerous: Bool
     var description: String
 
-    static func safe() -> RunMode {
-        RunMode(name: "Safe", flags: "", isDangerous: false, description: "Normal permission prompts")
-    }
     static func defaultMode() -> RunMode {
         RunMode(name: "Default", flags: "", isDangerous: false, description: "Agent default behavior")
     }
@@ -276,11 +273,13 @@ enum AgentSeed {
         [claudeCode, codex]
     }
 
+    // Modes speak each agent's own language, not an invented Safe/YOLO
+    // vocabulary — the words a user sees here are the words the agent's own
+    // docs and UI use.
     static var claudeCode: Agent {
-        let safe = RunMode.safe()
         let def = RunMode.defaultMode()
-        let yolo = RunMode(
-            name: "YOLO",
+        let skip = RunMode(
+            name: "Skip permissions",
             flags: "--dangerously-skip-permissions",
             isDangerous: true,
             description: "Skips ALL permission prompts"
@@ -291,26 +290,49 @@ enum AgentSeed {
             acceptsPrompt: true,
             tintHex: "#D97757",   // Claude clay
             symbol: "sparkle",
-            modes: [safe, def, yolo],
+            modes: [def, skip],
             defaultModeID: def.id
         )
     }
 
     static var codex: Agent {
-        let safe = RunMode(name: "Safe", flags: "--ask-for-approval untrusted", isDangerous: false,
-                           description: "Approval required for actions")
+        let untrusted = RunMode(name: "Untrusted", flags: "--ask-for-approval untrusted",
+                                isDangerous: false, description: "Approval required for actions")
         let def = RunMode.defaultMode()
-        let yolo = RunMode(name: "YOLO", flags: "--dangerously-bypass-approvals-and-sandbox", isDangerous: true,
-                           description: "No approvals, no sandbox")
+        let full = RunMode(name: "Full access", flags: "--dangerously-bypass-approvals-and-sandbox",
+                           isDangerous: true, description: "No approvals, no sandbox")
         return Agent(
             name: "Codex",
             commandTemplate: "codex {mode} {prompt}",
             acceptsPrompt: true,
             tintHex: "#10A37F",   // OpenAI teal
             symbol: "chevron.left.forwardslash.chevron.right",
-            modes: [safe, def, yolo],
+            modes: [untrusted, def, full],
             defaultModeID: def.id
         )
+    }
+
+    /// One-time vocabulary migration for stores seeded before the rename:
+    /// untouched seed modes (matched by name AND flags, so user-customized
+    /// names are never clobbered) pick up the agents' own words. IDs are
+    /// preserved, so pins, last-used memory, and sessions keep working.
+    static func migrateModeNames(_ agents: [Agent]) -> [Agent] {
+        let renames: [(oldName: String, flags: String, newName: String)] = [
+            ("YOLO", "--dangerously-skip-permissions", "Skip permissions"),
+            ("YOLO", "--dangerously-bypass-approvals-and-sandbox", "Full access"),
+            ("Safe", "--ask-for-approval untrusted", "Untrusted"),
+        ]
+        return agents.map { agent in
+            var agent = agent
+            agent.modes = agent.modes.map { mode in
+                var mode = mode
+                if let hit = renames.first(where: { $0.oldName == mode.name && $0.flags == mode.flags }) {
+                    mode.name = hit.newName
+                }
+                return mode
+            }
+            return agent
+        }
     }
 }
 

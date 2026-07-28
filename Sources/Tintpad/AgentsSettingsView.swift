@@ -61,7 +61,7 @@ struct AgentsSettingsView: View {
         let agent = Agent(
             name: "New Agent", commandTemplate: "mycli {mode} {prompt}",
             acceptsPrompt: true, tintHex: nil, symbol: "terminal",
-            modes: [RunMode.safe(), def], defaultModeID: def.id
+            modes: [def], defaultModeID: def.id
         )
         store.addAgent(agent)
         selectedID = agent.id

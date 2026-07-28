@@ -396,6 +396,37 @@ final class MonogramTests: XCTestCase {
     }
 }
 
+final class ModeVocabularyTests: XCTestCase {
+    // Old stores carried invented names (Safe/YOLO). Migration renames only
+    // untouched seeds (name AND flags match), preserves IDs, and never
+    // clobbers user-customized vocabulary.
+    func testSeedModesMigrateToAgentVocabulary() {
+        var claude = AgentSeed.claudeCode
+        claude.modes = [
+            RunMode(name: "Safe", flags: "", isDangerous: false, description: ""),
+            RunMode(name: "YOLO", flags: "--dangerously-skip-permissions", isDangerous: true, description: ""),
+        ]
+        var codex = AgentSeed.codex
+        codex.modes = [
+            RunMode(name: "Safe", flags: "--ask-for-approval untrusted", isDangerous: false, description: ""),
+            RunMode(name: "YOLO", flags: "--dangerously-bypass-approvals-and-sandbox", isDangerous: true, description: ""),
+        ]
+        let oldID = claude.modes[1].id
+        let migrated = AgentSeed.migrateModeNames([claude, codex])
+        XCTAssertEqual(migrated[0].modes[1].name, "Skip permissions")
+        XCTAssertEqual(migrated[0].modes[1].id, oldID, "IDs survive, so pins and memory survive")
+        XCTAssertEqual(migrated[0].modes[0].name, "Safe", "no rename rule matched — untouched")
+        XCTAssertEqual(migrated[1].modes[0].name, "Untrusted")
+        XCTAssertEqual(migrated[1].modes[1].name, "Full access")
+    }
+
+    func testCustomizedNamesAreNeverClobbered() {
+        var agent = AgentSeed.claudeCode
+        agent.modes = [RunMode(name: "YOLO", flags: "--my-custom-flag", isDangerous: true, description: "")]
+        XCTAssertEqual(AgentSeed.migrateModeNames([agent])[0].modes[0].name, "YOLO")
+    }
+}
+
 final class RepoTintTests: XCTestCase {
     func testHueIsDeterministicAndInRange() {
         for name in ["Tintpad", "Kuta", "Velm", "SB3K", "The Prototype Lab"] {

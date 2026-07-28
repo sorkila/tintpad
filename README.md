@@ -74,7 +74,8 @@ swift run                  # dev run
 - **<kbd>⌘0</kbd> resume** replays your last session exactly, from the palette or a
   global hotkey.
 - **Hands off to 7 terminals**, Ghostty, iTerm2, kitty, WezTerm, Alacritty, Terminal, Warp.
-- **Run modes**, Safe / Default / YOLO map to each agent's flags. The dangerous one is
+- **Run modes in each agent's own words**, Default and Skip permissions for Claude
+  Code, Untrusted, Default, and Full access for Codex. A mode that skips permissions is
   ringed red on its tile, red in the launch line, and (optionally) requires a confirm —
   on every path, including dispatch and resume.
 - **Worktrees**, <kbd>⌃W</kbd> spins up an isolated branch checkout and launches the agent in it.
@@ -95,8 +96,8 @@ swift run                  # dev run
 | <kbd>⌘0</kbd> | Resume the last session exactly |
 | <kbd>⌘1</kbd>–<kbd>⌘9</kbd> | Jump straight to the nth tile and launch it |
 | <kbd>⌘↵</kbd> | Open repo in editor |
-| <kbd>⌥↵</kbd> | Launch YOLO (dangerous) |
-| <kbd>⇧↵</kbd> | Launch Safe |
+| <kbd>⌥↵</kbd> | Launch the dangerous mode |
+| <kbd>⇧↵</kbd> | Launch the safest mode |
 | <kbd>⌃↵</kbd> | Headless dispatch |
 | <kbd>⌃W</kbd> | New worktree |
 | <kbd>⇥</kbd> / <kbd>⇧⇥</kbd> | Cycle agent / mode |
