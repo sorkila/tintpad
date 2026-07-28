@@ -2,6 +2,11 @@
 
 All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepachangelog.com), this project aims for [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+- Developer: the Liquid Glass call sites are compiler-gated (`#if compiler(>=6.2)`)
+  so older toolchains (CI's macos-15 image, Xcode 16) build the vibrancy fallback
+  instead of failing on symbols their SDK lacks. No behavior change on macOS 26.
+
 ## [0.2.0] — 2026-07-28
 
 The 2.0 pass: the palette rebuilt around one idea, the app hardened by a

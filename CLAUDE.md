@@ -10,7 +10,9 @@ Hands off to *your* terminal, it isn't one. Accessory app (`LSUIElement`), local
 no accounts. **Free & open source (MIT) + optional Supporter tip.**
 
 ## Status (shipped)
-**v0.1.0 is live.** Notarized DMG published at `github.com/sorkila/tintpad/releases/tag/v0.1.0`,
+**v0.2.0 is live** (2026-07-28): the 2.0 pass — Liquid Glass ⌘Tab palette, launch
+memory, agent-vocabulary modes, three-audit hardening. Notarized DMG at
+`github.com/sorkila/tintpad/releases/tag/v0.2.0`,
 direct download via `releases/latest/download/Tintpad.dmg`, site live at tintpad.com,
 Homebrew tap at `sorkila/homebrew-tap` (`brew install --cask sorkila/tap/tintpad`),
 Sparkle auto-update wired (`web/appcast.xml` → tintpad.com/appcast.xml). Bump the version
@@ -19,7 +21,7 @@ in `Resources/Info.plist` then run `./Scripts/release.sh` to cut the next one.
 ## Commands
 ```sh
 swift build              # debug build
-swift test               # 45 unit tests (pure logic, keep green)
+swift test               # 47 unit tests (pure logic, keep green)
 swift run                # run from source (dev; unsigned)
 ./Scripts/package.sh     # assemble + sign .app/DMG in a TMPDIR scratch (signs if SIGN_IDENTITY set)
 ./Scripts/dev-install.sh # build → Developer ID sign → install to /Applications (local dev)

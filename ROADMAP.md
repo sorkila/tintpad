@@ -13,15 +13,12 @@ changes. The tip jar stays a tip jar.
 The gap between "runs from source" and "someone who isn't a Swift dev can install
 it." That's the whole job right now.
 
-- **Notarized release.** `Scripts/package.sh` already signs, notarizes, and staples
-  when the env vars are set. Wire up the real Developer ID, ship a notarized DMG,
-  and replace the `appcast.xml` template + `SUPublicEDKey` so Sparkle auto-updates
-  work. **[needs maintainer accounts]**
-- **Homebrew cask.** `brew install --cask sorkila/tap/tintpad`. Trivial once the
-  notarized DMG has a stable download URL. Depends on the release above.
-  **[needs maintainer accounts]**
-- **Demo.** ✅ Done, `docs/assets/demo.gif` carries the README hero and a cropped
-  video runs on tintpad.com: summon → pick → terminal opens with the agent running.
+- **Notarized release.** ✅ Done through v0.2.0: signed, notarized, stapled,
+  Sparkle appcast live at tintpad.com/appcast.xml, auto-updates working.
+- **Homebrew cask.** ✅ Done, `brew install --cask sorkila/tap/tintpad` serves 0.2.0.
+- **Demo.** ✅ Done, and it records itself now: the `TINTPAD_DEMO` harness plays a
+  scripted sequence and `docs/DEMO.md` is the one-command recipe. Current assets are
+  1x (shot on an external display), re-run on the built-in retina for 2x.
 - **Accessibility: the Tab/VoiceOver fix.** ✅ Done. Tab passes through to focus
   traversal whenever VoiceOver or Full Keyboard Access is on (`KeyPolicy`), and the
   footer's "agent" and "mode" hints are real labelled buttons carrying the same
