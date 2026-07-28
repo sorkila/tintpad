@@ -747,7 +747,7 @@ struct PaletteView: View {
     private var placeholder: String {
         if let wt = model.worktreeRepo { return "branch name for \(wt.name)" }
         if let pr = model.promptRepo { return "prompt for \(pr.name)" }
-        return "repo"
+        return "search repos"
     }
 
     // MARK: - Content piece
@@ -864,7 +864,7 @@ struct PaletteView: View {
                 RoundedRectangle(cornerRadius: Metric.tileCorner, style: .continuous)
                     .strokeBorder(
                         dangerous ? dangerTint.opacity(selected ? 0.85 : 0.45)
-                                  : selected ? Color.primary.opacity(0.7)
+                                  : selected ? Color.primary.opacity(0.55)
                                              : repoColor.opacity(hovered ? 0.35 : 0),
                         lineWidth: selected ? 1.5 : 1)
                 // The short name is the identity — no badges competing with it.
@@ -889,12 +889,15 @@ struct PaletteView: View {
             .scaleEffect(scale)
             .animation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.75),
                        value: scale)
+            // Only the selected tile is named, the way ⌘Tab names only the
+            // app you are on — the tiles already say who they are.
             Text(repo.name)
-                .font(.system(size: metaSize, weight: selected ? .semibold : .regular, design: .monospaced))
-                .foregroundStyle(selected ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+                .font(.system(size: metaSize, weight: .semibold, design: .monospaced))
+                .foregroundStyle(.primary)
                 .lineLimit(1).truncationMode(.middle)
                 .frame(width: tileSize + 22)
                 .frame(height: tileLabelH)
+                .opacity(selected ? 1 : 0)
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
@@ -1057,10 +1060,11 @@ struct PaletteView: View {
             let full = displayPath(repo.path)
             let leaf = (full as NSString).lastPathComponent
             let dir = String(full.dropLast(leaf.count))
+            // Collapse deep prefixes: "~/…/Kuta" confirms the location without
+            // spending the pill's width on directories everyone already knows.
+            let dirDisplay = dir.count > 4 ? "~/…/" : dir
             HStack(spacing: 8) {
-                // The directory is context, the leaf is the answer — the path
-                // carries its own hierarchy instead of one flat grey.
-                (Text(dir).foregroundColor(.secondary.opacity(0.75))
+                (Text(dirDisplay).foregroundColor(.secondary.opacity(0.75))
                     + Text(leaf).foregroundColor(.primary))
                     .font(.system(size: metaSize, design: .monospaced))
                     .lineLimit(1).truncationMode(.head)
