@@ -66,10 +66,11 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   reads as a ghost box. **Every repo gets its tint** (`RepoTint`: a stable hue hashed
   from the name, the danger-red band excluded): tile identity is the repo's colored
   monogram, the agent mark is a small corner badge. The accent means "here, now"
-  (carets), danger red means "skips permissions" (dangerous tiles are ringed red before you
-  arrive). **The launch pill is the contract**: `❯ agent · mode` plus path and
-  `⑂ branch*`, agent/mode words quietly clickable (visible counterpart of ⇥/⇧⇥, real
-  flags in the tooltip). ←/→ move through the strip only while the field is empty (they
+  (the text caret, the selection), danger red means "skips permissions" (dangerous tiles
+  are ringed red before you arrive). **The launch pill is the contract**: agent mark + name, mode, `⑂ branch*` — no
+  carets, no path (the selected tile already carries the name), agent/mode words quietly
+  clickable (visible counterpart of ⇥/⇧⇥, real flags in the tooltip). Less but better:
+  nothing renders that repeats another element or decorates. ←/→ move through the strip only while the field is empty (they
   must keep moving the caret otherwise); ↑/↓, ⌘1–⌘9, ⌘0 unchanged. One voice of type:
   SF Mono only, at exactly two sizes (`fieldSize`/`metaSize`), weight carries the
   hierarchy. Agent brand color appears on the selected tile only. **Type and the grid metrics scale together** via

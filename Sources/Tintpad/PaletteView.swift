@@ -525,13 +525,14 @@ final class PaletteModel: ObservableObject {
 ///    legacy vibrancy stack per piece. The window draws no system shadow —
 ///    each piece carries its own, inside a transparent margin, so AppKit can
 ///    never mis-shadow a shape it doesn't understand.
-/// 2. **The accent means "here, now"** — the caret and the selected tile's
-///    tint. Danger red means exactly "skips permissions"; a dangerous tile is
-///    ringed red before you arrive, and the launch pill's mode word is red.
-/// 3. **The launch pill is the contract.** `❯ agent · mode · branch` — the
-///    agent and mode words are quietly clickable (the visible counterpart of
-///    ⇥/⇧⇥, real flags in the tooltip). Nothing happens that this line
-///    didn't announce.
+/// 2. **The accent means "here, now"** — the text caret and the selected
+///    tile's tint. Danger red means exactly "skips permissions"; a dangerous
+///    tile is ringed red before you arrive, and the mode word is red.
+/// 3. **The launch pill is the contract.** Agent (with its mark), mode, and
+///    `⑂ branch*` — the agent and mode words are quietly clickable (the
+///    visible counterpart of ⇥/⇧⇥, real flags in the tooltip). Nothing
+///    happens that this line didn't announce, and nothing on it repeats
+///    what the strip already says.
 /// 4. **One voice of type.** SF Mono only, at exactly two sizes — `fieldSize`
 ///    for what you type, `metaSize` for everything else — and weight carries
 ///    the hierarchy. The palette speaks machine, quietly.
@@ -696,15 +697,11 @@ struct PaletteView: View {
     private var searchPill: some View {
         HStack(spacing: 0) {
             if !promptPrefix.isEmpty {
-                Text(promptPrefix)
-                    .font(.system(size: metaSize, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                Text(promptPrefix + "  ")
+                    .font(.system(size: metaSize, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(accent)
                     .accessibilityHidden(true)
             }
-            Text(promptPrefix.isEmpty ? "❯ " : " ❯ ")
-                .font(.system(size: metaSize, weight: .bold, design: .monospaced))
-                .foregroundStyle(accent)
-                .accessibilityHidden(true)
             TextField(placeholder, text: $model.query)
                 .textFieldStyle(.plain)
                 .font(.system(size: fieldSize, design: .monospaced))
@@ -941,8 +938,6 @@ struct PaletteView: View {
 
     private var confirmBanner: some View {
         HStack(spacing: 8) {
-            Text("!!")
-                .font(.system(size: metaSize, weight: .bold, design: .monospaced))
             Text("↵ again to launch \(model.pendingDangerousDescription ?? "") — skips all permissions")
                 .font(.system(size: metaSize, design: .monospaced))
             Spacer(minLength: 8)
@@ -963,9 +958,6 @@ struct PaletteView: View {
             let isError = status.hasPrefix("⚠")
             let text = isError ? String(status.dropFirst(2)) : status
             HStack(alignment: .top, spacing: 8) {
-                Text(isError ? "!!" : "::")
-                    .font(.system(size: metaSize, weight: .bold, design: .monospaced))
-                    .foregroundStyle(isError ? dangerTint : accent)
                 Text(text)
                     .font(.system(size: metaSize, design: .monospaced))
                     .foregroundStyle(.primary)
@@ -986,16 +978,7 @@ struct PaletteView: View {
     /// (the visible counterpart of ⇥/⇧⇥, real flags in the tooltip). In
     /// worktree/prompt/confirm states it names the state and its two keys.
     private var launchPill: some View {
-        // The caret is the contract's mood: accent normally, red the moment ⏎
-        // would skip permissions — before any confirm step.
-        let selectedDangerous = model.selectedRepo.flatMap { repo in
-            model.activeAgent(for: repo).map { model.displayMode(agent: $0, repo: repo).isDangerous }
-        } ?? false
-        return HStack(spacing: 8) {
-            Text("❯")
-                .font(.system(size: metaSize, weight: .bold, design: .monospaced))
-                .foregroundStyle(model.isPendingDangerous || selectedDangerous ? dangerTint : accent)
-                .accessibilityHidden(true)
+        HStack(spacing: 8) {
             if model.isPendingDangerous {
                 planText("confirm — ↵ launches, esc cancels", color: dangerTint)
             } else if model.worktreeRepo != nil {
@@ -1057,18 +1040,7 @@ struct PaletteView: View {
     @ViewBuilder private var pathAndBranch: some View {
         if model.worktreeRepo == nil, model.promptRepo == nil, !model.isPendingDangerous,
            let repo = model.selectedRepo {
-            let full = displayPath(repo.path)
-            let leaf = (full as NSString).lastPathComponent
-            let dir = String(full.dropLast(leaf.count))
-            // Collapse deep prefixes: "~/…/Kuta" confirms the location without
-            // spending the pill's width on directories everyone already knows.
-            let dirDisplay = dir.count > 4 ? "~/…/" : dir
             HStack(spacing: 8) {
-                (Text(dirDisplay).foregroundColor(.secondary.opacity(0.75))
-                    + Text(leaf).foregroundColor(.primary))
-                    .font(.system(size: metaSize, design: .monospaced))
-                    .lineLimit(1).truncationMode(.head)
-                    .layoutPriority(-1)
                 if let ctx = model.gitContext(for: repo), let branch = ctx.branch {
                     let dirty = ctx.dirty == true
                     HStack(spacing: 4) {
