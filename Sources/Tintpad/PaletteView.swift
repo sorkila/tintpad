@@ -609,6 +609,15 @@ struct PaletteView: View {
         // stays usable (accessibility sizes would otherwise overflow the strip).
         .dynamicTypeSize(...DynamicTypeSize.xxLarge)
         .onAppear { model.startMonitoring(); model.reset(); searchFocused = true; animateIn(); pushHeight() }
+        // Typing always lands in the field — no one should ever have to click
+        // it first. If a tile tap or a launch-line word steals first responder,
+        // take it back. Exception: when VoiceOver/Full Keyboard Access owns
+        // focus traversal, forcing it back would trap the user (a11y #1).
+        .onChange(of: searchFocused) { _, focused in
+            if !focused && !model.tabTraverses() {
+                DispatchQueue.main.async { searchFocused = true }
+            }
+        }
         .onChange(of: model.worktreeRepo?.id) { _, _ in pushHeight() }
         .onChange(of: model.promptRepo?.id) { _, _ in pushHeight() }
         .onChange(of: model.status) { _, s in
