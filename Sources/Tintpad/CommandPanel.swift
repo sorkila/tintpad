@@ -86,9 +86,12 @@ final class CommandPanelController: NSObject {
     /// and keep it up when it loses focus, so demo/OG captures and design work
     /// can drive it from a shell. Never true in a normal run.
     static var isShowcase: Bool { ProcessInfo.processInfo.environment["TINTPAD_SHOWCASE"] == "1" }
+    /// The self-driving demo (`TINTPAD_DEMO=1`) shares the showcase's
+    /// keep-alive and rect dump, but the summon is driven by AppDelegate.
+    static var isDemo: Bool { ProcessInfo.processInfo.environment["TINTPAD_DEMO"] == "1" }
 
     func panelResignedKey() {
-        guard !suppressAutoHide, !Self.isShowcase else { return }
+        guard !suppressAutoHide, !Self.isShowcase, !Self.isDemo else { return }
         hide()
     }
 
@@ -113,7 +116,7 @@ final class CommandPanelController: NSObject {
         panel.makeKeyAndOrderFront(nil)
         // Tell the SwiftUI palette to reset + focus the field on every summon.
         NotificationCenter.default.post(name: .tintpadPanelDidShow, object: nil)
-        if Self.isShowcase { dumpRect(panel) }
+        if Self.isShowcase || Self.isDemo { dumpRect(panel) }
     }
 
     /// Write the panel's frame in screencapture coordinates (top-left origin)

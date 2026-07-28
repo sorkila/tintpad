@@ -183,9 +183,9 @@
 
   <div class="hero">
     <h1>Your agent. Your repo.<br/>One <span class="a">keystroke</span>.</h1>
-    <p>Press a hotkey, pick a repo, and your terminal opens there with Claude Code,
-       Codex, or whatever you run already going. It hands off to the terminal you
-       use, not a new one.</p>
+    <p>Think ⌘Tab, for repos. Press a hotkey, arrow to a project, and your terminal
+       opens there with Claude Code, Codex, or whatever you run already going.
+       It hands off to the terminal you use, not a new one.</p>
     <div class="actions">
       <a href="https://github.com/sorkila/tintpad/releases/latest/download/Tintpad.dmg"><button class="buy">Download for macOS</button></a>
       <a class="ghost" href="https://github.com/sorkila/tintpad">view source ›</a>
@@ -195,7 +195,7 @@
     <div class="shot">
       <video class="demo" autoplay loop muted playsinline preload="metadata"
              poster="assets/demo-poster.jpg" style="display:block;width:100%"
-             aria-label="Demo: pressing the hotkey, fuzzy-finding a repo, and the terminal opening at that repo with a coding agent already running">
+             aria-label="Demo: the palette appears as floating glass pieces, arrow keys move through a strip of repo tiles, typing filters them, and the launch line shows which agent and mode will run">
         <source src="assets/demo.mp4" type="video/mp4" />
       </video>
     </div>
@@ -209,7 +209,8 @@
     <div class="list">
       <div class="item"><div class="h">Hands off to your terminal</div><div class="d">Ghostty, iTerm2, kitty, WezTerm, Alacritty, Terminal, Warp. Detected, opened at the repo, command running.</div></div>
       <div class="item"><div class="h">Run modes</div><div class="d">Safe, Default, YOLO map to each agent's flags. The dangerous one is marked, never silent.</div></div>
-      <div class="item"><div class="h">Frecency</div><div class="d">Repos you use most float up, the way zoxide does it.</div></div>
+      <div class="item"><div class="h">Frecency</div><div class="d">Repos you use most float up, the way zoxide does it, and each one reopens with the agent and mode you used last. ⌘0 replays your last session exactly.</div></div>
+      <div class="item"><div class="h">Git-aware</div><div class="d">The launch line names the agent, the mode, and the branch, with a * when the tree is dirty. Nothing runs that the line didn't announce.</div></div>
       <div class="item"><div class="h">Worktrees</div><div class="d">One keystroke spins up an isolated branch checkout and launches the agent in it.</div></div>
       <div class="item"><div class="h">Local only</div><div class="d">A JSON file on your Mac. No accounts, no telemetry, license checked offline. The core is open.</div></div>
     </div>

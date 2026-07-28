@@ -319,14 +319,15 @@ struct AboutSettingsView: View {
     @ObservedObject private var updater = UpdaterController.shared
     @State private var keyInput = ""
     @State private var feedback: String?
-    // Display-size mark: no text style is 46pt, so scale the point size itself.
-    @ScaledMetric(relativeTo: .largeTitle) private var markSize: CGFloat = 46
+    // Display-size mark: no text style is this large, so scale the size itself.
+    @ScaledMetric(relativeTo: .largeTitle) private var markSize: CGFloat = 72
 
     var body: some View {
         VStack(spacing: 14) {
-            Image(systemName: "command")
-                .font(.system(size: markSize, weight: .medium))
-                .foregroundStyle(store.settings.tintAccent.color)
+            // The real app icon, not a stand-in glyph — one brand, everywhere.
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable().interpolation(.high)
+                .frame(width: markSize, height: markSize)
             HStack(spacing: 8) {
                 Text("Tintpad").font(.title.bold())
                 if store.isSupporter {

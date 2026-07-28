@@ -118,6 +118,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.panelController.openSettings() }
             return
         }
+        // Self-driving demo (TINTPAD_DEMO=1): summon, then play a scripted
+        // sequence on the model — no synthetic keystrokes, no TCC, perfectly
+        // repeatable. Used to record the website video.
+        if ProcessInfo.processInfo.environment["TINTPAD_DEMO"] == "1" {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.panelController.show() }
+            let model = panelController.model
+            let beats: [(Double, () -> Void)] = [
+                (1.6, { model.move(1) }),
+                (2.2, { model.move(1) }),
+                (2.8, { model.move(1) }),
+                (3.6, { model.query = "ku" }),
+                (4.6, { model.query = "" }),
+                (5.2, { model.move(1) }),
+                (5.8, { model.cycleMode() }),
+                (6.6, { model.cycleMode() }),
+            ]
+            for (t, beat) in beats {
+                DispatchQueue.main.asyncAfter(deadline: .now() + t, execute: beat)
+            }
+            return
+        }
 
         // First-run onboarding.
         if !AppStore.shared.settings.hasOnboarded {

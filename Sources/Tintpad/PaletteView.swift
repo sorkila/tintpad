@@ -695,11 +695,13 @@ struct PaletteView: View {
     /// themselves.
     private var searchPill: some View {
         HStack(spacing: 0) {
-            Text(promptPrefix)
-                .font(.system(size: metaSize, weight: .medium, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .accessibilityHidden(true)
-            Text(" ❯ ")
+            if !promptPrefix.isEmpty {
+                Text(promptPrefix)
+                    .font(.system(size: metaSize, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+            }
+            Text(promptPrefix.isEmpty ? "❯ " : " ❯ ")
                 .font(.system(size: metaSize, weight: .bold, design: .monospaced))
                 .foregroundStyle(accent)
                 .accessibilityHidden(true)
@@ -733,10 +735,13 @@ struct PaletteView: View {
         .frame(height: pillH)
     }
 
+    /// Empty in the normal state: the caret alone is the prompt (the brand
+    /// lives in the icon now). Worktree/prompt name themselves because that
+    /// is state the user must not lose track of.
     private var promptPrefix: String {
         if model.worktreeRepo != nil { return "worktree" }
         if model.promptRepo != nil { return "prompt" }
-        return "tintpad"
+        return ""
     }
 
     private var placeholder: String {
@@ -858,7 +863,7 @@ struct PaletteView: View {
                     .strokeBorder(
                         dangerous ? dangerTint.opacity(selected ? 0.85 : 0.45)
                                   : selected ? Color.primary.opacity(0.7)
-                                             : repoColor.opacity(hovered ? 0.4 : 0.2),
+                                             : repoColor.opacity(hovered ? 0.35 : 0),
                         lineWidth: selected ? 1.5 : 1)
                 // The short name is the identity — no badges competing with it.
                 // The agent lives in the launch pill, where agent info belongs.
