@@ -37,6 +37,16 @@ final class FrecencyTests: XCTestCase {
         XCTAssertEqual(a, b, "frecency order must be stable as time advances")
     }
 
+    // A future-dated anchor (clock rollback, restored backup) must decay to
+    // at most the stored score, never amplify it.
+    func testFutureDatedAnchorDoesNotInflate() {
+        var repo = Repo(path: "/x", name: "x")
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        repo.frecencyScore = 2
+        repo.lastLaunchedAt = now.addingTimeInterval(86_400 * 30)   // 30 days ahead
+        XCTAssertEqual(Frecency.decayedScore(repo, now: now, halfLifeDays: 10), 2, accuracy: 0.001)
+    }
+
     func testRecordVisitIncrementsAndReanchors() {
         var repo = Repo(path: "/x", name: "x")
         let now = Date(timeIntervalSince1970: 2_000_000)

@@ -65,7 +65,10 @@ enum ShellEnvironment {
 
         let pipe = Pipe()
         process.standardOutput = pipe
-        process.standardError = Pipe()  // swallow shell noise (e.g. login banners)
+        // Null device, not an undrained Pipe: a chatty rc writing >64KB of
+        // stderr noise would fill the buffer and wedge the shell until the
+        // timeout, silently degrading PATH resolution for the whole session.
+        process.standardError = FileHandle.nullDevice
 
         do {
             try process.run()

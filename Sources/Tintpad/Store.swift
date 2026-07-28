@@ -62,6 +62,32 @@ final class AppStore: ObservableObject {
 
     func save() {
         guard !isLoading else { return }
+        pendingSave?.cancel()
+        pendingSave = nil
+        persist()
+    }
+
+    private var pendingSave: DispatchWorkItem?
+
+    /// Coalesced save for rapid-fire writers (sliders, text fields): a full
+    /// store encode + atomic write per keystroke is main-thread work the user
+    /// can feel. An explicit `save()` or app termination flushes early.
+    func saveSoon(after delay: TimeInterval = 0.4) {
+        guard !isLoading else { return }
+        pendingSave?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.pendingSave = nil
+            self?.persist()
+        }
+        pendingSave = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    /// Land any debounced write now (called on app termination).
+    func flushPendingSave() {
+        guard pendingSave != nil else { return }
+        pendingSave?.cancel()
+        pendingSave = nil
         persist()
     }
 
@@ -180,11 +206,12 @@ final class AppStore: ObservableObject {
         save()
     }
 
-    /// A SwiftUI binding to a settings field that persists on every write.
+    /// A SwiftUI binding to a settings field that persists on every write
+    /// (debounced — sliders and text fields write on every tick).
     func bind<T>(_ keyPath: WritableKeyPath<Settings, T>) -> Binding<T> {
         Binding(
             get: { self.settings[keyPath: keyPath] },
-            set: { self.settings[keyPath: keyPath] = $0; self.save() }
+            set: { self.settings[keyPath: keyPath] = $0; self.saveSoon() }
         )
     }
 

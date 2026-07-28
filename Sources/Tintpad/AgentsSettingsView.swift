@@ -30,6 +30,9 @@ struct AgentsSettingsView: View {
                 Button { addAgent() } label: { Image(systemName: "plus") }
                     .help("Add agent")
                 Button { removeSelected() } label: { Image(systemName: "minus") }
+                    // The last agent is load-bearing — without one the palette
+                    // has nothing to launch (the store refuses too).
+                    .disabled(store.agents.count <= 1)
                     .disabled(selectedID == nil)
                 Spacer()
             }

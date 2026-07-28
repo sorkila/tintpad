@@ -64,16 +64,40 @@ enum LaunchService {
         store.recordLaunch(repoID: repo.id)
     }
 
-    /// Re-run the most recent session exactly. Returns false if it can't be
-    /// reconstructed (repo/agent/mode no longer exist).
+    enum ResumeResult {
+        case launched
+        /// The stored session references a repo, agent, or mode that no
+        /// longer exists — a different problem than a launch failing.
+        case unavailable
+        case failed(Error)
+    }
+
+    /// Can the most recent session still be reconstructed? Drives the ⌘0
+    /// affordance, so the palette never advertises a resume that can't work.
+    static func canResumeLast(store: AppStore) -> Bool {
+        guard let session = store.lastSession,
+              store.repos.contains(where: { $0.id == session.repoID }),
+              let agent = store.agent(session.agentID),
+              agent.modes.contains(where: { $0.id == session.modeID })
+        else { return false }
+        return true
+    }
+
+    /// Re-run the most recent session exactly, distinguishing "gone" from
+    /// "failed" so callers can say the true thing.
     @discardableResult
-    static func resumeLast(store: AppStore) -> Bool {
+    static func resumeLast(store: AppStore) -> ResumeResult {
         guard let session = store.lastSession,
               let repo = store.repos.first(where: { $0.id == session.repoID }),
               let agent = store.agent(session.agentID),
               let mode = agent.modes.first(where: { $0.id == session.modeID })
-        else { return false }
-        return (try? launchAgent(repo: repo, agent: agent, mode: mode,
-                                 prompt: session.prompt, store: store)) != nil
+        else { return .unavailable }
+        do {
+            try launchAgent(repo: repo, agent: agent, mode: mode,
+                            prompt: session.prompt, store: store)
+            return .launched
+        } catch {
+            return .failed(error)
+        }
     }
 }

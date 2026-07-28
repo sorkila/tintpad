@@ -44,6 +44,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let panelController = CommandPanelController()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Two instances share one store.json and silently clobber each other —
+        // refuse to be the second one (AUDIT 2026-07 #2).
+        guard SingleInstance.acquire() else {
+            NSLog("Tintpad: another instance is already running — quitting this one.")
+            NSApp.activate(ignoringOtherApps: true)
+            let alert = NSAlert()
+            alert.messageText = "Tintpad is already running"
+            alert.informativeText = "Another copy of Tintpad has this Mac's data open. Quit it first if you meant to run this one."
+            alert.runModal()
+            NSApp.terminate(nil)
+            return
+        }
         NSApp.setActivationPolicy(.accessory)
         AppAppearance.apply(AppStore.shared.settings.appearance)
 
@@ -57,8 +69,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         HotkeyManager.onSummon { [weak self] in
             self?.panelController.toggle()
         }
-        HotkeyManager.onResumeLast {
-            if !LaunchService.resumeLast(store: AppStore.shared) {
+        HotkeyManager.onResumeLast { [weak self] in
+            let store = AppStore.shared
+            // A dangerous last session must not relaunch blind from a global
+            // hotkey when confirmation is on — route it through the palette,
+            // where the confirm banner has a surface (AUDIT 2026-07 #8).
+            if store.settings.confirmDangerousModes,
+               let s = store.lastSession, let agent = store.agent(s.agentID),
+               agent.modes.first(where: { $0.id == s.modeID })?.isDangerous == true {
+                self?.panelController.show()
+                DispatchQueue.main.async { self?.panelController.model.resumeLastSession() }
+                return
+            }
+            if case .launched = LaunchService.resumeLast(store: store) {} else {
                 NSSound.beep()
             }
         }
@@ -95,6 +118,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 OnboardingWindowController.shared.show()
             }
         }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        // A debounced settings write may still be pending — land it.
+        AppStore.shared.flushPendingSave()
     }
 
     /// `tintpad://` — summon the palette. Lets a Raycast script command (or any

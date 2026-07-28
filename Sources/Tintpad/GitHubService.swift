@@ -71,24 +71,35 @@ enum GitHubService {
         }
     }
 
-    /// Clone `repo` into `root` and return the local path.
-    static func clone(_ repo: Repo, into root: String) throws -> String {
+    /// Clone `repo` into `root` and return the local path. Async: the actual
+    /// clone runs on a GCD queue (a big clone takes minutes and must never
+    /// touch the main actor or the cooperative pool), bounded at 10 minutes.
+    static func clone(_ repo: Repo, into root: String) async throws -> String {
+        try await withCheckedThrowingContinuation { cont in
+            DispatchQueue.global(qos: .userInitiated).async {
+                do { cont.resume(returning: try cloneSync(repo, into: root)) }
+                catch { cont.resume(throwing: error) }
+            }
+        }
+    }
+
+    private static func cloneSync(_ repo: Repo, into root: String) throws -> String {
         let expandedRoot = (root as NSString).expandingTildeInPath
         try? FileManager.default.createDirectory(atPath: expandedRoot, withIntermediateDirectories: true)
         let dest = (expandedRoot as NSString).appendingPathComponent(repo.name)
         guard !FileManager.default.fileExists(atPath: dest) else { return dest }
 
         let git = ShellEnvironment.resolveBinary("git") ?? "/usr/bin/git"
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: git)
-        p.arguments = ["clone", repo.cloneURL, dest]
-        p.environment = ShellEnvironment.processEnvironment
-        let err = Pipe(); p.standardError = err; p.standardOutput = Pipe()
-        do { try p.run() } catch { throw GitHubError.cloneFailed(error.localizedDescription) }
-        p.waitUntilExit()
-        if p.terminationStatus != 0 {
-            let msg = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-            throw GitHubError.cloneFailed(msg.trimmingCharacters(in: .whitespacesAndNewlines))
+        let result: ProcessRunner.Output
+        do {
+            result = try ProcessRunner.run(git, arguments: ["clone", "--", repo.cloneURL, dest],
+                                           environment: ShellEnvironment.processEnvironment,
+                                           timeout: 600)
+        } catch {
+            throw GitHubError.cloneFailed(error.localizedDescription)
+        }
+        if result.status != 0 {
+            throw GitHubError.cloneFailed(result.stderr.trimmingCharacters(in: .whitespacesAndNewlines))
         }
         return dest
     }

@@ -101,7 +101,9 @@ final class PaletteModel: ObservableObject {
 
     var isPendingDangerous: Bool { pendingDangerous != nil }
 
-    var hasLastSession: Bool { store.lastSession != nil }
+    /// True only when the session can actually be reconstructed — the ⌘0
+    /// hint must never advertise a resume that fails on arrival.
+    var hasLastSession: Bool { LaunchService.canResumeLast(store: store) }
 
     // MARK: - Git context (branch + dirty) for the selected row
 
@@ -249,8 +251,13 @@ final class PaletteModel: ObservableObject {
         guard let session = store.lastSession else { status = "no session to resume yet"; return true }
         let fire: () -> Void = { [weak self] in
             guard let self else { return }
-            if LaunchService.resumeLast(store: store) { onClose() }
-            else { status = "⚠ couldn't resume the last session" }
+            switch LaunchService.resumeLast(store: store) {
+            case .launched: onClose()
+            case .unavailable:
+                status = "⚠ that session can't be resumed — its repo, agent, or mode is gone"
+            case .failed(let error):
+                status = "⚠ \(error)"
+            }
         }
         if let agent = store.agent(session.agentID),
            let mode = agent.modes.first(where: { $0.id == session.modeID }),
@@ -353,13 +360,30 @@ final class PaletteModel: ObservableObject {
         guard let agent = activeAgent(for: repo) else { return }
         let mode = resolveMode(agent: agent, repo: repo, modifiers: [])
         let promptText = selectedPrompt?.text
+        let worktreePath = WorktreeService.defaultPath(
+            repoPath: repo.path, branch: branch, customRoot: store.settings.worktreeRoot)
         fireOrConfirm(repo: repo, agent: agent, mode: mode) { [weak self] in
             guard let self else { return }
-            do {
-                let outcome = try LaunchService.launchInWorktree(
-                    repo: repo, agent: agent, mode: mode, branch: branch, prompt: promptText, store: store)
-                if let note = outcome.note { status = note } else { onClose() }
-            } catch { status = "⚠ \(error)" }
+            // The git work runs off the main actor (a worktree add on a big
+            // repo can take a while); the terminal handoff hops back to main.
+            status = "creating worktree…"
+            let store = self.store
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    try WorktreeService.create(repoPath: repo.path, branch: branch, at: worktreePath)
+                    Task { @MainActor [weak self] in
+                        guard let self else { return }
+                        do {
+                            let outcome = try LaunchService.launchAgent(
+                                repo: repo, agent: agent, mode: mode, prompt: promptText,
+                                store: store, worktreePath: worktreePath)
+                            if let note = outcome.note { status = note } else { onClose() }
+                        } catch { status = "⚠ \(error)" }
+                    }
+                } catch {
+                    Task { @MainActor [weak self] in self?.status = "⚠ \(error)" }
+                }
+            }
         }
     }
 

@@ -181,21 +181,25 @@ bundle), Store main-actor discipline, notification observer lifecycle,
 GitStatus argv/env hygiene.
 
 ## Open, ranked
-1. **Main-actor `waitUntilExit` in clone/worktree/terminal adapters** (High for
-   clone, Medium otherwise): `GitHubService.clone` runs a full clone on the
-   main actor (its `Task {}` inherits MainActor), worktree add and adapter
-   `run()` can block the UI, and all three read pipes after exit (64KB
-   deadlock). Needs the same treatment GitStatus got, plus async clone.
-2. **No single-instance guard**: dev build + installed app last-writer-wins on
-   store.json.
-3. `resumeLast` collapses "gone" and "failed" into one message, and
-   `hasLastSession` advertises resumes that can't reconstruct.
-4. Ghostty keystroke adapter types into whatever is frontmost after its fixed
-   delays (no frontmost re-check), Terminal tab mode lacks the Accessibility
-   pre-check, Warp URL needs `URLComponents`.
-5. Frecency inflates scores for future-dated `lastLaunchedAt` (clock rollback).
-6. Settings `bind()` rewrites the whole store per keystroke (perf).
-7. Dispatch: no cancel/timeout/visibility for running agents, log name
-   collision within one second.
-8. Global resume hotkey bypasses the dangerous-mode confirm by design (no UI
-   surface to confirm in); documented tradeoff, revisit if it bites.
+
+_Second fix pass, same day: items 1-6 and the log-name collision from item 7
+of the original list are done._ Fixed: `ProcessRunner` (bounded, drained,
+SIGTERM then SIGKILL) now backs the terminal-adapter helper (15s), worktree
+git (120s, run off-main from the palette with a "creating worktree" status),
+and an async GitHub clone (600s, GCD-backed, awaited from the UI). WezTerm's
+window path is spawn-without-wait, since `wezterm start` *is* the terminal.
+Single-instance flock guard with an explanatory alert. `resumeLast` returns
+launched/unavailable/failed and the ⌘0 hint shows only when the session can
+actually be reconstructed. Ghostty re-checks frontmost before typing,
+Terminal's tab path pre-checks Accessibility, Warp uses `URLComponents`.
+Frecency clamps future-dated anchors (tested). Settings `bind()` debounces
+(flushed on quit). Dispatch log names carry a UUID suffix. The global resume
+hotkey now routes a dangerous last session through the palette so the confirm
+banner has a surface. The PATH probe's stderr goes to the null device.
+
+Still open, by choice or for a future pass:
+1. Dispatch running-agent visibility and cancel (feature work, not a defect:
+   dispatched agents intentionally outlive the app).
+2. `openSettings` re-enables auto-hide on a fixed 0.4s timer (Low, cosmetic
+   race).
+3. Full `Launcher` DI for end-to-end launch tests (long-standing nice-to-have).

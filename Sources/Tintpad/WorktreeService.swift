@@ -88,21 +88,20 @@ enum WorktreeService {
 
     @discardableResult
     private static func runGit(_ args: [String]) throws -> String {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: gitBinary)
-        p.arguments = args
-        p.environment = ShellEnvironment.processEnvironment
-        let out = Pipe(); let err = Pipe()
-        p.standardOutput = out; p.standardError = err
-        do { try p.run() } catch {
+        // Bounded, pipes drained concurrently (AUDIT 2026-07): a hung
+        // credential helper or a >64KB chatty checkout can neither wedge the
+        // pipes nor wait forever. Callers run this off the main thread.
+        let result: ProcessRunner.Output
+        do {
+            result = try ProcessRunner.run(gitBinary, arguments: args,
+                                           environment: ShellEnvironment.processEnvironment,
+                                           timeout: 120)
+        } catch {
             throw WorktreeError.gitFailed("git: \(error.localizedDescription)")
         }
-        p.waitUntilExit()
-        let outData = out.fileHandleForReading.readDataToEndOfFile()
-        if p.terminationStatus != 0 {
-            let msg = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-            throw WorktreeError.gitFailed(msg.trimmingCharacters(in: .whitespacesAndNewlines))
+        if result.status != 0 {
+            throw WorktreeError.gitFailed(result.stderr.trimmingCharacters(in: .whitespacesAndNewlines))
         }
-        return String(data: outData, encoding: .utf8) ?? ""
+        return result.stdout
     }
 }
