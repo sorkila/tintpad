@@ -33,9 +33,9 @@ echo "▸ DMG sha256: ${SHA}"
 # $(...) trips bash on the parens/backticks in the body).
 NOTES_FILE="$(mktemp)"
 cat > "$NOTES_FILE" <<EOF
-**Tintpad**: press ⌥⌘Space, fuzzy-find a repo, hit Enter, and your terminal opens there with
-your coding agent (Claude Code, Codex, …) already running. Hands off to the terminal you already
-use. Native, local-only, free and open source.
+**Tintpad**: press ⌥⌘Space, arrow or type to a repo, hit Enter, and your terminal opens there
+with your coding agent (Claude Code, Codex, …) already running. Think ⌘Tab, for repos. Hands
+off to the terminal you already use. Native, local-only, free and open source.
 
 ### Install
 - **Download \`Tintpad.dmg\` below**, drag to Applications, launch. macOS 14+.
@@ -43,7 +43,13 @@ use. Native, local-only, free and open source.
 - The build is signed with a Developer ID and notarized, so it opens past Gatekeeper. Auto-updates via Sparkle.
 
 ### What's inside
-- Frecency repo search, Safe / Default / YOLO run modes (mapped to each agent's real flags), git worktrees (⌃W), headless dispatch (⌃↵), prompt library, per-repo presets, GitHub import.
+- A floating Liquid Glass palette (real \`glassEffect\` on macOS 26): repo tiles with their own
+  tints, a launch line naming agent, mode, branch, and dirty state, and run modes in each
+  agent's own words (Default, Skip permissions, Full access).
+- Repos remember how you opened them last, ⌘0 replays your last session exactly, and every
+  permission-skipping path shares one confirm gate.
+- Frecency search, git worktrees (⌃W), headless dispatch (⌃↵), prompt library, per-repo
+  presets, GitHub import.
 - 7 terminals: Ghostty, iTerm2, kitty, WezTerm, Alacritty, Terminal.app, Warp.
 - Light + dark. Local-only: no accounts, no telemetry, nothing leaves your Mac.
 - Free and MIT, the whole app. The optional Supporter tip only unlocks custom accent tints.
