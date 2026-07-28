@@ -834,7 +834,9 @@ struct PaletteView: View {
         let agent = model.activeAgent(for: repo)
         let mode = agent.map { model.displayMode(agent: $0, repo: repo) }
         let dangerous = mode?.isDangerous == true
-        let repoColor = RepoTint.color(for: repo.name, dark: isDark)
+        // Whisper at rest, bloom on arrival (color treatment C).
+        let repoColor = selected ? RepoTint.vivid(for: repo.name, dark: isDark)
+                                 : RepoTint.color(for: repo.name, dark: isDark)
         let repoFill = RepoTint.fill(for: repo.name, dark: isDark)
         // Micro-motion is transform-only (scale + glow), so it can never fight
         // the layout pass — the strip's geometry stays put.

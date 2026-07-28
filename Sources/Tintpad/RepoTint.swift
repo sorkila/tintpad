@@ -11,18 +11,27 @@ enum RepoTint {
         return 20 + Double(h % 320)
     }
 
-    /// The repo's identity color, tuned per scheme so it reads on glass.
+    /// The resting letter: a whisper of the hue, near-monochrome with a
+    /// memory of color. The strip reads as one material until you arrive.
     static func color(for name: String, dark: Bool) -> Color {
         Color(hue: hue(for: name) / 360,
-              saturation: dark ? 0.55 : 0.58,
-              brightness: dark ? 0.92 : 0.52)
+              saturation: dark ? 0.28 : 0.32,
+              brightness: dark ? 0.88 : 0.48)
     }
 
-    /// A quieter version for fills, so the letter stays the loudest thing.
+    /// The selected letter: the hue in full bloom — arriving at a tile is
+    /// the one moment color is spent.
+    static func vivid(for name: String, dark: Bool) -> Color {
+        Color(hue: hue(for: name) / 360,
+              saturation: dark ? 0.6 : 0.62,
+              brightness: dark ? 0.96 : 0.55)
+    }
+
+    /// A quieter version for the selected tile's fill.
     static func fill(for name: String, dark: Bool) -> Color {
         Color(hue: hue(for: name) / 360,
-              saturation: dark ? 0.4 : 0.35,
-              brightness: dark ? 0.75 : 0.7)
+              saturation: dark ? 0.34 : 0.3,
+              brightness: dark ? 0.68 : 0.66)
     }
 
     /// The tile's short name — more recognizable than a monogram letter.
