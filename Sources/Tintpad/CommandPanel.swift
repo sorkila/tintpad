@@ -177,7 +177,12 @@ final class CommandPanelController: NSObject {
     }
 
     private func center(_ panel: NSPanel) {
-        guard let screen = NSScreen.main else { panel.center(); return }
+        // Harness pin: screenshot/demo runs must land on the primary display
+        // regardless of where the user's focus is, or the capture (which reads
+        // the primary) and the panel end up on different screens.
+        let pinned = ProcessInfo.processInfo.environment["TINTPAD_SCREEN_PRIMARY"] == "1"
+            ? NSScreen.screens.first : nil
+        guard let screen = pinned ?? NSScreen.main else { panel.center(); return }
         let visible = screen.visibleFrame
         let size = panel.frame.size
         let origin = NSPoint(
