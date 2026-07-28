@@ -28,9 +28,11 @@ it." That's the whole job right now.
   actions. Ordinary keyboard use keeps ⇥ as the agent shortcut. (a11y #1)
 - **Accessibility: Dynamic Type.** `PaletteView` is done: its type and grid metrics
   scale together via `@ScaledMetric`, which they must, because the panel's computed
-  height is derived from those metrics. Roughly ten hard-coded sizes remain in
-  `OnboardingView` and `SettingsView`. Move those to semantic text styles, then verify
-  the layout reflows at AX5. (a11y #3)
+  height is derived from those metrics. Onboarding and the Settings panes are done
+  too: their hard-coded sizes moved to semantic text styles, with every paired
+  container (icon tiles, step circles, value chips, symbol previews) on a matching
+  `@ScaledMetric` so nothing outgrows its box. Remaining: an eyes-on sweep at AX5
+  to confirm the reflow. (a11y #3)
 - **More terminal adapters.** Seven today (Ghostty, iTerm2, kitty, WezTerm,
   Alacritty, Terminal, Warp). Each new one is a protocol and a struct, the most
   PR-friendly surface in the repo. Wanted: tmux/zellij sessions, Hyper, Tabby,
@@ -46,12 +48,12 @@ it." That's the whole job right now.
 - **Dangerous-confirm VoiceOver announcement + status live region.** ✅ Done.
   `PaletteView` announces both status changes and a pending skip-permissions launch.
   (a11y #2)
-- **App contrast over the glass scrim.** Mostly done for the palette: foreground
-  opacities were raised across row names, paths, indices, section labels, the empty
-  state, dividers and the status line, and `accessibilityReduceTransparency` now drops
-  the blur for a fully opaque panel. Settings and onboarding have not had the same
-  pass, and none of it has been measured against 4.5:1 with a real contrast checker
-  over a worst-case desktop. (a11y #4)
+- **App contrast.** Mostly done. Settings and onboarding had their pass (onboarding's
+  custom pairs computed against WCAG, the prominent button went from 2.7:1
+  white-on-accent to 6.6:1 black-on-accent, meaningful text no longer uses tertiary),
+  and the palette's quietest inks were raised to compute 4.5:1+ against its scrim.
+  Reduce Transparency drops the blur for a fully opaque card. Remaining: a worst-case
+  desktop spot-check of the glass card with a real checker. (a11y #4)
 - **Design tokens.** A real type ramp, spacing scale, and white-alpha system instead
   of scattered literals, plus a terminology sweep so the same thing has one name.
 - **Full launch-path tests.** `Launcher` dependency injection so the summon →

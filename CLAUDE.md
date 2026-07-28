@@ -19,7 +19,7 @@ in `Resources/Info.plist` then run `./Scripts/release.sh` to cut the next one.
 ## Commands
 ```sh
 swift build              # debug build
-swift test               # 24 unit tests (pure logic, keep green)
+swift test               # 40 unit tests (pure logic, keep green)
 swift run                # run from source (dev; unsigned)
 ./Scripts/package.sh     # assemble + sign .app/DMG in a TMPDIR scratch (signs if SIGN_IDENTITY set)
 ./Scripts/dev-install.sh # build → Developer ID sign → install to /Applications (local dev)
@@ -50,13 +50,27 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   letting SwiftUI rescale resamples twice and arrives soft. Each brand carries an
   `optical` correction because icons in a set must match in **ink, not bounding box**
   (Claude's airy radial needs to be drawn larger and held brighter than Codex's dense blob).
-- **Palette design rules** (`PaletteView`, documented on the type). The accent means
-  "here, now" and nothing else, danger red means "skips permissions", and those are the
-  only two colors. Agent brand color appears on the selected row only. Every element does
-  work (the row numbers are ⌘1–⌘9, the count shows what the filter cut). Repeated ink is
-  deleted, so a path shows only on the row you are about to launch. **Type and the grid
-  metrics scale together** via `@ScaledMetric`, because the panel height is computed from
-  those metrics and drifts if only one of them scales.
+- **Palette design rules** (`PaletteView`, documented on the type). A floating Liquid
+  Glass **cluster**, not a sheet: search pill, horizontal repo-tile strip (⌘Tab for
+  repos), launch pill — three discrete glass pieces with real gaps. On macOS 26 each
+  piece is real `glassEffect` in a shared `GlassEffectContainer`, pills are interactive
+  glass, and **legibility comes from vibrancy** (hierarchical foreground styles on the
+  glass, never flat `.opacity()` text over a heavy scrim — the frost is a whisper);
+  earlier systems get the legacy vibrancy stack. **The window draws no system
+  shadow** — each piece carries its own inside a transparent margin
+  (`PaletteView.windowMargin`), because AppKit shadows the rectangular frame and it
+  reads as a ghost box. **Every repo gets its tint** (`RepoTint`: a stable hue hashed
+  from the name, the danger-red band excluded): tile identity is the repo's colored
+  monogram, the agent mark is a small corner badge. The accent means "here, now"
+  (carets), danger red means "skips permissions" (dangerous tiles are ringed red before you
+  arrive). **The launch pill is the contract**: `❯ agent · mode` plus path and
+  `⑂ branch*`, agent/mode words quietly clickable (visible counterpart of ⇥/⇧⇥, real
+  flags in the tooltip). ←/→ move through the strip only while the field is empty (they
+  must keep moving the caret otherwise); ↑/↓, ⌘1–⌘9, ⌘0 unchanged. One voice of type:
+  SF Mono only, at exactly two sizes (`fieldSize`/`metaSize`), weight carries the
+  hierarchy. Agent brand color appears on the selected tile only. **Type and the grid metrics scale together** via
+  `@ScaledMetric`, because the panel height is computed from those metrics and drifts
+  if only one of them scales.
 - **Prose has no em dashes and no prose semicolons**, in markdown docs and website copy
   (a deliberate, enforced house style, use commas). Code, identifiers, and code comments
   are exempt, and third-party files (e.g. an upstream awesome-list with em-dash separators)
@@ -79,15 +93,15 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   == `.id(index)` == `selection`) and **no stack-wide `.animation(value: selection)`**, mixing
   UUID + index identities + animation made SwiftUI treat selection changes as remove/insert
   ("deselect"/jumping).
-- **Palette panel height (the 32pt that isn't there):** the palette computes the exact
-  height it wants and `CommandPanelController.resize(toContentHeight:)` applies it. The
-  panel is `.titled`, so AppKit reserves a ~32pt titlebar strip: the **window frame has
-  always been 32pt taller than the glass you actually see**, and SwiftUI lays out inside
-  the matching `safeAreaInsets.top`. So the resize must add those insets back, or the
-  palette gets 32pt less than it asked for and silently clips its last row. Do **not**
-  "fix" this by opting out of the safe area. `hosting.safeAreaRegions = []` sends AppKit
-  into a runaway Update-Constraints loop and crashes, and `.ignoresSafeArea()` on the root
-  hides the prompt line behind the unpainted strip.
+- **Palette panel is borderless on purpose:** it was `.titled` for most of its life
+  (which reserves a ~32pt titlebar strip that `resize(toContentHeight:)` had to add
+  back, or the last row clipped), but on macOS 26 the system draws Liquid Glass window
+  chrome into that strip — a square-cornered ghost band behind the rounded glass. The
+  panel is now `[.nonactivatingPanel, .borderless]` with `canBecomeKey` overridden, the
+  insets are zero, and `resize` still reads the real `safeAreaInsets` so a future
+  style-mask change can't silently re-clip. If it ever goes back to `.titled`: do
+  **not** opt out of the safe area (`safeAreaRegions = []` loops AppKit's constraint
+  pass and crashes, `.ignoresSafeArea()` hides the prompt line).
 - **Frecency comparator must be transitive**, no epsilon "≈ tie" band, it breaks strict
   weak ordering and makes `sort()` reshuffle the list every render.
 - **Agent CLI flags are version-specific.** Verify against the installed CLI's `--help`.
