@@ -233,6 +233,22 @@ final class PaletteModel: ObservableObject {
             if digit == 0 { return resumeLastSession() }
             if (1...9).contains(digit) { return launchByIndex(digit - 1) }
         }
+        // Bulletproof type-to-search: if the field is genuinely first
+        // responder (an active field editor), let the event through to it.
+        // Otherwise route characters straight into the query — typing must
+        // search no matter where AppKit thinks focus is.
+        if !(event.window?.firstResponder is NSTextView),
+           !mods.contains(.command), !mods.contains(.control), !mods.contains(.option) {
+            if event.keyCode == 51 {   // delete
+                if !query.isEmpty { query.removeLast() }
+                return true
+            }
+            if let ch = event.characters, !ch.isEmpty,
+               ch.rangeOfCharacter(from: .controlCharacters) == nil {
+                query += ch
+                return true
+            }
+        }
         if mods.contains(.command), chars == "," { openSettings(); return true }
         if mods.contains(.command), chars == "r" {
             let n = store.runAutoDiscovery()
