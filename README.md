@@ -18,18 +18,24 @@ or whatever you run, already going.
 
 ---
 
-Press <kbd>⌥⌘Space</kbd>. Fuzzy-find a repo. Hit <kbd>↵</kbd>. Your real terminal opens
-there with the agent running, in under two seconds, without the mouse.
+Press <kbd>⌥⌘Space</kbd>. Arrow or type to a repo. Hit <kbd>↵</kbd>. Your real terminal
+opens there with the agent running, in under two seconds, without the mouse.
 
-It hands off to the terminal you already use. It doesn't try to be one.
+**Think ⌘Tab, for repos.** A floating Liquid Glass strip of your projects, each with its
+own tint, ranked by how you actually work. It hands off to the terminal you already use.
+It doesn't try to be one.
 
 > Not a usage monitor. Not an IDE. Not a terminal. The launcher the agent menu-bar apps forgot.
 
 <div align="center">
-  <img src="docs/assets/demo.gif" alt="Tintpad: summon → fuzzy-find a repo → your terminal opens there with the agent running" width="640" />
+  <img src="docs/assets/palette.png" alt="Tintpad: a floating glass strip of repo tiles over a terminal, with a launch line reading claude code, default, on branch main" width="720" />
 </div>
 
-<!-- Drop the recording at docs/assets/demo.gif, see docs/DEMO.md for the 60-second how-to. -->
+The bottom line is the contract: `❯ claude code · default · ⑂ main*` — which agent, which
+mode, which branch, and whether the tree is dirty. Nothing happens that this line didn't
+announce, and a mode that skips permissions shows up red before you ever press ↵.
+
+<!-- Animated demo: record per docs/DEMO.md and drop at docs/assets/demo.gif. -->
 
 ## Why
 
@@ -61,9 +67,16 @@ swift run                  # dev run
 
 ## Features
 
-- **Frecency repo search**, your most-used repos rise to the top, zoxide-style.
+- **Frecency repo search**, your most-used repos rise to the top, zoxide-style, and
+  Tintpad **remembers how you opened each repo last** (agent and mode), so ↵ repeats it.
+- **Git-aware**, the launch line shows the current branch with a `*` when the working
+  tree is dirty, checked in the background so the palette never waits on git.
+- **<kbd>⌘0</kbd> resume** replays your last session exactly, from the palette or a
+  global hotkey.
 - **Hands off to 7 terminals**, Ghostty, iTerm2, kitty, WezTerm, Alacritty, Terminal, Warp.
-- **Run modes**, Safe / Default / YOLO map to each agent's flags. The dangerous one is marked, never silent.
+- **Run modes**, Safe / Default / YOLO map to each agent's flags. The dangerous one is
+  ringed red on its tile, red in the launch line, and (optionally) requires a confirm —
+  on every path, including dispatch and resume.
 - **Worktrees**, <kbd>⌃W</kbd> spins up an isolated branch checkout and launches the agent in it.
 - **Headless dispatch**, <kbd>⌃↵</kbd> runs an agent in the background and notifies you when it's done.
 - **Prompt library, per-repo presets, GitHub import, open-in-editor.**
@@ -77,9 +90,10 @@ swift run                  # dev run
 | Key | Action |
 |---|---|
 | <kbd>⌥⌘Space</kbd> | Summon (change in Settings → Hotkeys) |
-| <kbd>↑</kbd> / <kbd>↓</kbd> | Navigate |
-| <kbd>↵</kbd> | Launch default agent + mode |
-| <kbd>⌘1</kbd>–<kbd>⌘9</kbd> | Jump straight to a numbered row and launch it |
+| <kbd>←</kbd> <kbd>→</kbd> / <kbd>↑</kbd> <kbd>↓</kbd> | Move through the strip |
+| <kbd>↵</kbd> | Launch what the bottom line says |
+| <kbd>⌘0</kbd> | Resume the last session exactly |
+| <kbd>⌘1</kbd>–<kbd>⌘9</kbd> | Jump straight to the nth tile and launch it |
 | <kbd>⌘↵</kbd> | Open repo in editor |
 | <kbd>⌥↵</kbd> | Launch YOLO (dangerous) |
 | <kbd>⇧↵</kbd> | Launch Safe |

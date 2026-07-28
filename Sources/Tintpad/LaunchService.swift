@@ -45,17 +45,6 @@ enum LaunchService {
         return outcome
     }
 
-    /// Create a worktree for `branch` off `repo`, then launch the agent in it.
-    @discardableResult
-    static func launchInWorktree(repo: Repo, agent: Agent, mode: RunMode,
-                                 branch: String, prompt: String?, store: AppStore) throws -> LaunchOutcome {
-        let path = WorktreeService.defaultPath(
-            repoPath: repo.path, branch: branch, customRoot: store.settings.worktreeRoot)
-        try WorktreeService.create(repoPath: repo.path, branch: branch, at: path)
-        return try launchAgent(repo: repo, agent: agent, mode: mode,
-                               prompt: prompt, store: store, worktreePath: path)
-    }
-
     static func openInEditor(repo: Repo, store: AppStore) throws {
         guard let editor = EditorRegistry.preferred(settings: store.settings) else {
             throw TerminalLaunchError.notInstalled

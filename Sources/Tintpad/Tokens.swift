@@ -30,7 +30,6 @@ enum TypeRamp {
     static let paneTitle = Font.system(.title3, design: .monospaced).weight(.semibold)
     static let paneSubtitle = Font.caption
     static let sidebarLabel = Font.system(.callout, design: .monospaced)
-    static let sectionLabel = Font.caption.weight(.semibold)
     static let mono = Font.system(.callout, design: .monospaced)
     /// Uppercase tracked section label in the palette's monospace voice — the
     /// thread that ties the resizable surfaces to the HUD.

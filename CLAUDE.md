@@ -19,7 +19,7 @@ in `Resources/Info.plist` then run `./Scripts/release.sh` to cut the next one.
 ## Commands
 ```sh
 swift build              # debug build
-swift test               # 40 unit tests (pure logic, keep green)
+swift test               # 45 unit tests (pure logic, keep green)
 swift run                # run from source (dev; unsigned)
 ./Scripts/package.sh     # assemble + sign .app/DMG in a TMPDIR scratch (signs if SIGN_IDENTITY set)
 ./Scripts/dev-install.sh # build → Developer ID sign → install to /Applications (local dev)
@@ -35,6 +35,10 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
 - **PaletteView.swift / CommandPanel.swift**, the palette (NSPanel + SwiftUI) and its controller.
 - **TerminalAdapter.swift**, 7 terminal adapters. **CommandTemplate.swift**, command building (the injection surface).
 - **LaunchService.swift**, `makeLaunch` (pure, tested) + injectable `resolveTerminal`.
+  `LaunchDefaults` (Models.swift) is the launch precedence: override → pin → last-used → default.
+- **ProcessRunner.swift**, the one way subprocesses run (timeout, drained pipes,
+  SIGTERM→SIGKILL). **GitStatus.swift**, bounded dirty check. **RepoTint.swift**, per-repo
+  hue + short name. **SingleInstance.swift**, flock guard.
 - **ShellEnvironment.swift**, login-shell PATH resolution. **Frecency.swift**, ranking.
 - **SettingsView.swift** (+ per-pane views), **OnboardingView.swift**, **LicenseManager.swift**, **Tokens.swift**.
 

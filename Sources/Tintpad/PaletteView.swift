@@ -330,11 +330,6 @@ final class PaletteModel: ObservableObject {
         return displayMode(agent: agent, repo: repo)
     }
 
-    func previewCommand(repo: Repo, agent: Agent) -> String {
-        let mode = resolveMode(agent: agent, repo: repo, modifiers: [])
-        return CommandTemplate.preview(agent.commandTemplate,
-            context: .init(repo: repo, mode: mode, prompt: nil, branch: nil, remote: nil))
-    }
 
     // MARK: - Worktree mode
 
@@ -552,7 +547,6 @@ struct PaletteView: View {
     @ScaledMetric(relativeTo: .body) private var fieldSize: CGFloat = 15
     @ScaledMetric(relativeTo: .body) private var metaSize: CGFloat = 12
     @ScaledMetric(relativeTo: .body) private var bannerH: CGFloat = 38
-    @ScaledMetric(relativeTo: .body) private var markSize: CGFloat = 30
 
     /// The model is owned by the controller (created + monitored at launch) so
     /// the very first summon is already warm.
