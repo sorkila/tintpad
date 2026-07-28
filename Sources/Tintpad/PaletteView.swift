@@ -22,7 +22,7 @@ enum KeyPolicy {
 /// `.onKeyPress` on a `TextField` swallows arrow keys, so we don't rely on it.
 @MainActor
 final class PaletteModel: ObservableObject {
-    @Published var query = "" { didSet { selection = 0; clearTransient() } }
+    @Published var query = "" { didSet { selection = 0; clearTransient(); refreshGitContext() } }
     @Published var selection = 0
     @Published var agentOverrideID: UUID?
     @Published var modeOverrideID: UUID?
@@ -62,6 +62,15 @@ final class PaletteModel: ObservableObject {
 
     func monogram(for agent: Agent?) -> String { store.monogram(for: agent) }
 
+    /// The repo's monogram, assigned across the whole repo set so tiles stay
+    /// distinct from each other — same machinery as agent monograms.
+    func repoMonogram(for repo: Repo) -> String {
+        guard let idx = store.repos.firstIndex(where: { $0.id == repo.id }) else {
+            return Monogram.assign([repo.name]).first ?? "?"
+        }
+        return Monogram.assign(store.repos.map(\.name))[idx]
+    }
+
     var filtered: [Repo] {
         let ordered = store.orderedRepos()
         guard !query.isEmpty else { return ordered }
@@ -78,12 +87,43 @@ final class PaletteModel: ObservableObject {
     func activeAgent(for repo: Repo) -> Agent? {
         // The ⇥ override only applies to the row you're on — other rows keep their
         // own default agent.
-        if repo.id == selectedRepo?.id, let override = store.agent(agentOverrideID) { return override }
-        if let def = store.agent(repo.defaultAgentID) { return def }
-        return store.agents.first
+        let override = repo.id == selectedRepo?.id ? agentOverrideID : nil
+        return LaunchDefaults.agent(for: repo, agents: store.agents, overrideID: override)
     }
 
     var isPendingDangerous: Bool { pendingDangerous != nil }
+
+    var hasLastSession: Bool { store.lastSession != nil }
+
+    // MARK: - Git context (branch + dirty) for the selected row
+
+    struct GitContext: Equatable { var branch: String?; var dirty: Bool? }
+
+    /// Keyed by repo path, filled asynchronously, cleared on each summon so a
+    /// stale answer never outlives the working tree it described.
+    @Published private(set) var gitContexts: [String: GitContext] = [:]
+    private var gitInFlight: Set<String> = []
+
+    func gitContext(for repo: Repo) -> GitContext? { gitContexts[repo.path] }
+
+    /// Kick off a fetch for the selected repo. The dirty check shells out, so
+    /// it runs detached and lands back on the main actor — the footer renders
+    /// from cache instantly and fills in when the answer arrives.
+    func refreshGitContext() {
+        guard let path = selectedRepo?.path else { return }
+        guard gitContexts[path] == nil, !gitInFlight.contains(path) else { return }
+        gitInFlight.insert(path)
+        Task.detached(priority: .userInitiated) { [weak self] in
+            let ctx = GitContext(branch: GitInfo.currentBranch(at: path),
+                                 dirty: GitStatus.isDirty(at: path))
+            await self?.storeGitContext(ctx, for: path)
+        }
+    }
+
+    private func storeGitContext(_ ctx: GitContext, for path: String) {
+        gitInFlight.remove(path)
+        gitContexts[path] = ctx
+    }
 
     var pendingDangerousDescription: String? {
         guard let p = pendingDangerous else { return nil }
@@ -116,7 +156,9 @@ final class PaletteModel: ObservableObject {
         worktreeRepo = nil
         promptRepo = nil
         selectedPromptID = nil
-        query = ""
+        // The working tree may have changed since the last summon — refetch.
+        gitContexts.removeAll()
+        query = ""   // didSet refreshes git context for the new selection
         if store.repos.isEmpty { store.runAutoDiscovery() }
     }
 
@@ -126,6 +168,12 @@ final class PaletteModel: ObservableObject {
         switch event.keyCode {
         case 125: move(1); return true          // ↓
         case 126: move(-1); return true         // ↑
+        // ←/→ drive the strip only while the field is empty — with text in the
+        // field they must keep moving the caret.
+        case 124 where query.isEmpty && worktreeRepo == nil && promptRepo == nil:
+            move(1); return true                // →
+        case 123 where query.isEmpty && worktreeRepo == nil && promptRepo == nil:
+            move(-1); return true               // ←
         case 36, 76: handleReturn(modifiers: mods); return true  // ↩ / ⌅
         case 53: handleEscape(); return true    // esc
         case 48:                                // ⇥ agent / ⇧⇥ mode
@@ -136,10 +184,11 @@ final class PaletteModel: ObservableObject {
         default: break
         }
         // ⌘1–⌘9 jump straight to a numbered row and launch it. The numbers shown
-        // in the list are this shortcut, not decoration.
-        if mods.contains(.command), let c = chars, c.count == 1,
-           let digit = Int(c), (1...9).contains(digit) {
-            return launchByIndex(digit - 1)
+        // in the list are this shortcut, not decoration. ⌘0 replays the last
+        // session exactly — the zeroth row, in a sense: the one you just left.
+        if mods.contains(.command), let c = chars, c.count == 1, let digit = Int(c) {
+            if digit == 0 { return resumeLastSession() }
+            if (1...9).contains(digit) { return launchByIndex(digit - 1) }
         }
         if mods.contains(.command), chars == "," { openSettings(); return true }
         if mods.contains(.command), chars == "r" {
@@ -166,6 +215,18 @@ final class PaletteModel: ObservableObject {
         return true
     }
 
+    /// ⌘0 — relaunch the most recent session exactly (repo, agent, mode,
+    /// prompt), same semantics as the global resume hotkey. Inert while the
+    /// field is capturing a worktree branch or a prompt, like ⌘1–⌘9.
+    @discardableResult
+    func resumeLastSession() -> Bool {
+        guard worktreeRepo == nil, promptRepo == nil else { return false }
+        guard hasLastSession else { status = "no session to resume yet"; return true }
+        if LaunchService.resumeLast(store: store) { onClose() }
+        else { status = "⚠ couldn't resume — that repo, agent, or mode is gone" }
+        return true
+    }
+
     // MARK: - Navigation
 
     func move(_ delta: Int) {
@@ -176,6 +237,7 @@ final class PaletteModel: ObservableObject {
         agentOverrideID = nil
         modeOverrideID = nil
         clearTransient()
+        refreshGitContext()
     }
 
     func cyclePrompt() {
@@ -214,10 +276,8 @@ final class PaletteModel: ObservableObject {
     /// The mode that a plain ⏎ will use right now (no modifiers) — drives the chip.
     func displayMode(agent: Agent, repo: Repo) -> RunMode {
         // The ⇧⇥ override is scoped to the selected row too.
-        if repo.id == selectedRepo?.id,
-           let id = modeOverrideID, let m = agent.modes.first(where: { $0.id == id }) { return m }
-        if let pinned = repo.defaultModeID, let m = agent.modes.first(where: { $0.id == pinned }) { return m }
-        return agent.defaultMode
+        let override = repo.id == selectedRepo?.id ? modeOverrideID : nil
+        return LaunchDefaults.mode(for: repo, agent: agent, overrideID: override)
     }
 
     func resolveMode(agent: Agent, repo: Repo, modifiers: NSEvent.ModifierFlags) -> RunMode {
@@ -345,22 +405,32 @@ final class PaletteModel: ObservableObject {
 
 // MARK: - View
 
-/// The palette: a terminal HUD held to a strict grid.
+/// The palette: a floating cluster of Liquid Glass pieces — ⌘Tab for repos.
 ///
-/// Rules the layout obeys, so that changing one thing doesn't quietly break the
-/// rest:
+/// Not a sheet with rows (every launcher is that). Three discrete glass
+/// pieces with real gaps: a search pill, a horizontal strip of repo tiles you
+/// arrow through like the app switcher, and a launch pill that says exactly
+/// what ⏎ will do.
 ///
-/// 1. **The accent means "here, now"** and nothing else — the prompt caret, the
-///    selection marker, the selected row's index, the active-mode badge. It is
-///    never used for emphasis, decoration, or brand sprinkle. Danger red is the
-///    only other color, and it means exactly "this skips permissions".
-/// 2. **Every element does work.** The row numbers are ⌘1–⌘9. The result count
-///    tells you how much the filter cut. Nothing is here to look like something.
-/// 3. **One 8pt module.** Rows are 32, the status line 30, the header 46, and
-///    the columns sit on fixed x-positions (`Col`) so the list reads as columns
-///    rather than eleven independently-arranged rows.
-/// 4. **Repeated ink is deleted.** A path that is the same on every row tells
-///    you nothing, so paths appear only on the row you're about to launch.
+/// Rules the layout obeys:
+///
+/// 1. **One material, three pieces.** On macOS 26 each piece is real Liquid
+///    Glass inside a shared `GlassEffectContainer`; earlier systems get the
+///    legacy vibrancy stack per piece. The window draws no system shadow —
+///    each piece carries its own, inside a transparent margin, so AppKit can
+///    never mis-shadow a shape it doesn't understand.
+/// 2. **The accent means "here, now"** — the caret and the selected tile's
+///    tint. Danger red means exactly "skips permissions"; a dangerous tile is
+///    ringed red before you arrive, and the launch pill's mode word is red.
+/// 3. **The launch pill is the contract.** `❯ agent · mode · branch` — the
+///    agent and mode words are quietly clickable (the visible counterpart of
+///    ⇥/⇧⇥, real flags in the tooltip). Nothing happens that this line
+///    didn't announce.
+/// 4. **One voice of type.** SF Mono only, at exactly two sizes — `fieldSize`
+///    for what you type, `metaSize` for everything else — and weight carries
+///    the hierarchy. The palette speaks machine, quietly.
+/// 5. **Keyboard first, mouse honest.** ←/→ (or ↑/↓) move, ⏎ launches,
+///    ⌘1–⌘9 jump, ⌘0 resumes; tiles click, launch words cycle.
 struct PaletteView: View {
     @ObservedObject private var model: PaletteModel
     let onResize: (CGFloat) -> Void
@@ -371,38 +441,29 @@ struct PaletteView: View {
     @State private var hovered: Int?
     @State private var shown = false
 
-    /// The grid. Column widths and the gutter between them; the row's leading
-    /// inset plus these gives every column a fixed x-position down the list.
-    private enum Col {
-        static let inset: CGFloat = 14
-        static let index: CGFloat = 14
-        static let gutter: CGFloat = 10
-        /// Where repo names begin — section labels align to it, not to the edge,
-        /// so a label sits over the thing it labels.
-        static func name(mark: CGFloat) -> CGFloat { inset + index + gutter + mark + gutter }
-    }
+    /// Transparent margin around the cluster: the pieces' own shadows live
+    /// here. The window is this much larger than the visible content.
+    static let windowMargin: CGFloat = 30
 
     private enum Metric {
-        static let listPad: CGFloat = 6
-        static let corner: CGFloat = 12
-        static let maxPanel: CGFloat = 520
+        static let gap: CGFloat = 12
+        static let tileCorner: CGFloat = 16
+        static let stripCorner: CGFloat = 30
+        static let maxPanel: CGFloat = 560
         static let minPanel: CGFloat = 120
     }
 
     // Dynamic Type. Type and the grid scale together, or the panel's computed
     // height stops matching what it actually lays out. Capped at xxLarge below,
     // since a fixed-width HUD can't absorb the accessibility sizes.
-    @ScaledMetric(relativeTo: .body) private var headerH: CGFloat = 46
-    @ScaledMetric(relativeTo: .body) private var rowH: CGFloat = 32
-    @ScaledMetric(relativeTo: .body) private var groupLabelH: CGFloat = 22
-    @ScaledMetric(relativeTo: .body) private var statusLineH: CGFloat = 30
+    @ScaledMetric(relativeTo: .body) private var pillH: CGFloat = 50
+    @ScaledMetric(relativeTo: .body) private var tileSize: CGFloat = 66
+    @ScaledMetric(relativeTo: .body) private var tileLabelH: CGFloat = 17
+    @ScaledMetric(relativeTo: .body) private var stripPad: CGFloat = 14
     @ScaledMetric(relativeTo: .body) private var fieldSize: CGFloat = 15
-    @ScaledMetric(relativeTo: .body) private var nameSize: CGFloat = 12.5
-    @ScaledMetric(relativeTo: .body) private var metaSize: CGFloat = 10
-    @ScaledMetric(relativeTo: .body) private var labelSize: CGFloat = 9.5
-    @ScaledMetric(relativeTo: .body) private var bannerSize: CGFloat = 11.5
+    @ScaledMetric(relativeTo: .body) private var metaSize: CGFloat = 12
     @ScaledMetric(relativeTo: .body) private var bannerH: CGFloat = 38
-    @ScaledMetric(relativeTo: .body) private var markSize: CGFloat = 14
+    @ScaledMetric(relativeTo: .body) private var markSize: CGFloat = 30
 
     /// The model is owned by the controller (created + monitored at launch) so
     /// the very first summon is already warm.
@@ -415,43 +476,19 @@ struct PaletteView: View {
     private var isDark: Bool { scheme == .dark }
 
     var body: some View {
-        VStack(spacing: 0) {
-            promptLine
-            rule
-            content
-            if model.isPendingDangerous { confirmBanner }
-            else if model.status != nil { statusBanner }
-            rule
-            statusLine
-        }
-        .background {
-            if reduceTransparency {
-                // Reduce Transparency means "stop making me read through things",
-                // so the blur is dropped outright rather than merely dimmed. This
-                // is the only state where the palette is fully opaque.
-                (isDark ? Color(white: 0.10) : Color(white: 0.97))
+        Group {
+            if #available(macOS 26.0, *) {
+                GlassEffectContainer(spacing: Metric.gap) { cluster }
             } else {
-                ZStack {
-                    GlassBackground(material: isDark ? .hudWindow : .popover)
-                    // Enough scrim to keep text legible over an arbitrary desktop,
-                    // without the panel ceasing to acknowledge what it floats over.
-                    (isDark ? Color.black : Color.white).opacity(isDark ? 0.45 : 0.66)
-                }
+                cluster
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: Metric.corner, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: Metric.corner, style: .continuous)
-                .strokeBorder(isDark ? Color.white.opacity(0.18) : Color.black.opacity(0.16),
-                              lineWidth: 1)
-        }
-        .scaleEffect(shown ? 1 : 0.995, anchor: .top)
+        .scaleEffect(shown ? 1 : 0.99, anchor: .top)
         .opacity(shown ? 1 : 0)
         // Scale text with the system size, but cap it so this fixed-width HUD
-        // stays usable (accessibility sizes would otherwise overflow the rows).
+        // stays usable (accessibility sizes would otherwise overflow the strip).
         .dynamicTypeSize(...DynamicTypeSize.xxLarge)
         .onAppear { model.startMonitoring(); model.reset(); searchFocused = true; animateIn(); pushHeight() }
-        .onChange(of: model.filtered.count) { _, _ in pushHeight() }
         .onChange(of: model.worktreeRepo?.id) { _, _ in pushHeight() }
         .onChange(of: model.promptRepo?.id) { _, _ in pushHeight() }
         .onChange(of: model.status) { _, s in
@@ -474,6 +511,42 @@ struct PaletteView: View {
         }
     }
 
+    private var cluster: some View {
+        VStack(spacing: Metric.gap) {
+            searchPill
+                .modifier(glassPiece(Capsule(), interactive: true))
+                .modifier(pieceArrival(0))
+            contentPiece
+                .modifier(glassPiece(RoundedRectangle(cornerRadius: Metric.stripCorner, style: .continuous),
+                                     prominent: true))
+                .modifier(pieceArrival(1))
+            if model.isPendingDangerous {
+                confirmBanner
+                    .modifier(glassPiece(RoundedRectangle(cornerRadius: 14, style: .continuous)))
+            } else if model.status != nil {
+                statusBanner
+                    .modifier(glassPiece(RoundedRectangle(cornerRadius: 14, style: .continuous)))
+            }
+            launchPill
+                .modifier(glassPiece(Capsule(), interactive: true))
+                .modifier(pieceArrival(2))
+        }
+        .padding(Self.windowMargin)
+    }
+
+    private func glassPiece<S: InsettableShape>(_ shape: S, interactive: Bool = false,
+                                                prominent: Bool = false) -> GlassPiece<S> {
+        GlassPiece(shape: shape, isDark: isDark, reduceTransparency: reduceTransparency,
+                   interactive: interactive, prominent: prominent)
+    }
+
+    /// The cluster arrives as three pieces settling, not one slab: each slides
+    /// 6pt with a 50ms stagger while the whole fades in. Transform-only, and
+    /// still one plain fade under Reduce Motion.
+    private func pieceArrival(_ index: Int) -> PieceArrival {
+        PieceArrival(shown: shown, index: index, reduceMotion: reduceMotion)
+    }
+
     /// Quick fade + a barely-there scale, replayed on every show (skipped if
     /// Reduce Motion). A launcher that announces itself gets tiring.
     private func animateIn() {
@@ -489,74 +562,63 @@ struct PaletteView: View {
     /// Height is derived from the grid, not measured, so the resize is exact and
     /// can never oscillate against SwiftUI's own layout pass.
     private func pushHeight() {
-        onResize(min(max(naturalHeight, Metric.minPanel), Metric.maxPanel))
+        onResize(min(max(naturalHeight, Metric.minPanel), Metric.maxPanel) + Self.windowMargin * 2)
     }
 
     private var naturalHeight: CGFloat {
-        var h = headerH + 1 + 1 + statusLineH
-        if model.isPendingDangerous || model.status != nil { h += bannerHeight }
-        // The side panels are a fixed block of explanatory text; the worktree
-        // one grows by a line once there's a path to preview.
-        if model.worktreeRepo != nil {
-            return h + (model.worktreePreviewPath() == nil ? 108 : 128)
-        }
-        if model.promptRepo != nil { return h + 108 }
-        let rows = model.filtered.count
-        if rows == 0 { return h + 96 }
-        h += Metric.listPad * 2
-        h += CGFloat(rows) * rowH
-        h += CGFloat(groupLabelCount) * groupLabelH
+        var h = pillH * 2 + Metric.gap * 2 + contentHeight
+        if model.isPendingDangerous || model.status != nil { h += bannerH + Metric.gap }
         return h
     }
 
-    /// Banners wrap, so allow two lines' worth rather than guessing one.
-    private var bannerHeight: CGFloat { bannerH }
-
-    private var groupLabelCount: Int {
-        guard model.query.isEmpty else { return 0 }
-        let repos = model.filtered
-        guard !repos.isEmpty else { return 0 }
-        let pinned = repos.contains(where: { $0.pinned })
-        let loose = repos.contains(where: { !$0.pinned })
-        return (pinned ? 1 : 0) + (loose ? 1 : 0)
+    private var contentHeight: CGFloat {
+        if model.worktreeRepo != nil || model.promptRepo != nil { return 128 }
+        return stripPad * 2 + tileSize + 5 + tileLabelH
     }
 
-    private var rule: some View {
-        Rectangle().fill(Color.primary.opacity(0.13)).frame(height: 1)
-    }
-
-    // MARK: - Prompt line
+    // MARK: - Search pill
 
     /// A shell prompt, not a search box: the prefix names the mode you're in, so
     /// worktree and prompt modes don't need a separate banner to explain
     /// themselves.
-    private var promptLine: some View {
+    private var searchPill: some View {
         HStack(spacing: 0) {
             Text(promptPrefix)
-                .font(.system(size: nameSize, weight: .medium, design: .monospaced))
-                .foregroundStyle(.primary.opacity(0.52))
+                .font(.system(size: metaSize, weight: .medium, design: .monospaced))
+                .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
             Text(" ❯ ")
-                .font(.system(size: nameSize, weight: .bold, design: .monospaced))
+                .font(.system(size: metaSize, weight: .bold, design: .monospaced))
                 .foregroundStyle(accent)
                 .accessibilityHidden(true)
             TextField(placeholder, text: $model.query)
                 .textFieldStyle(.plain)
-                .font(.system(size: fieldSize, weight: .regular, design: .monospaced))
-                .foregroundStyle(.primary.opacity(0.95))
+                .font(.system(size: fieldSize, design: .monospaced))
+                .foregroundStyle(.primary)
                 .focused($searchFocused)
+                .tint(accent)   // the caret wears the brand, not system blue
                 .accessibilityLabel("Search repositories")
-            // How much the filter cut. Only shown while filtering, because
-            // "11 of 11" is not information.
             if !model.query.isEmpty, model.worktreeRepo == nil, model.promptRepo == nil {
+                // How much the filter cut. Only shown while filtering, because
+                // "11 of 11" is not information.
                 Text("\(model.filtered.count)")
                     .font(.system(size: metaSize, design: .monospaced))
-                    .foregroundStyle(.primary.opacity(0.45))
+                    .foregroundStyle(.secondary)
                     .monospacedDigit()
+            } else if model.hasLastSession, model.worktreeRepo == nil, model.promptRepo == nil {
+                // The idle corner teaches the one shortcut that has no tile:
+                // replay the last session.
+                Button { model.resumeLastSession() } label: {
+                    Text("⌘0 resume")
+                        .font(.system(size: metaSize, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Resume last session")
             }
         }
-        .padding(.horizontal, Col.inset)
-        .frame(height: headerH)
+        .padding(.horizontal, 20)
+        .frame(height: pillH)
     }
 
     private var promptPrefix: String {
@@ -571,9 +633,9 @@ struct PaletteView: View {
         return "repo"
     }
 
-    // MARK: - Content
+    // MARK: - Content piece
 
-    @ViewBuilder private var content: some View {
+    @ViewBuilder private var contentPiece: some View {
         if let wt = model.worktreeRepo {
             sidePanel(
                 title: "git worktree add",
@@ -585,59 +647,73 @@ struct PaletteView: View {
                 body: "Handed to \(model.activeAgent(for: pr)?.name ?? "the agent") in \(pr.name) as its first message.",
                 detail: nil)
         } else {
-            repoList
+            tileStrip
         }
     }
 
     private func sidePanel(title: String, body: String, detail: String?) -> some View {
         VStack(alignment: .leading, spacing: 9) {
             Text(title)
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .font(.system(size: metaSize, weight: .semibold, design: .monospaced))
                 .tracking(0.1)
                 .foregroundStyle(accent)
             Text(body)
-                .font(.system(size: 12.5, design: .monospaced))
-                .foregroundStyle(.primary.opacity(0.62))
+                .font(.system(size: metaSize, design: .monospaced))
+                .foregroundStyle(.secondary)
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
             if let detail {
                 Text(detail)
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.primary.opacity(0.52))
+                    .font(.system(size: metaSize, design: .monospaced))
+                    .foregroundStyle(.secondary)
                     .lineLimit(1).truncationMode(.middle)
                     .padding(.top, 2)
             }
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, Col.inset)
-        .padding(.vertical, 18)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 16)
+        .frame(height: contentHeight)
     }
 
-    private var repoList: some View {
-        // Snapshot once per render: avoids re-sorting on every row access, and
-        // gives the ForEach and selection a single consistent list.
+    /// The repo strip — ⌘Tab, but for repos. Frecency order, ←/→ to move,
+    /// ⏎ to launch, pinned repos first.
+    private var tileStrip: some View {
         let repos = model.filtered
         return ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(spacing: 0) {
+            ScrollView(.horizontal) {
+                LazyHStack(spacing: 8) {
                     // Index identity throughout (id: \.self == .id(index) == selection),
-                    // so a selection change updates the row in place instead of being
-                    // mis-diffed as a remove/insert (which read as a "deselect").
+                    // so a selection change updates the tile in place instead of
+                    // being mis-diffed as a remove/insert.
                     ForEach(repos.indices, id: \.self) { index in
-                        if let header = groupHeader(at: index, in: repos) { sectionLabel(header) }
-                        row(repos[index], index: index,
-                            selected: index == model.selection, hovered: hovered == index)
+                        tile(repos[index], index: index,
+                             selected: index == model.selection, hovered: hovered == index)
                             .id(index)
-                            .contentShape(Rectangle())
                             .onHover { inside in hovered = inside ? index : (hovered == index ? nil : hovered) }
                             .onTapGesture { model.activate(at: index) }
                     }
                     if repos.isEmpty { emptyState }
                 }
-                .padding(.vertical, Metric.listPad)
+                .padding(.horizontal, 20)   // same grid line as the pills' text
+                .padding(.vertical, stripPad)
             }
             .scrollIndicators(.never)
+            // Soft edges: tiles fade out at the sides instead of being
+            // guillotined by the clip — the strip reads as continuing.
+            .mask(
+                HStack(spacing: 0) {
+                    LinearGradient(colors: [.clear, .black],
+                                   startPoint: .leading, endPoint: .trailing)
+                        .frame(width: 18)
+                    Color.black
+                    LinearGradient(colors: [.black, .clear],
+                                   startPoint: .leading, endPoint: .trailing)
+                        .frame(width: 18)
+                }
+            )
+            .frame(height: contentHeight)
             .onChange(of: model.selection) { _, new in
                 let scroll = { proxy.scrollTo(new, anchor: .center) }
                 reduceMotion ? scroll() : withAnimation(.easeOut(duration: 0.14), scroll)
@@ -645,115 +721,89 @@ struct PaletteView: View {
         }
     }
 
-    /// "Pinned" before the first pinned repo, "Recent" before the first
-    /// non-pinned one. Suppressed while filtering, where rank is the only order
-    /// that matters.
-    private func groupHeader(at index: Int, in list: [Repo]) -> String? {
-        guard model.query.isEmpty, index < list.count else { return nil }
-        let repo = list[index]
-        if index == 0 { return repo.pinned ? "pinned" : "recent" }
-        if list[index - 1].pinned && !repo.pinned { return "recent" }
-        return nil
-    }
-
-    private func sectionLabel(_ title: String) -> some View {
-        Text(title)
-            .font(.system(size: labelSize, weight: .semibold, design: .monospaced))
-            .tracking(0.12)
-            .foregroundStyle(.primary.opacity(0.45))
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading, Col.name(mark: markSize))
-            .padding(.bottom, 3)
-            // Exactly `groupLabel` tall including the padding, or the panel's
-            // computed height comes up short and clips the last row.
-            .frame(height: groupLabelH, alignment: .bottom)
-            .accessibilityAddTraits(.isHeader)
-    }
-
-    private var emptyState: some View {
-        Text(model.allRepos.isEmpty
-             ? "no repos — ⌘R to scan, or add roots in settings"
-             : "no match: \(model.query)")
-            .font(.system(size: 12, design: .monospaced))
-            .foregroundStyle(.primary.opacity(0.58))
-            .frame(height: 96)
-    }
-
-    // MARK: - Row
-
-    private func row(_ repo: Repo, index: Int, selected: Bool, hovered: Bool) -> some View {
+    /// One repo as a tile — every repo gets its tint. Identity is the repo:
+    /// a stable hue hashed from its name, its monogram in that hue, and the
+    /// agent's mark as a small corner badge. Recognition works the way ⌘Tab
+    /// works: color + letter, at a glance. A red ring still warns before you
+    /// arrive that this tile's mode skips permissions.
+    private func tile(_ repo: Repo, index: Int, selected: Bool, hovered: Bool) -> some View {
         let agent = model.activeAgent(for: repo)
         let mode = agent.map { model.displayMode(agent: $0, repo: repo) }
         let dangerous = mode?.isDangerous == true
-        return HStack(spacing: Col.gutter) {
-            // ⌘1–⌘9. Past nine there's no shortcut, so there's no number.
-            Text(index < 9 ? "\(index + 1)" : "")
-                .font(.system(size: metaSize, weight: .medium, design: .monospaced))
-                .foregroundStyle(selected ? here(dangerous) : .primary.opacity(0.36))
-                .monospacedDigit()
-                .frame(width: Col.index, alignment: .trailing)
-                .accessibilityHidden(true)
-            AgentMark(agent: agent,
-                      tint: agent?.tintHex.flatMap(Color.init(hex:)) ?? accent,
-                      monogram: model.monogram(for: agent),
-                      selected: selected, dark: isDark, size: markSize)
-                .accessibilityHidden(true)
-            Text(repo.name)
-                .font(.system(size: nameSize, weight: selected ? .semibold : .medium, design: .monospaced))
-                .foregroundStyle(.primary.opacity(selected ? 1 : 0.84))
-                .lineLimit(1)
-                .layoutPriority(2)
-            if repo.pinned {
-                Circle()
-                    .fill(.primary.opacity(selected ? 0.5 : 0.28))
-                    .frame(width: 3.5, height: 3.5)
+        let repoColor = RepoTint.color(for: repo.name, dark: isDark)
+        let repoFill = RepoTint.fill(for: repo.name, dark: isDark)
+        // Micro-motion is transform-only (scale + glow), so it can never fight
+        // the layout pass — the strip's geometry stays put.
+        let scale: CGFloat = selected ? 1.05 : (hovered ? 1.03 : 1)
+        return VStack(spacing: 6) {
+            ZStack {
+                RoundedRectangle(cornerRadius: Metric.tileCorner, style: .continuous)
+                    .fill(LinearGradient(
+                        colors: [repoFill.opacity(isDark ? (selected ? 0.42 : 0.2) : (selected ? 0.3 : 0.14)),
+                                 repoFill.opacity(isDark ? (selected ? 0.2 : 0.07) : (selected ? 0.14 : 0.05))],
+                        startPoint: .top, endPoint: .bottom))
+                RoundedRectangle(cornerRadius: Metric.tileCorner, style: .continuous)
+                    .strokeBorder(
+                        dangerous ? dangerTint.opacity(selected ? 0.85 : 0.45)
+                                  : selected ? Color.primary.opacity(0.7)
+                                             : repoColor.opacity(hovered ? 0.4 : 0.2),
+                        lineWidth: selected ? 1.5 : 1)
+                Text(model.repoMonogram(for: repo))
+                    .font(.system(size: tileSize * 0.34, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(repoColor)
                     .accessibilityHidden(true)
-            }
-            Spacer(minLength: Col.gutter)
-            // The path is the expensive ink: it only appears on the row you are
-            // about to launch, where it answers "which one is this".
-            if selected {
-                Text(displayPath(repo.path))
-                    .font(.system(size: metaSize, design: .monospaced))
-                    .foregroundStyle(.primary.opacity(0.58))
-                    .lineLimit(1).truncationMode(.head)
-                    .layoutPriority(-1)
-                if let agent {
-                    Text(agent.name.lowercased())
-                        .font(.system(size: metaSize, design: .monospaced))
-                        .foregroundStyle(.primary.opacity(0.64))
-                        .lineLimit(1)
+                // The agent rides along as a badge — informative, not the identity.
+                AgentMark(agent: agent,
+                          tint: agent?.tintHex.flatMap(Color.init(hex:)) ?? accent,
+                          monogram: model.monogram(for: agent),
+                          selected: selected, dark: isDark, size: 13)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity,
+                           alignment: .bottomTrailing)
+                    .padding(6)
+                if repo.pinned {
+                    Image(systemName: "pin.fill")
+                        .font(.system(size: 7))
+                        .foregroundStyle(selected ? AnyShapeStyle(.secondary) : AnyShapeStyle(.tertiary))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity,
+                               alignment: .topTrailing)
+                        .padding(6)
                 }
             }
-            if dangerous, let mode {
-                Text(mode.name.lowercased())
-                    .font(.system(size: 10, weight: .bold, design: .monospaced))
-                    .tracking(0.06)
-                    .foregroundStyle(dangerTint)
-            }
+            .frame(width: tileSize, height: tileSize)
+            .shadow(color: selected ? (dangerous ? dangerTint : repoColor).opacity(isDark ? 0.4 : 0.3) : .clear,
+                    radius: 9, y: 2)
+            .scaleEffect(scale)
+            .animation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.75),
+                       value: scale)
+            Text(repo.name)
+                .font(.system(size: metaSize, weight: selected ? .semibold : .regular, design: .monospaced))
+                .foregroundStyle(selected ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+                .lineLimit(1).truncationMode(.middle)
+                .frame(width: tileSize + 22)
+                .frame(height: tileLabelH)
         }
-        .padding(.horizontal, Col.inset)
-        .frame(height: rowH)
-        .background(alignment: .leading) {
-            ZStack(alignment: .leading) {
-                Color.primary.opacity(selected ? (isDark ? 0.075 : 0.085)
-                                               : (hovered ? 0.035 : 0))
-                // The whole selection signal, in 3 points: a precise marker at a
-                // fixed x, not a saturated bar across the row.
-                if selected {
-                    Rectangle().fill(here(dangerous)).frame(width: 3)
-                }
-            }
-        }
+        .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText(repo: repo, agent: agent, mode: mode, index: index))
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAction(named: "Switch agent") { model.cycleAgent() }
+        .accessibilityAction(named: "Switch mode") { model.cycleMode() }
     }
 
-    /// The colour of the "you are here" marker. It turns red when *here* is a
-    /// mode that skips permissions, so the indicator telling you where you are
-    /// also tells you what pressing ↵ will do.
-    private func here(_ dangerous: Bool) -> Color { dangerous ? dangerTint : accent }
+    private var emptyState: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "square.dashed")
+                .font(.system(size: 17, weight: .light))
+                .foregroundStyle(.tertiary)
+            Text(model.allRepos.isEmpty
+                 ? "No repos yet — ⌘R scans your folders, or add roots in Settings"
+                 : "No match for “\(model.query)”")
+                .font(.system(size: metaSize, design: .monospaced))
+                .foregroundStyle(.secondary)
+        }
+        .frame(height: tileSize + 5 + tileLabelH)
+        .padding(.horizontal, 8)
+    }
 
     private func accessibilityText(repo: Repo, agent: Agent?, mode: RunMode?, index: Int) -> String {
         var parts = [repo.name]
@@ -775,17 +825,17 @@ struct PaletteView: View {
     private var confirmBanner: some View {
         HStack(spacing: 8) {
             Text("!!")
-                .font(.system(size: bannerSize, weight: .bold, design: .monospaced))
+                .font(.system(size: metaSize, weight: .bold, design: .monospaced))
             Text("↵ again to launch \(model.pendingDangerousDescription ?? "") — skips all permissions")
-                .font(.system(size: bannerSize, design: .monospaced))
+                .font(.system(size: metaSize, design: .monospaced))
             Spacer(minLength: 8)
             Text("esc cancels")
-                .font(.system(size: bannerSize, design: .monospaced))
+                .font(.system(size: metaSize, design: .monospaced))
                 .foregroundStyle(dangerTint.opacity(0.65))
         }
         .foregroundStyle(dangerTint)
-        .padding(.horizontal, Col.inset)
-        .frame(height: bannerHeight)
+        .padding(.horizontal, 20)
+        .frame(height: bannerH)
         .background(dangerTint.opacity(0.13))
     }
 
@@ -797,130 +847,218 @@ struct PaletteView: View {
             let text = isError ? String(status.dropFirst(2)) : status
             HStack(alignment: .top, spacing: 8) {
                 Text(isError ? "!!" : "::")
-                    .font(.system(size: bannerSize, weight: .bold, design: .monospaced))
+                    .font(.system(size: metaSize, weight: .bold, design: .monospaced))
                     .foregroundStyle(isError ? dangerTint : accent)
                 Text(text)
-                    .font(.system(size: bannerSize, design: .monospaced))
-                    .foregroundStyle(.primary.opacity(0.85))
+                    .font(.system(size: metaSize, design: .monospaced))
+                    .foregroundStyle(.primary)
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, Col.inset)
-            .frame(minHeight: bannerHeight, alignment: .center)
-            .background((isError ? dangerTint : accent).opacity(0.11))
+            .padding(.horizontal, 20)
+            .frame(minHeight: bannerH, alignment: .center)
+            .background((isError ? dangerTint : accent).opacity(0.1))
         }
     }
 
-    // MARK: - Status line
+    // MARK: - Launch pill
 
-    /// One line, no keycap boxes. A mode badge appears only when you are *not*
-    /// in the normal list, because labelling the default state is noise.
-    private var statusLine: some View {
-        HStack(spacing: 0) {
-            if let badge = modeBadge {
-                Text(badge)
-                    .font(.system(size: 9, weight: .bold, design: .monospaced))
-                    .tracking(0.1)
-                    .foregroundStyle(.black.opacity(0.85))
-                    .padding(.horizontal, 6).padding(.vertical, 2.5)
-                    .background(model.isPendingDangerous ? dangerTint : accent,
-                                in: RoundedRectangle(cornerRadius: 3, style: .continuous))
-                    .padding(.trailing, 12)
-            }
-            HStack(spacing: 15) {
-                ForEach(keyHints, id: \.key) { hint in
-                    KeyHint(key: hint.key, label: hint.label, action: hint.action)
-                }
+    /// The launch contract: `❯ agent · mode` and, at the right, the selected
+    /// repo's path and branch. The agent and mode words are quietly clickable
+    /// (the visible counterpart of ⇥/⇧⇥, real flags in the tooltip). In
+    /// worktree/prompt/confirm states it names the state and its two keys.
+    private var launchPill: some View {
+        // The caret is the contract's mood: accent normally, red the moment ⏎
+        // would skip permissions — before any confirm step.
+        let selectedDangerous = model.selectedRepo.flatMap { repo in
+            model.activeAgent(for: repo).map { model.displayMode(agent: $0, repo: repo).isDangerous }
+        } ?? false
+        return HStack(spacing: 8) {
+            Text("❯")
+                .font(.system(size: metaSize, weight: .bold, design: .monospaced))
+                .foregroundStyle(model.isPendingDangerous || selectedDangerous ? dangerTint : accent)
+                .accessibilityHidden(true)
+            if model.isPendingDangerous {
+                planText("confirm — ↵ launches, esc cancels", color: dangerTint)
+            } else if model.worktreeRepo != nil {
+                planText("worktree — ↵ creates and launches, esc goes back")
+            } else if model.promptRepo != nil {
+                planText("prompt — ↵ launches with it, esc goes back")
+            } else if let repo = model.selectedRepo, let agent = model.activeAgent(for: repo) {
+                let mode = model.displayMode(agent: agent, repo: repo)
+                segment(agent.name.lowercased(),
+                        help: "Agent — click or ⇥ to switch") { model.cycleAgent() }
+                planDot
+                segment(mode.name.lowercased(), danger: mode.isDangerous,
+                        help: modeHelp(mode)) { model.cycleMode() }
             }
             Spacer(minLength: 12)
-            trailingContext
-        }
-        .padding(.horizontal, Col.inset)
-        .frame(height: statusLineH)
-    }
-
-    private var modeBadge: String? {
-        if model.isPendingDangerous { return "CONFIRM" }
-        if model.worktreeRepo != nil { return "WORKTREE" }
-        if model.promptRepo != nil { return "PROMPT" }
-        return nil
-    }
-
-    private struct Hint { let key: String; let label: String; let action: () -> Void }
-
-    private var keyHints: [Hint] {
-        if model.isPendingDangerous {
-            return [Hint(key: "↵", label: "confirm") { model.handleReturn(modifiers: []) },
-                    Hint(key: "esc", label: "cancel") { model.handleEscape() }]
-        }
-        if model.worktreeRepo != nil {
-            return [Hint(key: "↵", label: "create") { model.handleReturn(modifiers: []) },
-                    Hint(key: "esc", label: "back") { model.handleEscape() }]
-        }
-        if model.promptRepo != nil {
-            return [Hint(key: "↵", label: "launch") { model.handleReturn(modifiers: []) },
-                    Hint(key: "esc", label: "back") { model.handleEscape() }]
-        }
-        return [
-            Hint(key: "↵", label: "launch") { model.handleReturn(modifiers: []) },
-            Hint(key: "⌘1–9", label: "jump") { },
-            Hint(key: "⇥", label: "agent") { model.cycleAgent() },
-            Hint(key: "⇧⇥", label: "mode") { model.cycleMode() },
-            Hint(key: "⌘L", label: "prompt") { model.enterPromptMode() },
-        ]
-    }
-
-    @ViewBuilder private var trailingContext: some View {
-        HStack(spacing: 10) {
             if let prompt = model.selectedPrompt {
                 Text(prompt.title.lowercased())
-                    .font(.system(size: 10, design: .monospaced))
+                    .font(.system(size: metaSize, weight: .medium, design: .monospaced))
                     .foregroundStyle(accent)
                     .lineLimit(1)
             }
-            if let repo = model.selectedRepo, let branch = GitInfo.currentBranch(at: repo.path) {
-                HStack(spacing: 4) {
-                    Image(systemName: "arrow.triangle.branch")
-                        .font(.system(size: 8.5, weight: .medium))
-                    Text(branch)
-                        .font(.system(size: 10, design: .monospaced))
+            pathAndBranch
+        }
+        .padding(.horizontal, 20)
+        .frame(height: pillH)
+    }
+
+    private var planDot: some View {
+        Text("·")
+            .font(.system(size: metaSize, design: .monospaced))
+            .foregroundStyle(.tertiary)
+            .accessibilityHidden(true)
+    }
+
+    private func planText(_ text: String, color: Color? = nil) -> some View {
+        Text(text)
+            .font(.system(size: metaSize, design: .monospaced))
+            .foregroundStyle(color.map(AnyShapeStyle.init) ?? AnyShapeStyle(.secondary))
+            .lineLimit(1)
+    }
+
+    /// The tooltip carries the truth: the exact flags this mode passes.
+    private func modeHelp(_ mode: RunMode) -> String {
+        let flags = mode.flags.isEmpty ? "no flags" : mode.flags
+        return mode.isDangerous
+            ? "Skips permissions (\(flags)) — click or ⇧⇥ to switch"
+            : "Mode (\(flags)) — click or ⇧⇥ to switch"
+    }
+
+    /// Where the launch lands: the selected repo's path, then its branch with
+    /// the shell dirty marker — async from the model's cache, never a
+    /// subprocess or disk read on the render path.
+    @ViewBuilder private var pathAndBranch: some View {
+        if model.worktreeRepo == nil, model.promptRepo == nil, !model.isPendingDangerous,
+           let repo = model.selectedRepo {
+            let full = displayPath(repo.path)
+            let leaf = (full as NSString).lastPathComponent
+            let dir = String(full.dropLast(leaf.count))
+            HStack(spacing: 8) {
+                // The directory is context, the leaf is the answer — the path
+                // carries its own hierarchy instead of one flat grey.
+                (Text(dir).foregroundColor(.secondary.opacity(0.75))
+                    + Text(leaf).foregroundColor(.primary))
+                    .font(.system(size: metaSize, design: .monospaced))
+                    .lineLimit(1).truncationMode(.head)
+                    .layoutPriority(-1)
+                if let ctx = model.gitContext(for: repo), let branch = ctx.branch {
+                    let dirty = ctx.dirty == true
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.triangle.branch")
+                            .font(.system(size: 8.5, weight: .medium))
+                        Text(dirty ? "\(branch)*" : branch)
+                            .font(.system(size: metaSize, design: .monospaced))
+                    }
+                    .foregroundStyle(dirty ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+                    .lineLimit(1)
+                    .accessibilityLabel(dirty ? "On branch \(branch), uncommitted changes"
+                                              : "On branch \(branch)")
                 }
-                .foregroundStyle(.primary.opacity(0.5))
-                .lineLimit(1)
-                .accessibilityLabel("On branch \(branch)")
             }
         }
     }
+
+    /// A quietly clickable word in the launch line. Hover brightens it — all
+    /// the affordance a prompt should carry; the tooltip explains the rest.
+    private func segment(_ label: String, danger: Bool = false, help: String,
+                         action: @escaping () -> Void) -> some View {
+        SegmentButton(label: label, danger: danger, help: help,
+                      size: metaSize, action: action)
+    }
 }
 
-/// A status-line hint. No box, no capsule: the glyph and its label are the whole
-/// control. Clicking still works — hover just brightens the label, which is all
-/// the affordance a line this quiet should carry.
-private struct KeyHint: View {
-    let key: String
+/// Staggered arrival for one piece of the cluster.
+private struct PieceArrival: ViewModifier {
+    let shown: Bool
+    let index: Int
+    let reduceMotion: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .offset(y: shown || reduceMotion ? 0 : 6)
+            .animation(reduceMotion ? nil
+                       : .spring(response: 0.34, dampingFraction: 0.85).delay(Double(index) * 0.05),
+                       value: shown)
+    }
+}
+
+/// Hover-brightening text button for the launch line.
+private struct SegmentButton: View {
     let label: String
+    let danger: Bool
+    let help: String
+    let size: CGFloat
     let action: () -> Void
     @State private var hovering = false
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 5) {
-                Text(key)
-                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.primary.opacity(hovering ? 0.85 : 0.62))
-                Text(label)
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(.primary.opacity(hovering ? 0.68 : 0.48))
-            }
-            .contentShape(Rectangle())
+            Text(label)
+                .font(.system(size: size, weight: .medium, design: .monospaced))
+                .foregroundStyle(danger ? AnyShapeStyle(dangerTint)
+                                        : hovering ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+                .underline(hovering, color: danger ? dangerTint : .secondary)
+                .lineLimit(1)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        // Spoken as the action alone: the key glyph is a sighted affordance, and
-        // ⇥ in particular is not bound when assistive navigation is active.
-        .accessibilityLabel(label)
-        // Hover highlight only — no manual NSCursor.set(), which can leave a
-        // stray cursor if the panel closes mid-hover.
+        .help(help)
+        .accessibilityLabel(help)
         .onHover { hovering = $0 }
+    }
+}
+
+// MARK: - Glass piece
+
+/// One floating element of the cluster. On macOS 26 it is real Liquid Glass
+/// (with a measured frost so small mono type survives a busy window); earlier
+/// systems get the legacy vibrancy stack. Reduce Transparency gets a fully
+/// opaque piece on every OS. Each piece carries its own soft shadow — the
+/// window itself draws none.
+private struct GlassPiece<S: InsettableShape>: ViewModifier {
+    let shape: S
+    let isDark: Bool
+    let reduceTransparency: Bool
+    /// Interactive glass reacts to hover/press like a real Tahoe control —
+    /// the pills are controls, the strip is a surface.
+    var interactive = false
+    /// The strip is the biggest object, so it sits lowest; pills float lighter.
+    var prominent = false
+
+    func body(content: Content) -> some View {
+        Group {
+            if reduceTransparency {
+                content
+                    .background(isDark ? Color(white: 0.11) : Color(white: 0.97))
+                    .clipShape(shape)
+                    .overlay(shape.strokeBorder(
+                        isDark ? Color.white.opacity(0.16) : Color.black.opacity(0.14), lineWidth: 1))
+            } else if #available(macOS 26.0, *) {
+                // Legibility comes from vibrancy (hierarchical foreground
+                // styles on the glass), not from a heavy scrim — a whisper of
+                // frost is all the material needs over a worst-case window.
+                content
+                    .background((isDark ? Color.black : Color.white).opacity(isDark ? 0.18 : 0.15))
+                    .clipShape(shape)
+                    .glassEffect(interactive ? .regular.interactive() : .regular, in: shape)
+            } else {
+                content
+                    .background {
+                        ZStack {
+                            GlassBackground(material: isDark ? .hudWindow : .popover)
+                            (isDark ? Color.black : Color.white).opacity(isDark ? 0.45 : 0.6)
+                        }
+                    }
+                    .clipShape(shape)
+                    .overlay(shape.strokeBorder(
+                        isDark ? Color.white.opacity(0.16) : Color.black.opacity(0.14), lineWidth: 1))
+            }
+        }
+        .shadow(color: .black.opacity(isDark ? 0.32 : 0.15),
+                radius: prominent ? 20 : 12, y: prominent ? 8 : 5)
     }
 }

@@ -83,6 +83,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.panelController.show() }
             return
         }
+        // Same harness for the Settings window (TINTPAD_SHOWCASE_SETTINGS=1).
+        if ProcessInfo.processInfo.environment["TINTPAD_SHOWCASE_SETTINGS"] == "1" {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.panelController.openSettings() }
+            return
+        }
 
         // First-run onboarding.
         if !AppStore.shared.settings.hasOnboarded {

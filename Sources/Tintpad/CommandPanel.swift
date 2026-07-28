@@ -17,9 +17,13 @@ extension Notification.Name {
 /// spaces. SwiftUI's window scenes can't express `.nonactivatingPanel`.
 final class CommandPanel: NSPanel {
     init(contentRect: NSRect) {
+        // Borderless on purpose: a `.titled` panel reserves a ~32pt titlebar
+        // strip, and on macOS 26 the system draws Liquid Glass window chrome
+        // into it — a square-cornered ghost band behind our rounded glass.
+        // Borderless removes the strip (and its safe-area inset) at the source.
         super.init(
             contentRect: contentRect,
-            styleMask: [.nonactivatingPanel, .titled, .fullSizeContentView],
+            styleMask: [.nonactivatingPanel, .borderless],
             backing: .buffered,
             defer: false
         )
@@ -27,15 +31,13 @@ final class CommandPanel: NSPanel {
         level = .floating
         becomesKeyOnlyIfNeeded = false      // we DO want key for typing
         hidesOnDeactivate = false
-        titleVisibility = .hidden
-        titlebarAppearsTransparent = true
         isMovableByWindowBackground = true
-        standardWindowButton(.closeButton)?.isHidden = true
-        standardWindowButton(.miniaturizeButton)?.isHidden = true
-        standardWindowButton(.zoomButton)?.isHidden = true
         backgroundColor = .clear
         isOpaque = false
-        hasShadow = true   // native window shadow follows the rounded glass content
+        // No system shadow: AppKit computes it for the rectangular frame, which
+        // reads as a ghost box around the floating glass pieces. Each piece
+        // draws its own SwiftUI shadow inside the window's transparent margin.
+        hasShadow = false
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
         animationBehavior = .utilityWindow
     }
@@ -136,7 +138,9 @@ final class CommandPanelController: NSObject {
     }
 
     private func makePanel() -> CommandPanel {
-        let width = AppStore.shared.settings.panelWidth
+        // The visible cluster is panelWidth wide; the window adds a transparent
+        // margin on each side where the pieces' shadows live.
+        let width = AppStore.shared.settings.panelWidth + PaletteView.windowMargin * 2
         let rect = NSRect(x: 0, y: 0, width: width, height: 320)
         let panel = CommandPanel(contentRect: rect)
         panel.controller = self
@@ -153,16 +157,11 @@ final class CommandPanelController: NSObject {
     /// Grow/shrink the panel to fit its content, pinned at the top edge so the
     /// search field never moves under the cursor while you type.
     ///
-    /// The palette reports the height it wants for its *content*.
-    ///
-    /// This is a `.titled` panel, so AppKit reserves a ~32pt titlebar strip at
-    /// the top: the window's frame has always been that much taller than the
-    /// glass you actually see, and SwiftUI lays out inside the matching safe
-    /// area. Passing a content height straight to `setFrame` therefore hands the
-    /// palette 32pt less than it asked for, which clipped the last row. Add the
-    /// insets back. (Opting out of the safe area instead — on the hosting view
-    /// or with `.ignoresSafeArea()` — either loops AppKit's constraint pass or
-    /// hides the prompt line behind the unpainted strip.)
+    /// The palette reports the height it wants for its *content*. The panel is
+    /// borderless now, so the content view's safe-area insets are zero — but we
+    /// still read the real insets rather than assuming, so a future style-mask
+    /// change can't silently re-clip the last row (the `.titled` era reserved a
+    /// ~32pt titlebar strip that had to be added back here).
     private func resize(toContentHeight height: CGFloat) {
         guard let panel else { return }
         let insets = panel.contentView?.safeAreaInsets ?? NSEdgeInsetsZero
