@@ -110,6 +110,11 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   pass and crashes, `.ignoresSafeArea()` hides the prompt line).
 - **Frecency comparator must be transitive**, no epsilon "≈ tie" band, it breaks strict
   weak ordering and makes `sort()` reshuffle the list every render.
+- **New-SDK symbols need a compiler gate, not just `#available`.** Liquid Glass APIs
+  (`glassEffect`, `GlassEffectContainer`) exist only in the macOS 26 SDK: `#available`
+  guards runtime, but on an older toolchain (CI's macos-15 image, Xcode 16) the symbols
+  don't compile at all. Wrap such call sites in `#if compiler(>=6.2)` with the legacy
+  path as the compile-time fallback.
 - **Agent CLI flags are version-specific.** Verify against the installed CLI's `--help`.
   Codex: yolo = `--dangerously-bypass-approvals-and-sandbox` (NOT `--full-auto`),
   safe = `--ask-for-approval untrusted` (needs a value). Claude: `--dangerously-skip-permissions`.
