@@ -49,7 +49,28 @@ final class PaletteModel: ObservableObject {
     /// When set, the search field captures a one-off prompt for this repo.
     @Published var promptRepo: Repo?
 
+    /// True for the ~160ms launch gesture: the cluster releases downward as
+    /// it fades, so a launch *feels* like one. Esc still closes instantly.
+    @Published private(set) var launching = false
+
     fileprivate var pendingDangerous: PendingLaunch?
+
+    /// Injectable (like `tabTraverses`) so the gesture can be tested off.
+    var reduceMotionActive: () -> Bool = {
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }
+
+    /// Close after the launch gesture has played — or immediately when motion
+    /// is reduced, because a delay with no animation just reads as lag.
+    private func closeAfterLaunch() {
+        guard !launching else { return }
+        if reduceMotionActive() { onClose(); return }
+        launching = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) { [weak self] in
+            self?.launching = false
+            self?.onClose()
+        }
+    }
 
     /// Injectable so the Tab policy can be exercised without VoiceOver running.
     var tabTraverses: () -> Bool = {
@@ -165,6 +186,7 @@ final class PaletteModel: ObservableObject {
 
     /// Called when the panel is shown to reset transient per-summon state.
     func reset() {
+        launching = false
         status = nil
         pendingDangerous = nil
         agentOverrideID = nil
@@ -252,7 +274,7 @@ final class PaletteModel: ObservableObject {
         let fire: () -> Void = { [weak self] in
             guard let self else { return }
             switch LaunchService.resumeLast(store: store) {
-            case .launched: onClose()
+            case .launched: closeAfterLaunch()
             case .unavailable:
                 status = "⚠ that session can't be resumed — its repo, agent, or mode is gone"
             case .failed(let error):
@@ -372,7 +394,7 @@ final class PaletteModel: ObservableObject {
                             let outcome = try LaunchService.launchAgent(
                                 repo: repo, agent: agent, mode: mode, prompt: promptText,
                                 store: store, worktreePath: worktreePath)
-                            if let note = outcome.note { status = note } else { onClose() }
+                            if let note = outcome.note { status = note } else { closeAfterLaunch() }
                         } catch { status = "⚠ \(error)" }
                     }
                 } catch {
@@ -468,12 +490,12 @@ final class PaletteModel: ObservableObject {
         do {
             _ = try DispatchService.shared.dispatch(
                 repo: repo, agent: agent, mode: mode, prompt: selectedPrompt?.text, store: store)
-            onClose()
+            closeAfterLaunch()
         } catch { status = "⚠ dispatch: \(error)" }
     }
 
     private func openInEditor(repo: Repo) {
-        do { try LaunchService.openInEditor(repo: repo, store: store); onClose() }
+        do { try LaunchService.openInEditor(repo: repo, store: store); closeAfterLaunch() }
         catch { status = "⚠ no editor detected — set one in Settings" }
     }
 
@@ -482,7 +504,7 @@ final class PaletteModel: ObservableObject {
             let outcome = try LaunchService.launchAgent(
                 repo: repo, agent: agent, mode: mode,
                 prompt: prompt ?? selectedPrompt?.text, store: store)
-            if let note = outcome.note { status = note } else { onClose() }
+            if let note = outcome.note { status = note } else { closeAfterLaunch() }
         } catch { status = "⚠ \(error)" }
     }
 }
@@ -557,17 +579,29 @@ struct PaletteView: View {
 
     private var accent: Color { model.accent }
     private var isDark: Bool { scheme == .dark }
+    /// Which content the middle piece shows — drives the crossfade.
+    private var modeToken: Int {
+        if model.worktreeRepo != nil { return 1 }
+        if model.promptRepo != nil { return 2 }
+        return 0
+    }
 
     var body: some View {
         Group {
             if #available(macOS 26.0, *) {
-                GlassEffectContainer(spacing: Metric.gap) { cluster }
+                // Blend distance just under the resting gap: pieces fuse into
+                // one glass body only while the summon settle has them close,
+                // then read as three crisp objects at rest.
+                GlassEffectContainer(spacing: 10) { cluster }
             } else {
                 cluster
             }
         }
-        .scaleEffect(shown ? 1 : 0.99, anchor: .top)
-        .opacity(shown ? 1 : 0)
+        .scaleEffect(model.launching ? 0.985 : (shown ? 1 : 0.99), anchor: .top)
+        .opacity(model.launching ? 0 : (shown ? 1 : 0))
+        .offset(y: model.launching ? 10 : 0)
+        // The launch gesture: the cluster releases downward as it fades.
+        .animation(reduceMotion ? nil : .easeIn(duration: 0.15), value: model.launching)
         // Scale text with the system size, but cap it so this fixed-width HUD
         // stays usable (accessibility sizes would otherwise overflow the strip).
         .dynamicTypeSize(...DynamicTypeSize.xxLarge)
@@ -595,14 +629,13 @@ struct PaletteView: View {
     }
 
     private var cluster: some View {
-        VStack(spacing: Metric.gap) {
+        VStack(spacing: shown ? Metric.gap : -10) {
             searchPill
                 .modifier(glassPiece(Capsule(), interactive: true))
-                .modifier(pieceArrival(0))
             contentPiece
                 .modifier(glassPiece(RoundedRectangle(cornerRadius: Metric.stripCorner, style: .continuous),
                                      prominent: true))
-                .modifier(pieceArrival(1))
+                .transition(.opacity)
             if model.isPendingDangerous {
                 confirmBanner
                     .modifier(glassPiece(RoundedRectangle(cornerRadius: 14, style: .continuous)))
@@ -612,8 +645,10 @@ struct PaletteView: View {
             }
             launchPill
                 .modifier(glassPiece(Capsule(), interactive: true))
-                .modifier(pieceArrival(2))
         }
+        // Worktree/prompt swap the strip for a side panel — as a crossfade,
+        // never a hard cut.
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.16), value: modeToken)
         .padding(Self.windowMargin)
     }
 
@@ -623,20 +658,14 @@ struct PaletteView: View {
                    interactive: interactive, prominent: prominent)
     }
 
-    /// The cluster arrives as three pieces settling, not one slab: each slides
-    /// 6pt with a 50ms stagger while the whole fades in. Transform-only, and
-    /// still one plain fade under Reduce Motion.
-    private func pieceArrival(_ index: Int) -> PieceArrival {
-        PieceArrival(shown: shown, index: index, reduceMotion: reduceMotion)
-    }
-
     /// Quick fade + a barely-there scale, replayed on every show (skipped if
     /// Reduce Motion). A launcher that announces itself gets tiring.
     private func animateIn() {
         if reduceMotion { shown = true; return }
         shown = false
         DispatchQueue.main.async {
-            withAnimation(.easeOut(duration: 0.16)) { shown = true }
+            // A settle, not a pop: the pieces separate out of one glass body.
+            withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) { shown = true }
         }
     }
 
@@ -817,13 +846,13 @@ struct PaletteView: View {
         let repoFill = RepoTint.fill(for: repo.name, dark: isDark)
         // Micro-motion is transform-only (scale + glow), so it can never fight
         // the layout pass — the strip's geometry stays put.
-        let scale: CGFloat = selected ? 1.05 : (hovered ? 1.03 : 1)
+        let scale: CGFloat = selected ? (model.launching ? 0.92 : 1.05) : (hovered ? 1.03 : 1)
         return VStack(spacing: 6) {
             ZStack {
                 RoundedRectangle(cornerRadius: Metric.tileCorner, style: .continuous)
                     .fill(LinearGradient(
-                        colors: [repoFill.opacity(isDark ? (selected ? 0.42 : 0.2) : (selected ? 0.3 : 0.14)),
-                                 repoFill.opacity(isDark ? (selected ? 0.2 : 0.07) : (selected ? 0.14 : 0.05))],
+                        colors: [repoFill.opacity(isDark ? (selected ? 0.4 : 0.15) : (selected ? 0.28 : 0.11)),
+                                 repoFill.opacity(isDark ? (selected ? 0.18 : 0.05) : (selected ? 0.13 : 0.04))],
                         startPoint: .top, endPoint: .bottom))
                 RoundedRectangle(cornerRadius: Metric.tileCorner, style: .continuous)
                     .strokeBorder(
@@ -1055,20 +1084,6 @@ struct PaletteView: View {
     }
 }
 
-/// Staggered arrival for one piece of the cluster.
-private struct PieceArrival: ViewModifier {
-    let shown: Bool
-    let index: Int
-    let reduceMotion: Bool
-
-    func body(content: Content) -> some View {
-        content
-            .offset(y: shown || reduceMotion ? 0 : 6)
-            .animation(reduceMotion ? nil
-                       : .spring(response: 0.34, dampingFraction: 0.85).delay(Double(index) * 0.05),
-                       value: shown)
-    }
-}
 
 /// Hover-brightening text button for the launch line.
 private struct SegmentButton: View {

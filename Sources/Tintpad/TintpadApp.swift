@@ -6,14 +6,21 @@ struct TintpadApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @ObservedObject private var store = AppStore.shared
 
-    /// Branded menu-bar glyph: the ⌘ mark in Tintpad orange.
+    /// The brand caret as a template glyph: the menu bar tints it like every
+    /// native status item (the old hard-orange ⌘ ignored appearance and
+    /// looked like a sticker next to the system's monochrome icons).
     private static let menuIcon: NSImage = {
-        let cfg = NSImage.SymbolConfiguration(pointSize: 15, weight: .medium)
-            .applying(NSImage.SymbolConfiguration(
-                paletteColors: [NSColor(srgbRed: 1.0, green: 0.45, blue: 0.20, alpha: 1)]))
-        let img = NSImage(systemSymbolName: "command", accessibilityDescription: "Tintpad")?
-            .withSymbolConfiguration(cfg) ?? NSImage()
-        img.isTemplate = false
+        let img = NSImage(size: NSSize(width: 16, height: 15), flipped: false) { rect in
+            let caret = NSAttributedString(string: "❯", attributes: [
+                .font: NSFont.monospacedSystemFont(ofSize: 12.5, weight: .bold),
+                .foregroundColor: NSColor.black,
+            ])
+            let s = caret.size()
+            caret.draw(at: NSPoint(x: (rect.width - s.width) / 2,
+                                   y: (rect.height - s.height) / 2))
+            return true
+        }
+        img.isTemplate = true
         return img
     }()
 

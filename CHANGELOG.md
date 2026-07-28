@@ -28,7 +28,19 @@ three-way engineering audit, and the launch flow taught to remember.
   Pro speaks prose), with a monochrome sidebar and the accent only on "here".
 - The panel window is borderless and draws no system shadow, which fixes the
   square ghost band macOS 26 drew behind rounded glass. Pieces carry their own
-  shadows and arrive with a 50ms stagger (transform-only, Reduce Motion honored).
+  shadows.
+- **Motion that means something.** On summon the three pieces spring apart from
+  one blended glass body (the container's blend distance sits just under the
+  resting gap, so they fuse only in transit). ↵ plays a 160ms launch gesture,
+  the selected tile pulses as the cluster releases downward, and worktree and
+  prompt modes crossfade instead of hard-cutting. All transform-only, all
+  skipped under Reduce Motion (which also closes instantly, because a delay
+  with no animation is just lag).
+- **A real icon.** The app icon and menu-bar glyph are now drawn from the
+  product's own grammar (a dark tile, the brand caret, a block cursor: a
+  prompt, waiting), generated reproducibly by `Scripts/make-icon.swift`. The
+  menu-bar glyph is a proper template image that follows the system
+  appearance instead of a hard-orange sticker.
 
 ### Launch flow
 - **Repos remember how you opened them last.** Every launch stamps the repo's

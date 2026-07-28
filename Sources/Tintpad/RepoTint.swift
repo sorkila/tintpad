@@ -14,8 +14,8 @@ enum RepoTint {
     /// The repo's identity color, tuned per scheme so it reads on glass.
     static func color(for name: String, dark: Bool) -> Color {
         Color(hue: hue(for: name) / 360,
-              saturation: dark ? 0.52 : 0.58,
-              brightness: dark ? 0.88 : 0.52)
+              saturation: dark ? 0.55 : 0.58,
+              brightness: dark ? 0.92 : 0.52)
     }
 
     /// A quieter version for fills, so the letter stays the loudest thing.
