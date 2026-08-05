@@ -593,8 +593,10 @@ struct PaletteView: View {
 
     /// Transparent room around the drop where its shadow falls.
     static let shadowMargin: CGFloat = 30
-    /// How far the bead falls from the housing's lip to where it rests.
-    private static let fall: CGFloat = 22
+    /// How far the bead falls from the housing's lip to where it rests —
+    /// enough air that the drop visibly hangs below the housing rather
+    /// than clinging to it.
+    private static let fall: CGFloat = 34
     /// The bead before it spreads.
     private static let beadSize: CGFloat = 14
 

@@ -62,24 +62,33 @@ pkill -x Tintpad || true
 pkill -f demo-backdrop.swift || true
 
 echo "▸ Cutting assets…"
-# A crisp notch matte with real rounded bottom corners — drawbox can't
-# round, so a tiny stdlib PNG writer builds it once per run.
+# Frame furniture, rendered by a tiny stdlib PNG writer: an anti-aliased
+# notch tab (1.5px feathered corners) and a bezel-shadow gradient for the
+# top edge, so the frame reads as hardware, not as a crop.
 python3 - "$WORK/notch.png" <<'EOF'
-import struct, sys, zlib
-W, H, R = 320, 24, 10
+import math, struct, sys, zlib
+W, H = 340, 36          # canvas: 320x24 tab + room for shadow and rim
+CX, HW, TH, R = W / 2, 160, 24, 10
 rows = []
 for y in range(H):
     row = bytearray([0])
     for x in range(W):
-        a = 255
-        if y > H - R:
-            dy = y - (H - R)
-            for cx in (R, W - R):
-                if (x < R and cx == R) or (x > W - R and cx == W - R):
-                    import math
-                    if math.hypot(x - (R if cx == R else W - R), dy) > R:
-                        a = 0
-        row += bytes([0, 0, 0, a])
+        qx = max(abs(x - CX) - (HW - R), 0)
+        qy = max(y - (TH - R), 0)
+        d = math.hypot(qx, qy) - R
+        fill = max(0.0, min(1.0, (0.75 - d) / 1.5))
+        # A hairline of light just inside the silhouette — the notch
+        # catching light, so the tab reads on any backdrop.
+        rim = max(0.0, 1 - abs(d + 0.4) / 1.3)
+        shadow = 0.0
+        if d > 0:
+            shadow = 0.34 * (1 - min(d / 9, 1)) ** 2
+        if rim > 0.12:
+            c = int(210 * rim)
+            aa = int(255 * max(fill, rim * 0.55, shadow))
+            row += bytes([c, c, min(255, c + 8), aa])
+        else:
+            row += bytes([0, 0, 0, int(255 * max(fill, shadow))])
     rows.append(bytes(row))
 raw = b"".join(rows)
 def chunk(t, d):
@@ -92,23 +101,25 @@ png += chunk(b"IEND", b"")
 open(sys.argv[1], "wb").write(png)
 EOF
 
-# The cut film: four shots, hard cuts, each landing just before an action.
-#   S1 wide        — the fall out of the notch, micro push for life
-#   S2 medium      — the selection walking the tokens (cut lands between chips)
-#   S3 tight       — the chips: agent flip, then the red dwell (micro push)
-#   S4 wide        — rest, the calm loop point
-# The menu-bar text left and right is smeared away (boxblur) so the top of
-# frame reads as hardware: blank bar, crisp black notch, the drop beneath it.
-MASK="crop=1800:446:612:78,fps=60"
+# One continuous camera, the Motion way: four held framings — wide
+# (arrival), medium (choosing), tight (the contract), wide (rest) —
+# connected by fast quintic-eased dollies (0.45s), each timed to coincide
+# with an on-screen action so motion masks motion. 3x oversampling keeps
+# every move sub-pixel. The notch tab is bezel-fixed and fades out while
+# the camera is committed to the close framings; a bezel-shadow gradient
+# holds the top edge together.
+QUINT='st(1,clip((ld(0)-2.5)/0.45,0,1));st(1,ld(1)*ld(1)*ld(1)*(ld(1)*(ld(1)*6-15)+10));st(2,clip((ld(0)-5.0)/0.45,0,1));st(2,ld(2)*ld(2)*ld(2)*(ld(2)*(ld(2)*6-15)+10));st(3,clip((ld(0)-10.0)/0.5,0,1));st(3,ld(3)*ld(3)*ld(3)*(ld(3)*(ld(3)*6-15)+10))'
+Z="st(0,in/60);${QUINT};1+0.25*ld(1)+0.37*ld(2)-0.62*ld(3)"
+X="st(0,in/60);${QUINT};st(4,(900-100*ld(1)+420*ld(2)-320*ld(3))*3);clip(ld(4)-(iw/zoom)/2,0,iw-iw/zoom)"
+Y="st(0,in/60);${QUINT};st(5,(223-45*ld(1)-41*ld(2)+86*ld(3))*3);clip(ld(5)-(ih/zoom)/2,0,ih-ih/zoom)"
 ffmpeg -y -i "$WORK/demo-raw.mov" -i "$WORK/notch.png" -filter_complex "\
-[0:v]${MASK}[band];\
-[1:v]split=2[n1][n4];\
-[band]split=4[s1][s2][s3][s4];\
-[s1]trim=0.9:3.4,setpts=PTS-STARTPTS,scale=5400:-2,zoompan=z='st(0,clip(in/150,0,1));st(0,ld(0)*ld(0)*(3-2*ld(0)));1+0.05*ld(0)':x='(iw-iw/zoom)/2':y=0:d=1:s=1600x396:fps=60[c1p];[c1p][n1]overlay=640:0[c1];\
-[s2]trim=3.4:5.9,setpts=PTS-STARTPTS,crop=1440:357:80:0,scale=1600:396[c2];\
-[s3]trim=5.9:10.9,setpts=PTS-STARTPTS,scale=5400:-2,zoompan=z='st(0,clip(in/300,0,1));st(0,ld(0)*ld(0)*(3-2*ld(0)));1.62+0.08*ld(0)':x='min(4350-(iw/zoom)/2,iw-iw/zoom)':y=0:d=1:s=1600x396:fps=60[c3];\
-[s4]trim=10.9:12.9,setpts=PTS-STARTPTS,scale=1600:396[c4p];[c4p][n4]overlay=640:0[c4];\
-[c1][c2][c3][c4]concat=n=4:v=1:a=0[out]" -map "[out]" \
+[0:v]crop=1800:446:612:78,fps=60,trim=0.9:12.9,setpts=PTS-STARTPTS,scale=5400:-2,\
+zoompan=z='${Z}':x='${X}':y='${Y}':d=1:s=1600x396:fps=60[cam];\
+[1:v]loop=loop=720:size=1:start=0,fps=60,format=rgba,split=2[ta0][tb0];\
+[ta0]fade=out:st=2.5:d=0.45:alpha=1[ta];\
+[tb0]fade=in:st=10.0:d=0.5:alpha=1[tb];\
+[cam][ta]overlay=630:0:shortest=1[o1];\
+[o1][tb]overlay=630:0:shortest=1[out]" -map "[out]" \
   -c:v libx264 -preset slow -crf 19 -pix_fmt yuv420p -movflags +faststart -an \
   web/assets/demo.mp4
 ffmpeg -y -ss 8.2 -i web/assets/demo.mp4 -frames:v 1 -q:v 3 web/assets/demo-poster.jpg
