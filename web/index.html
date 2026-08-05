@@ -43,15 +43,18 @@
     border:1px solid var(--line);border-top:0}
 
   nav{display:flex;justify-content:space-between;align-items:center;padding:22px 0;font-size:14px}
-  .logo{display:flex;align-items:center;gap:9px;font-weight:550;letter-spacing:-.01em}
-  .logo img{width:22px;height:22px;border-radius:6px}
+  .logo{display:flex;align-items:center;gap:10px;font-weight:550;letter-spacing:-.01em}
+  /* The mark sits in a hardware tile — the black drop needs a bezel on a black page. */
+  .logo .mark{width:27px;height:27px;border-radius:8px;background:#16161a;
+    border:1px solid rgba(255,255,255,.14);display:grid;place-items:center}
+  .logo .mark img{width:21px;height:21px;border-radius:5px;display:block}
   nav .links a{color:var(--dim);margin-left:22px;transition:color .15s}
   nav .links a:hover{color:var(--text)}
 
-  .hero{text-align:center;padding:56px 0 0}
+  .hero{text-align:left;padding:60px 0 0}
   h1{font-size:clamp(38px,6.4vw,60px);font-weight:600;letter-spacing:-.035em;line-height:1.05;color:var(--text)}
-  .hero p{color:var(--dim);font-size:18px;line-height:1.55;margin:22px auto 0;max-width:540px;letter-spacing:-.01em}
-  .actions{margin-top:32px;display:flex;align-items:center;justify-content:center;gap:22px}
+  .hero p{color:var(--dim);font-size:18px;line-height:1.55;margin:20px 0 0;max-width:520px;letter-spacing:-.01em}
+  .actions{margin-top:30px;display:flex;align-items:center;gap:20px}
   /* The CTA is the product's own signature: the white chip, black ink. */
   .chip-cta{display:inline-block;background:#fff;color:#0a0a0c;font-weight:600;padding:12px 24px;
     border-radius:99px;font-size:15px;cursor:pointer;border:0;
@@ -59,7 +62,18 @@
   .chip-cta:hover{transform:translateY(-1px);box-shadow:0 14px 40px rgba(255,255,255,.16)}
   .ghost{color:var(--dim);font-size:14.5px;transition:color .15s}
   .ghost:hover{color:var(--text)}
-  .meta{margin-top:18px;color:var(--faint);font-size:12.5px;font-family:var(--mono);letter-spacing:.01em}
+  .meta{margin-top:16px;color:var(--faint);font-size:12.5px;font-family:var(--mono);letter-spacing:.01em}
+  .meta code{color:var(--dim);user-select:all}
+
+  /* Keystrokes, the way the app teaches them. */
+  .keyrow{display:grid;grid-template-columns:210px 1fr;gap:18px;align-items:baseline;
+    padding:14px 0;border-top:1px solid var(--line)}
+  .keyrow:first-of-type{border-top:0}
+  .keyrow .d{font-size:14.5px;color:var(--dim)}
+  .keyrow .d b{color:var(--text);font-weight:500}
+  kbd{display:inline-block;font-family:var(--mono);font-size:12.5px;color:var(--text);
+    background:#151519;border:1px solid rgba(255,255,255,.15);border-bottom-width:2px;
+    border-radius:7px;padding:3px 9px;margin-right:5px;white-space:nowrap}
 
   .shot{margin:48px auto 0;max-width:680px;animation:fall .5s cubic-bezier(.2,.9,.3,1) both}
   @keyframes fall{from{opacity:0;transform:translateY(-14px)}to{opacity:1;transform:none}}
@@ -153,7 +167,7 @@
 <div class="notch" aria-hidden="true"></div>
 <div class="wrap">
   <nav>
-    <span class="logo"><img src="assets/icon.png?v=2" alt=""/>tintpad</span>
+    <span class="logo"><span class="mark"><img src="assets/icon.png?v=2" alt=""/></span>tintpad</span>
     <span class="links"><a href="#how">How</a><a href="#price">Price</a><a href="#faq">FAQ</a><a href="https://github.com/sorkila/tintpad">Source</a></span>
   </nav>
 
@@ -165,7 +179,7 @@
       <a href="https://github.com/sorkila/tintpad/releases/latest/download/Tintpad.dmg"><button class="chip-cta">Download for macOS</button></a>
       <a class="ghost" href="https://github.com/sorkila/tintpad">view source ›</a>
     </div>
-    <div class="meta">macOS 14+ · native Swift · signed &amp; notarized · no accounts</div>
+    <div class="meta">macOS 14+ · signed &amp; notarized · MIT · <code>brew install --cask sorkila/tap/tintpad</code></div>
 
     <div class="shot">
       <video class="demo" autoplay loop muted playsinline preload="metadata"
@@ -179,8 +193,18 @@
 
 <section id="how">
   <div class="wrap">
+    <h2>HOW</h2>
+    <div class="keys">
+      <div class="keyrow"><span><kbd>⌥⌘Space</kbd></span><span class="d">The drop falls. <b>Your repos</b>, most-used first.</span></div>
+      <div class="keyrow"><span><kbd>←</kbd><kbd>→</kbd> or type</span><span class="d">Walk the row, or filter it. The chips say <b>exactly what Return runs</b>.</span></div>
+      <div class="keyrow"><span><kbd>⏎</kbd></span><span class="d">Your terminal opens at the repo, <b>agent already running</b>. The drop drains home.</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="features">
+  <div class="wrap">
     <h2>WHAT IT DOES</h2>
-    <p class="lede">The part the agent menu-bar apps skipped: getting into the work.</p>
     <div class="list">
       <div class="item"><div class="h">The drop</div><div class="d">Black on black, it grows out of the housing. No window, no glass. Macs without a notch get the same drop below the menu bar.</div></div>
       <div class="item"><div class="h">Hands off to your terminal</div><div class="d">Ghostty, iTerm2, kitty, WezTerm, Alacritty, Terminal, Warp. Opened at the repo, command running.</div></div>
