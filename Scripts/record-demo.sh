@@ -42,6 +42,7 @@ s['repos'] = [{
     "path": f"/Users/eriknielsen/Repositories/{name}", "pinned": pinned,
 } for name, agent, score, pinned in names]
 s['sessions'] = []
+s['settings']['tintedChips'] = False   # the film stays monochrome
 # Deterministic mode cycle for the red beat: the demo Claude has exactly
 # Default and the dangerous mode (the user's store may carry legacy extras).
 for a in s['agents']:

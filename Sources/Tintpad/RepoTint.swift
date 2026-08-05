@@ -34,6 +34,13 @@ enum RepoTint {
               brightness: dark ? 0.68 : 0.66)
     }
 
+    /// The Supporter chip: the repo's hue bleached to near-white, so the
+    /// selected chip blooms in its own color — one drop of tint in the
+    /// black, black ink still winning the contrast.
+    static func chip(for name: String) -> Color {
+        Color(hue: hue(for: name) / 360, saturation: 0.34, brightness: 0.94)
+    }
+
     /// The tile's short name — more recognizable than a monogram letter.
     /// Whole name when it already fits (≤4 chars), word initials for
     /// multiword names, else a three-letter prefix. Always uppercase.

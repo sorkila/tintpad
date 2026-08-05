@@ -93,6 +93,8 @@ final class PaletteModel: ObservableObject {
     // MARK: - Derived state
 
     var accent: Color { store.settings.tintAccent.color }
+    /// Supporter perk: tinted selection chip (cosmetic only, like every gate).
+    var tintedChips: Bool { store.allows(.customTint) && store.settings.tintedChips }
     var prompts: [PromptTemplate] { store.prompts }
     var allRepos: [Repo] { store.repos }
 
@@ -591,8 +593,10 @@ struct PaletteView: View {
     @State private var contentShown = false
     @State private var landBob = false    // one soft bounce as the drop settles
 
-    /// Transparent room around the drop where its shadow falls.
-    static let shadowMargin: CGFloat = 30
+    /// Transparent room around the drop where its shadow falls — sized for
+    /// the full blur diameter (radius 16, y-offset 8), because a shadow that
+    /// clips at the window edge reads as a hairline seam on bright walls.
+    static let shadowMargin: CGFloat = 44
     /// How far the bead falls from the housing's lip to where it rests —
     /// enough air that the drop visibly hangs below the housing rather
     /// than clinging to it.
@@ -714,11 +718,11 @@ struct PaletteView: View {
         }
         // The middle-region swap is a crossfade, never a hard cut.
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.16), value: middleToken)
-        // Optical law: the first chip's margin matches the vertical inset —
-        // plus the round-end compensation. A capsule's curve eats into the
-        // corner, so the geometric margin alone reads as a clip; the extra
-        // points give back what the curve takes.
-        .padding(.horizontal, (dropH - chipH) / 2 + 5)
+        // Optical law: the first chip's margin reads equal to the vertical
+        // inset. The scroll clip's 3pt protection already supplies the
+        // round-end breath — adding more made the left visibly heavier
+        // than the top and bottom.
+        .padding(.horizontal, (dropH - chipH) / 2)
     }
 
     // MARK: - Search region
@@ -880,7 +884,11 @@ struct PaletteView: View {
         .frame(height: chipH)
         .background {
             if selected {
-                Capsule(style: .continuous).fill(Color(white: 0.96))
+                // Supporters may spend one drop of color here: the chip in
+                // the repo's own bleached hue. Everyone else, pure white.
+                Capsule(style: .continuous)
+                    .fill(model.tintedChips ? RepoTint.chip(for: repo.name)
+                                            : Color(white: 0.96))
             }
         }
         .scaleEffect(selected && model.launching ? 0.94 : 1.0)

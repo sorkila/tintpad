@@ -104,7 +104,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .prompts:    "Reusable starting prompts"
         case .recents:    "Recent sessions and quick-resume"
         case .github:     "Import repositories from GitHub"
-        case .appearance: "Accent tint, theme, and palette"
+        case .appearance: "Theme and tints"
         case .about:      "Version, license, and updates"
         }
     }
@@ -220,8 +220,12 @@ struct AppearanceSettingsView: View {
 
     var body: some View {
         Form {
-            Section("Accent tint") {
-                Text("The tint is Tintpad's accent in onboarding. The drop itself stays black and white.")
+            Section("Tint") {
+                Toggle("Selected repo's chip in its own hue", isOn: store.bind(\.tintedChips))
+                    .disabled(!store.isSupporter)
+                Text(store.isSupporter
+                     ? "One drop of color in the black: the white chip blooms in the repo's hue. Off keeps the drop pure black and white."
+                     : "The Supporter perk. Tip, email your receipt, get a key — the chip blooms in each repo's own hue.")
                     .font(.caption).foregroundStyle(.secondary)
                 HStack(spacing: 14) {
                     ForEach(TintAccent.allCases) { tint in
@@ -229,6 +233,8 @@ struct AppearanceSettingsView: View {
                     }
                 }
                 .padding(.vertical, 6)
+                Text("The accent colors onboarding.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
 
             Section("Appearance") {

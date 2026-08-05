@@ -186,6 +186,8 @@ struct Settings: Codable {
     var openInNewTab: Bool = false
     /// Optional root folder where new worktrees are created (nil = sibling of repo).
     var worktreeRoot: String?
+    /// Supporter perk: the selected repo's chip blooms in its own hue.
+    var tintedChips: Bool = true
     /// Pro license key (Ed25519-signed); nil = free tier.
     var licenseKey: String?
     /// First-run onboarding completed.
@@ -210,6 +212,7 @@ struct Settings: Codable {
         panelWidth = g(.panelWidth, 640)
         alsoOpenEditor = g(.alsoOpenEditor, false)
         openInNewTab = g(.openInNewTab, false)
+        tintedChips = g(.tintedChips, true)
         hasOnboarded = g(.hasOnboarded, false)
     }
 
