@@ -19,8 +19,8 @@
 <meta name="twitter:description" content="A hotkey, a black drop from the notch, your repos inside. Return opens your terminal with your agent already running. Free, open source, native macOS." />
 <meta name="twitter:image" content="https://tintpad.com/assets/og.png" />
 <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png" />
-<link rel="icon" type="image/png" href="assets/icon.png" />
-<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png" />
+<link rel="icon" type="image/png" href="assets/icon.png?v=2" />
+<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=2" />
 <script defer src="https://cloud.umami.is/script.js" data-website-id="e2f753b7-c462-48c7-8bfc-46e6e78aa516"></script>
 <style>
   :root{
@@ -45,8 +45,6 @@
   nav{display:flex;justify-content:space-between;align-items:center;padding:22px 0;font-size:14px}
   .logo{display:flex;align-items:center;gap:9px;font-weight:550;letter-spacing:-.01em}
   .logo img{width:22px;height:22px;border-radius:6px}
-  .logo .beta{font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.08em;
-    color:var(--faint);border:1px solid var(--line);border-radius:99px;padding:1px 8px;line-height:1.6}
   nav .links a{color:var(--dim);margin-left:22px;transition:color .15s}
   nav .links a:hover{color:var(--text)}
 
@@ -82,13 +80,6 @@
   .item.red .h{color:var(--danger)}
   @media(max-width:520px){.item{grid-template-columns:1fr;gap:3px}}
 
-  /* Etched chips, straight from the drop. */
-  .fieldchip{display:inline-flex;align-items:baseline;gap:6px;border:1px solid var(--line);
-    border-radius:99px;padding:3px 11px;font-size:12.5px;color:var(--dim);white-space:nowrap}
-  .fieldchip b{font-size:9px;font-weight:600;letter-spacing:.08em;color:var(--faint)}
-  .fieldchip.red{border-color:rgba(229,72,77,.45);background:var(--danger-soft);color:var(--danger)}
-  .fieldchip.red b{color:rgba(229,72,77,.7)}
-  .chiprow{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
 
   .price{display:flex;gap:48px;margin-top:8px;flex-wrap:wrap}
   .price .t{font-size:12px;color:var(--faint);font-family:var(--mono);letter-spacing:.08em}
@@ -162,15 +153,14 @@
 <div class="notch" aria-hidden="true"></div>
 <div class="wrap">
   <nav>
-    <span class="logo"><img src="assets/icon.png" alt=""/>tintpad<span class="beta">BETA</span></span>
+    <span class="logo"><img src="assets/icon.png?v=2" alt=""/>tintpad</span>
     <span class="links"><a href="#how">How</a><a href="#price">Price</a><a href="#faq">FAQ</a><a href="https://github.com/sorkila/tintpad">Source</a></span>
   </nav>
 
   <div class="hero">
     <h1>It falls out of<br/>your notch.</h1>
-    <p>Press a hotkey and a black drop falls from the camera housing, your repos inside.
-       Arrow to one, Return, and your terminal opens there with Claude Code, Codex, or
-       whatever you run already going. Hands off to the terminal you use, not a new one.</p>
+    <p>Press a hotkey. A black drop falls from the notch, your repos inside.
+       Return opens your terminal at that repo, agent already running.</p>
     <div class="actions">
       <a href="https://github.com/sorkila/tintpad/releases/latest/download/Tintpad.dmg"><button class="chip-cta">Download for macOS</button></a>
       <a class="ghost" href="https://github.com/sorkila/tintpad">view source ›</a>
@@ -190,21 +180,15 @@
 <section id="how">
   <div class="wrap">
     <h2>WHAT IT DOES</h2>
-    <p class="lede">The Claude and Codex menu-bar apps watch your usage. This is the part they skipped, so you get into the work.</p>
+    <p class="lede">The part the agent menu-bar apps skipped: getting into the work.</p>
     <div class="list">
-      <div class="item"><div class="h">The drop</div><div class="d">Black on black, it grows out of the housing itself. No window, no glass, nothing behind it to fight. Macs without a notch get the same drop below the menu bar.</div></div>
-      <div class="item"><div class="h">Hands off to your terminal</div><div class="d">Ghostty, iTerm2, kitty, WezTerm, Alacritty, Terminal, Warp. Detected, opened at the repo, command running.</div></div>
-      <div class="item red"><div class="h">The contract</div><div class="d">Two chips say exactly what Return runs, the agent and the mode, in each agent's own words. The mode that skips permissions is red, never silent, and always asks twice.</div>
+      <div class="item"><div class="h">The drop</div><div class="d">Black on black, it grows out of the housing. No window, no glass. Macs without a notch get the same drop below the menu bar.</div></div>
+      <div class="item"><div class="h">Hands off to your terminal</div><div class="d">Ghostty, iTerm2, kitty, WezTerm, Alacritty, Terminal, Warp. Opened at the repo, command running.</div></div>
+      <div class="item red"><div class="h">The contract</div><div class="d">Two chips say what Return runs: the agent and the mode. The one that skips permissions is red, and asks twice.</div>
       </div>
-      <div class="item"><div class="h">Frecency</div><div class="d">Repos you use most float up, the way zoxide does it, and each one reopens with the agent and mode you used last. ⌘0 replays your last session exactly.</div></div>
-      <div class="item"><div class="h">Worktrees</div><div class="d">One keystroke spins up an isolated branch checkout and launches the agent in it.</div></div>
-      <div class="item"><div class="h">Local only</div><div class="d">A JSON file on your Mac. No accounts, no telemetry, license checked offline. The core is open.</div></div>
-    </div>
-    <div class="chiprow" aria-hidden="true">
-      <span class="fieldchip"><b>AGENT</b>Claude Code</span>
-      <span class="fieldchip red"><b>MODE</b>Skip permissions</span>
-      <span class="fieldchip"><b>AGENT</b>Codex</span>
-      <span class="fieldchip"><b>MODE</b>Untrusted</span>
+      <div class="item"><div class="h">Frecency</div><div class="d">Your most-used repos float up, and each reopens with the agent and mode it had last. ⌘0 replays the last session.</div></div>
+      <div class="item"><div class="h">Worktrees</div><div class="d">One keystroke: an isolated branch checkout with the agent launched in it.</div></div>
+      <div class="item"><div class="h">Local only</div><div class="d">A JSON file on your Mac. No accounts, no telemetry.</div></div>
     </div>
   </div>
 </section>
@@ -220,7 +204,7 @@
       </div>
       <div>
         <div class="t">SUPPORTER</div><div class="amt">tip <small>· pay what you want</small></div>
-        <ul><li>Funds the work, keeps it free</li><li><span class="tipwrap" tabindex="0" role="note" aria-label="How to unlock accent tints"><span>Accent tints <em class="hint">how?</em></span><span class="bubble"><strong>A drop of color, on your terms.</strong> The unlock is gloriously manual for now: leave a tip, email your receipt to <a href="mailto:erik@sorkila.com">erik@sorkila.com</a>, and I hand-sign you a license key. Yes, by hand, like it's 1998. A proper one-tap unlock is on the roadmap, building it is half the fun. 🛠️</span></span></li><li>A little heart in the About box ♥</li></ul>
+        <ul><li>Funds the work, keeps it free</li><li><span class="tipwrap" tabindex="0" role="note" aria-label="How to unlock accent tints"><span>Accent tints <em class="hint">how?</em></span><span class="bubble"><strong>A drop of color, on your terms.</strong> Manual for now: tip, email the receipt to <a href="mailto:erik@sorkila.com">erik@sorkila.com</a>, and I hand-sign you a key. Like it's 1998.</span></span></li><li>A little heart in the About box ♥</li></ul>
         <a class="coffee" href="https://www.buymeacoffee.com/eriknielsen" target="_blank" rel="noopener">☕ Buy me a coffee</a>
       </div>
     </div>

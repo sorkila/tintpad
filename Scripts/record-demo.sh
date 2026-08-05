@@ -50,9 +50,9 @@ for a in s['agents']:
 with open(path, 'w') as f: json.dump(s, f, indent=1)
 EOF
 
-echo "▸ Recording (10.5s)…"
-screencapture -v -V 10.5 "$WORK/demo-raw.mov" & sleep 0.7
-TINTPAD_DEMO=1 TINTPAD_SCREEN_PRIMARY=1 "$APP" & sleep 12
+echo "▸ Recording (13s)…"
+screencapture -v -V 13 "$WORK/demo-raw.mov" & sleep 0.7
+TINTPAD_DEMO=1 TINTPAD_SCREEN_PRIMARY=1 "$APP" & sleep 14.5
 pkill -x Tintpad || true
 
 echo "▸ Hero still…"
@@ -66,7 +66,7 @@ echo "▸ Cutting assets…"
 # round, so a tiny stdlib PNG writer builds it once per run.
 python3 - "$WORK/notch.png" <<'EOF'
 import struct, sys, zlib
-W, H, R = 360, 78, 22
+W, H, R = 320, 24, 10
 rows = []
 for y in range(H):
     row = bytearray([0])
@@ -99,23 +99,21 @@ EOF
 #   S4 wide        — rest, the calm loop point
 # The menu-bar text left and right is smeared away (boxblur) so the top of
 # frame reads as hardware: blank bar, crisp black notch, the drop beneath it.
-MASK="crop=1800:446:612:0,fps=60,split=3[b0][ml][mr];\
-[ml]crop=720:78:0:0,boxblur=luma_radius=30:luma_power=3:chroma_radius=15:chroma_power=2[mlb];\
-[mr]crop=720:78:1080:0,boxblur=luma_radius=30:luma_power=3:chroma_radius=15:chroma_power=2[mrb];\
-[b0][mlb]overlay=0:0[t1];[t1][mrb]overlay=1080:0[t2];[t2][1:v]overlay=720:0"
+MASK="crop=1800:446:612:78,fps=60"
 ffmpeg -y -i "$WORK/demo-raw.mov" -i "$WORK/notch.png" -filter_complex "\
 [0:v]${MASK}[band];\
+[1:v]split=2[n1][n4];\
 [band]split=4[s1][s2][s3][s4];\
-[s1]trim=0.9:2.55,setpts=PTS-STARTPTS,scale=5400:-2,zoompan=z='st(0,clip(in/99,0,1));st(0,ld(0)*ld(0)*(3-2*ld(0)));1+0.05*ld(0)':x='(iw-iw/zoom)/2':y=0:d=1:s=1600x396:fps=60[c1];\
-[s2]trim=2.55:4.55,setpts=PTS-STARTPTS,crop=1440:357:80:8,scale=1600:396[c2];\
-[s3]trim=4.55:8.35,setpts=PTS-STARTPTS,scale=5400:-2,zoompan=z='st(0,clip(in/228,0,1));st(0,ld(0)*ld(0)*(3-2*ld(0)));1.62+0.08*ld(0)':x='min(4350-(iw/zoom)/2,iw-iw/zoom)':y=60:d=1:s=1600x396:fps=60[c3];\
-[s4]trim=8.35:10.3,setpts=PTS-STARTPTS,scale=1600:396[c4];\
+[s1]trim=0.9:3.4,setpts=PTS-STARTPTS,scale=5400:-2,zoompan=z='st(0,clip(in/150,0,1));st(0,ld(0)*ld(0)*(3-2*ld(0)));1+0.05*ld(0)':x='(iw-iw/zoom)/2':y=0:d=1:s=1600x396:fps=60[c1p];[c1p][n1]overlay=640:0[c1];\
+[s2]trim=3.4:5.9,setpts=PTS-STARTPTS,crop=1440:357:80:0,scale=1600:396[c2];\
+[s3]trim=5.9:10.9,setpts=PTS-STARTPTS,scale=5400:-2,zoompan=z='st(0,clip(in/300,0,1));st(0,ld(0)*ld(0)*(3-2*ld(0)));1.62+0.08*ld(0)':x='min(4350-(iw/zoom)/2,iw-iw/zoom)':y=0:d=1:s=1600x396:fps=60[c3];\
+[s4]trim=10.9:12.9,setpts=PTS-STARTPTS,scale=1600:396[c4p];[c4p][n4]overlay=640:0[c4];\
 [c1][c2][c3][c4]concat=n=4:v=1:a=0[out]" -map "[out]" \
   -c:v libx264 -preset slow -crf 19 -pix_fmt yuv420p -movflags +faststart -an \
   web/assets/demo.mp4
-ffmpeg -y -ss 6.6 -i web/assets/demo.mp4 -frames:v 1 -q:v 3 web/assets/demo-poster.jpg
-sips -c 440 1800 --cropOffset 0 612 "$WORK/hero-full.png" --out docs/assets/palette.png >/dev/null
-sips -c 800 1600 --cropOffset 0 712 "$WORK/hero-full.png" --out "$WORK/og-crop.png" >/dev/null
+ffmpeg -y -ss 8.2 -i web/assets/demo.mp4 -frames:v 1 -q:v 3 web/assets/demo-poster.jpg
+sips -c 446 1800 --cropOffset 78 612 "$WORK/hero-full.png" --out docs/assets/palette.png >/dev/null
+sips -c 800 1600 --cropOffset 78 712 "$WORK/hero-full.png" --out "$WORK/og-crop.png" >/dev/null
 sips -z 640 1280 "$WORK/og-crop.png" --out web/assets/og.png >/dev/null
 
 echo "✓ Assets written: web/assets/demo.mp4, demo-poster.jpg, og.png, docs/assets/palette.png"
