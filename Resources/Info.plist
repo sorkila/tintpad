@@ -2,56 +2,50 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleName</key>
-    <string>Tintpad</string>
-    <key>CFBundleDisplayName</key>
-    <string>Tintpad</string>
-    <key>CFBundleIdentifier</key>
-    <string>com.sorkila.tintpad</string>
-    <key>CFBundleExecutable</key>
-    <string>Tintpad</string>
-    <key>CFBundleIconFile</key>
-    <string>Tintpad</string>
-    <key>CFBundleIconName</key>
-    <string>Tintpad</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleShortVersionString</key>
-    <string>0.3.0</string>
-    <key>CFBundleVersion</key>
-    <string>2</string>
-    <key>LSMinimumSystemVersion</key>
-    <string>14.0</string>
-    <!-- Accessory app: menu-bar only, no Dock icon. -->
-    <key>LSUIElement</key>
-    <true/>
-    <!-- Required so AppleScript-driven terminals (iTerm2/Terminal.app) get a
-         proper Automation (Apple Events) TCC prompt with this explanation. -->
-    <key>NSAppleEventsUsageDescription</key>
-    <string>Tintpad opens your terminal and runs the selected coding agent at the chosen repository.</string>
-    <key>NSHumanReadableCopyright</key>
-    <string>© 2026 Sörkila</string>
-    <!-- tintpad:// — summons the palette (e.g. from a Raycast script command). -->
-    <key>CFBundleURLTypes</key>
-    <array>
-        <dict>
-            <key>CFBundleURLName</key>
-            <string>com.sorkila.tintpad</string>
-            <key>CFBundleURLSchemes</key>
-            <array>
-                <string>tintpad</string>
-            </array>
-        </dict>
-    </array>
-    <!-- Sparkle auto-update. Replace SUPublicEDKey with the public key printed
-         by Sparkle's generate_keys (the private key stays in your Keychain). -->
-    <key>SUFeedURL</key>
-    <string>https://tintpad.com/appcast.xml</string>
-    <key>SUPublicEDKey</key>
-    <string>ySK9S3I/sYkwt9qR+xdJmJfpApQIibkJwIj9nX/nQak=</string>
-    <key>SUEnableAutomaticChecks</key>
-    <true/>
-    <key>SUScheduledCheckInterval</key>
-    <integer>86400</integer>
+	<key>CFBundleDisplayName</key>
+	<string>Tintpad</string>
+	<key>CFBundleExecutable</key>
+	<string>Tintpad</string>
+	<key>CFBundleIconFile</key>
+	<string>Tintpad</string>
+	<key>CFBundleIconName</key>
+	<string>Tintpad</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.sorkila.tintpad</string>
+	<key>CFBundleName</key>
+	<string>Tintpad</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.3.0</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.sorkila.tintpad</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>tintpad</string>
+			</array>
+		</dict>
+	</array>
+	<key>CFBundleVersion</key>
+	<string>3</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Tintpad opens your terminal and runs the selected coding agent at the chosen repository.</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>© 2026 Sörkila</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://tintpad.com/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>ySK9S3I/sYkwt9qR+xdJmJfpApQIibkJwIj9nX/nQak=</string>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
 </dict>
 </plist>

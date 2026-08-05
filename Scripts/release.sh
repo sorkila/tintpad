@@ -33,9 +33,10 @@ echo "▸ DMG sha256: ${SHA}"
 # $(...) trips bash on the parens/backticks in the body).
 NOTES_FILE="$(mktemp)"
 cat > "$NOTES_FILE" <<EOF
-**Tintpad**: press ⌥⌘Space, arrow or type to a repo, hit Enter, and your terminal opens there
-with your coding agent (Claude Code, Codex, …) already running. Think ⌘Tab, for repos. Hands
-off to the terminal you already use. Native, local-only, free and open source.
+**Tintpad**: press ⌥⌘Space and a black drop falls out of your Mac's notch with your repos
+inside. Return opens your terminal at that repo with your coding agent (Claude Code, Codex, …)
+already running. Hands off to the terminal you already use. Native, local-only, free and open
+source.
 
 ### Install
 - **Download \`Tintpad.dmg\` below**, drag to Applications, launch. macOS 14+.
@@ -43,16 +44,19 @@ off to the terminal you already use. Native, local-only, free and open source.
 - The build is signed with a Developer ID and notarized, so it opens past Gatekeeper. Auto-updates via Sparkle.
 
 ### What's inside
-- A floating Liquid Glass palette (real \`glassEffect\` on macOS 26): repo tiles with their own
-  tints, a launch line naming agent, mode, branch, and dirty state, and run modes in each
-  agent's own words (Default, Skip permissions, Full access).
-- Repos remember how you opened them last, ⌘0 replays your last session exactly, and every
-  permission-skipping path shares one confirm gate.
+- **The drop**: a pure-black capsule that falls from the camera housing (a floating pill below
+  the menu bar on notchless Macs). Stark black and white, springs all the way down, a crossfade
+  under Reduce Motion.
+- **The contract**: AGENT and MODE chips say exactly what Return runs, in each agent's own
+  words. The mode that skips permissions is a red-etched chip, and every permission-skipping
+  path shares one confirm gate.
+- Repos remember how you opened them last, ⌘0 replays your last session exactly.
 - Frecency search, git worktrees (⌃W), headless dispatch (⌃↵), prompt library, per-repo
   presets, GitHub import.
 - 7 terminals: Ghostty, iTerm2, kitty, WezTerm, Alacritty, Terminal.app, Warp.
-- Light + dark. Local-only: no accounts, no telemetry, nothing leaves your Mac.
-- Free and MIT, the whole app. The optional Supporter tip only unlocks custom accent tints.
+- Local-only: no accounts, no telemetry, nothing leaves your Mac.
+- Free and MIT, the whole app. The optional Supporter tip only unlocks tinted chips (the
+  selected repo's chip blooms in its own hue).
 
 Full notes: [CHANGELOG.md](https://github.com/${REPO}/blob/main/CHANGELOG.md) · sha256 \`${SHA}\`
 EOF
