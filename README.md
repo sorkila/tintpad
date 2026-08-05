@@ -22,14 +22,14 @@ whatever you run, already going.
 Press <kbd>⌥⌘Space</kbd>. Arrow or type to a repo. Hit <kbd>↵</kbd>. Your real terminal
 opens there with the agent running, in under two seconds, without the mouse.
 
-**Think ⌘Tab, for repos.** A floating Liquid Glass strip of your projects, each with its
+**Think ⌘Tab, for repos.** A black drop falls out of the notch with your projects inside, each with its
 own tint, ranked by how you actually work. It hands off to the terminal you already use.
 It doesn't try to be one.
 
 > Not a usage monitor. Not an IDE. Not a terminal. The launcher the agent menu-bar apps forgot.
 
 <div align="center">
-  <img src="docs/assets/palette.png" alt="Tintpad: a floating glass strip of repo tiles over a terminal, with a launch line reading claude code, default, on branch main" width="720" />
+  <img src="docs/assets/palette.png" alt="Tintpad: a black drop below the MacBook notch holding repo names, with AGENT and MODE chips reading Claude Code, Default" width="720" />
 </div>
 
 The bottom line is the contract: `claude code · default · ⑂ main*` — which agent, which
@@ -125,7 +125,8 @@ struct. See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/ARCHITECTURE.md](docs/A
 
 Tintpad is **free and MIT**, the whole thing. If it earns a spot in your day, leave a tip:
 [**Buy me a coffee →**](https://www.buymeacoffee.com/eriknielsen). Supporters get custom
-accent tints and my thanks, that's the only difference. To claim the tints, tip then email
+tinted chips (the selected repo's chip blooms in its own hue) and my thanks, that's the
+only difference. To claim it, tip then email
 your receipt to [erik@sorkila.com](mailto:erik@sorkila.com) and I'll send you an unlock key
 (it verifies offline, no account).
 

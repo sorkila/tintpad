@@ -10,11 +10,13 @@ Hands off to *your* terminal, it isn't one. Accessory app (`LSUIElement`), local
 no accounts. **Free & open source (MIT) + optional Supporter tip.**
 
 ## Status (shipped)
-**The drop landed on main 2026-08-05, unreleased**: a full design pivot — the palette
-is now a black capsule that falls out of the notch (see Palette design rules), Settings
-matches it (SF Pro, forced dark, monochrome), the website is redesigned around it.
-Ship it as 0.3.0 when blessed.
-**v0.2.0 is live** (2026-07-28): the 2.0 pass — Liquid Glass ⌘Tab palette, launch
+**v0.3.0 "the drop" is live** (2026-08-05): full design pivot — the palette is a black
+capsule that falls out of the notch (see Palette design rules), Settings matches it
+(SF Pro, forced dark, monochrome), website + demo film + app icon + GitHub social card
+all redesigned around it. The Supporter perk is now tinted chips. Same release train
+as before: bump `Resources/Info.plist` (BOTH CFBundleShortVersionString and
+CFBundleVersion — Sparkle compares the build number) then `./Scripts/release.sh`.
+**v0.2.0** (2026-07-28): the 2.0 pass — Liquid Glass ⌘Tab palette, launch
 memory, agent-vocabulary modes, three-audit hardening. Notarized DMG at
 `github.com/sorkila/tintpad/releases/tag/v0.2.0`,
 direct download via `releases/latest/download/Tintpad.dmg`, site live at tintpad.com,
@@ -32,6 +34,8 @@ swift run                # run from source (dev; unsigned)
 ./Scripts/release.sh     # one-command notarized release (needs SIGN_IDENTITY + NOTARY_PROFILE)
 ./Scripts/sign-license.swift <email>  # sign a Supporter key (manual tint fulfillment)
 ./Scripts/uitest.sh      # synthetic-input GUI smoke test (needs Accessibility/Automation)
+./Scripts/record-demo.sh # self-recording demo film: seeds portfolio repos, records the
+                         # scripted take, cuts demo.mp4/poster/og/hero, restores the store
 ```
 Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
 
@@ -88,7 +92,9 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   are exempt, and third-party files (e.g. an upstream awesome-list with em-dash separators)
   match their own house style.
 - Monetization is a tip jar: `AppStore.allows()` returns true for everything except
-  `customTint` (the Supporter perk). Don't add functional gates.
+  `customTint`, which now gates **tinted chips** (the selected repo's chip in its own
+  bleached hue, `RepoTint.chip`, toggle in Settings → Appearance). Don't add
+  functional gates.
 - **Supporter unlock is manual fulfillment** (low volume): tipper emails their receipt,
   you run `Scripts/sign-license.swift <email>` (Ed25519, self-verifies against the embedded
   public key, prints a ready-to-send email), they paste the key in Settings → About.

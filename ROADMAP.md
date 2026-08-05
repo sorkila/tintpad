@@ -50,7 +50,7 @@ it." That's the whole job right now.
   white-on-accent to 6.6:1 black-on-accent, meaningful text no longer uses tertiary),
   and the palette's quietest inks were raised to compute 4.5:1+ against its scrim.
   Reduce Transparency drops the blur for a fully opaque card. Remaining: a worst-case
-  desktop spot-check of the glass card with a real checker. (a11y #4)
+  desktop spot-check of the drop with a real contrast checker. (a11y #4)
 - **Design tokens.** A real type ramp, spacing scale, and white-alpha system instead
   of scattered literals, plus a terminology sweep so the same thing has one name.
 - **Full launch-path tests.** `Launcher` dependency injection so the summon →

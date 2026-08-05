@@ -1,59 +1,55 @@
 # Recording the demo
 
-The demo records itself. `TINTPAD_DEMO=1` plays a scripted sequence on the
-palette model (summon, arrow through tiles, type a filter, clear it, cycle
-modes), driven from inside the app: no synthetic keystrokes, no Accessibility
-grants, identical every take. The beat list lives in `TintpadApp.swift`.
-
-| File | Used by |
-|---|---|
-| `web/assets/demo.mp4` | the video on tintpad.com |
-| `web/assets/demo-poster.jpg` | that video's poster frame |
-| `web/assets/og.png` | Open Graph / Twitter share card |
-| `docs/assets/palette.png` | README hero |
-| `docs/assets/demo.gif` | optional README animation, Product Hunt |
-
-## The recipe
-
-Run on a clean desktop (whatever is behind the glass ends up in the assets).
+One command records and cuts everything:
 
 ```sh
-# 1. Learn the panel rect for this screen (written by the showcase harness).
-pkill -x Tintpad; rm -f /tmp/tintpad-panel-rect
-TINTPAD_SHOWCASE=1 .build/debug/Tintpad & sleep 3
-RECT=$(cat /tmp/tintpad-panel-rect); pkill -x Tintpad
-
-# 2. Record: start the recorder FIRST so the summon morph opens the clip.
-screencapture -v -V 9 -R "$RECT" demo.mov & sleep 0.6
-TINTPAD_DEMO=1 .build/debug/Tintpad
-wait; pkill -x Tintpad
-
-# 3. Convert + poster.
-avconvert --source demo.mov --output web/assets/demo.mp4 --preset PresetHighestQuality
-ffmpeg -y -ss 1.0 -i web/assets/demo.mp4 -frames:v 1 -q:v 3 web/assets/demo-poster.jpg
+./Scripts/record-demo.sh
 ```
 
-Stills: `TINTPAD_SHOWCASE=1` (summons at launch, survives focus loss, writes
-the rect) plus a fullscreen `screencapture -x` and a 2x `sips` crop of the
-rect. A direct `-R` capture comes out 1x on some setups, so crop from the
-fullscreen for retina. The og card is the hero center-cropped to 1520×760,
-then scaled to 1280×640.
+Run it on an unlocked Mac (a locked screen records the lock screen — check the
+output isn't black) with the current build installed (`./Scripts/dev-install.sh`)
+and ffmpeg on PATH. It backs up your real store, seeds the portfolio repo names,
+plays the scripted `TINTPAD_DEMO` beat list (in `TintpadApp.swift`), records the
+raw take, then cuts every published asset and restores your store.
+
+| Output | Used by |
+|---|---|
+| `web/assets/demo.mp4` | the film on tintpad.com (12s, 60fps) |
+| `web/assets/demo-poster.jpg` | the video's poster frame (the red MODE dwell) |
+| `web/assets/og.png` | Open Graph / Twitter share card |
+| `docs/assets/palette.png` | README hero |
+
+## How the film works
+
+The cut is one continuous camera: four held framings (wide for the fall, medium
+for the token walk, tight for the agent flip and red dwell, wide for the rest)
+connected by fast quintic-eased dollies, each timed so an on-screen action masks
+the camera move. The source is 3x oversampled before `zoompan` so slow moves stay
+sub-pixel. The band crops below the menu bar; a rendered notch tab (signed-
+distance PNG, generated inside the script) sits bezel-fixed at the top of frame.
+
+Hard-won ffmpeg notes, so nobody relearns them:
+
+- `fade=in:st=N` holds alpha at zero for ALL t < N. Chaining `fade=out,fade=in`
+  on one stream blanks it — split into two streams and overlay both.
+- `boxblur` derives a chroma radius that overflows short strips — set
+  `luma_radius`/`chroma_radius` explicitly if you ever blur again.
+- Raw takes survive in `$TMPDIR` (`tmp.*/demo-raw.mov`) — grading tweaks are a
+  re-cut, not a re-record. The take is the negative, this script is the darkroom.
 
 ## Taste notes
 
-- The rect includes a 40pt pad so the pieces' shadows breathe.
-- Terminal text behind the glass is on-brand; a personal browser is not.
-- End the clip at rest, not mid-motion, so the loop point is calm.
-- Use a release build for anything published, so marks render at full scale.
-- Optional README gif: `ffmpeg -i demo.mp4 -vf "fps=12,scale=640:-1" demo.gif`,
-  keep it under ~2MB (`gifsicle -O3 --lossy=80` if needed).
+- End the clip at rest, the loop point must be calm.
+- The demo store pins `tintedChips` off — the film stays monochrome.
+- Desktop copies for posting: `~/Desktop/tintpad-demo.mp4` (native wide),
+  `tintpad-demo-16x9.mp4` (letterboxed for platforms that crop),
+  `tintpad-demo.gif` (0.6MB, for comments).
 
 ## After
 
 ```sh
-git add docs/assets web/assets && git commit -m "docs: re-shoot demo assets" && git push
+git add docs/assets web/assets && git commit -m "assets: re-shoot the film" && git push
 ```
 
-Pushing deploys `web/` to tintpad.com via `.github/workflows/deploy-web.yml`.
-Check the share card afterwards, `og.png` is cached aggressively by the
-social crawlers.
+Pushing deploys `web/` to tintpad.com. The og card is cached hard by social
+crawlers — recheck with a card validator after changes.
