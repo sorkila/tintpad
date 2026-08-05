@@ -10,6 +10,10 @@ Hands off to *your* terminal, it isn't one. Accessory app (`LSUIElement`), local
 no accounts. **Free & open source (MIT) + optional Supporter tip.**
 
 ## Status (shipped)
+**The drop landed on main 2026-08-05, unreleased**: a full design pivot — the palette
+is now a black capsule that falls out of the notch (see Palette design rules), Settings
+matches it (SF Pro, forced dark, monochrome), the website is redesigned around it.
+Ship it as 0.3.0 when blessed.
 **v0.2.0 is live** (2026-07-28): the 2.0 pass — Liquid Glass ⌘Tab palette, launch
 memory, agent-vocabulary modes, three-audit hardening. Notarized DMG at
 `github.com/sorkila/tintpad/releases/tag/v0.2.0`,
@@ -47,7 +51,10 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
 ## Conventions
 - All command building goes through `CommandTemplate`, every interpolated value is
   sanitized (control chars stripped) and POSIX single-quoted. Never hand-build shell or AppleScript strings.
-- Resizable surfaces (Settings, onboarding) use the scalable `TypeRamp` (Dynamic Type), the palette is a monospace HUD on a fixed grid (its own `@ScaledMetric` point sizes, clamped to xxLarge).
+- **Voice**: SF Pro speaks the product, mono speaks only machine values (paths, flags,
+  keys) via `Font.mono`/`Font.monoStyle`. Resizable surfaces (Settings, onboarding) use
+  the scalable `TypeRamp` (Dynamic Type), the drop uses its own `@ScaledMetric` point
+  sizes clamped to xxLarge.
 - **Agent marks** (`AgentMarks.swift`). A brand mark where artwork exists, a `Monogram`
   everywhere else, so a third agent never falls back to a generic glyph. Monograms are
   assigned across the **whole agent set** (`AppStore.monogram(for:)`, the single source of
@@ -56,29 +63,26 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   letting SwiftUI rescale resamples twice and arrives soft. Each brand carries an
   `optical` correction because icons in a set must match in **ink, not bounding box**
   (Claude's airy radial needs to be drawn larger and held brighter than Codex's dense blob).
-- **Palette design rules** (`PaletteView`, documented on the type). A floating Liquid
-  Glass **cluster**, not a sheet: search pill, horizontal repo-tile strip (⌘Tab for
-  repos), launch pill — three discrete glass pieces with real gaps. On macOS 26 each
-  piece is real `glassEffect` in a shared `GlassEffectContainer`, pills are interactive
-  glass, and **legibility comes from vibrancy** (hierarchical foreground styles on the
-  glass, never flat `.opacity()` text over a heavy scrim — the frost is a whisper);
-  earlier systems get the legacy vibrancy stack. **The window draws no system
-  shadow** — each piece carries its own inside a transparent margin
-  (`PaletteView.windowMargin`), because AppKit shadows the rectangular frame and it
-  reads as a ghost box. **Every repo gets its tint** (`RepoTint`: a stable hue hashed
-  from the name, the danger-red band excluded): tile identity is the repo's colored
-  monogram, the agent mark is a small corner badge. The accent means "here, now"
-  (the text caret, the selection), danger red means "skips permissions" (dangerous tiles
-  are ringed red before you arrive). **The launch pill is the contract**: agent name, mode, `⑂ branch*` — no
-  carets, no path (the selected tile already carries the name), agent/mode words quietly
-  clickable (visible counterpart of ⇥/⇧⇥, real flags in the tooltip). Less but better:
-  nothing renders that repeats another element or decorates. ←/→ move through the strip only while the field is empty (they
-  must keep moving the caret otherwise); ↑/↓, ⌘1–⌘9, ⌘0 unchanged. One voice of type:
-  SF Mono at exactly two sizes (`fieldSize`/`metaSize`), weight carries the hierarchy —
-  always via `Font.mono`/`Font.monoStyle` (the one place the voice is defined), never
-  `design: .monospaced` directly. Agent brand color appears on the selected tile only. **Type and the grid metrics scale together** via
-  `@ScaledMetric`, because the panel height is computed from those metrics and drifts
-  if only one of them scales.
+- **Palette design rules** (`PaletteView`, documented on the type). The palette is
+  **the drop**: a pure-black capsule that falls out of the notch (a bead drips from the
+  housing's lip, falls 22pt, splats into the capsule, settles with one bob — springs
+  throughout, Reduce Motion gets a crossfade). Displays without a notch get the same
+  drop as a floating pill below the menu bar. **Black and white only**: repo names in
+  gray, the selected repo a white chip with black ink, the caret white, forced dark
+  world in every theme (`environment(\.colorScheme, .dark)` + darkAqua on the panel and
+  Settings windows). Danger red is the only color, spent on the MODE chip and the
+  confirm line, said once passively and once at the gate. **One object language**:
+  every element is a capsule of `chipH` — white chip (position), etched hairline chips
+  (the contract: AGENT and MODE as labeled instrument fields with baseline-aligned
+  micro-eyebrows), red-etched chip (skips permissions). A contract never truncates
+  (`fixedSize`), never hides, and holds no branch (where you launch from is the tile's
+  business). Fully mute at rest: tokens only, the query materializes as you type.
+  **Optical laws**: the first chip's margin = the vertical inset + round-end
+  compensation (a capsule's curve eats corners), and the token strip pads 3pt inside
+  its ScrollView (the viewport clips hard at x=0). Only the right edge fades —
+  overflow is the only thing worth signaling. ←/→ move through tokens only while the
+  field is empty; ↑/↓, ⌘1–⌘9, ⌘0 unchanged. `RepoTint` hues survive in Settings and
+  the Supporter tint perk, not in the drop.
 - **Prose has no em dashes and no prose semicolons**, in markdown docs and website copy
   (a deliberate, enforced house style, use commas). Code, identifiers, and code comments
   are exempt, and third-party files (e.g. an upstream awesome-list with em-dash separators)
@@ -110,6 +114,20 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   style-mask change can't silently re-clip. If it ever goes back to `.titled`: do
   **not** opt out of the safe area (`safeAreaRegions = []` loops AppKit's constraint
   pass and crashes, `.ignoresSafeArea()` hides the prompt line).
+- **The drop and the notch:** the panel is `level = .statusBar` (it must draw over the
+  menu bar strip to fuse with the housing; `.floating` sits below it). Notch geometry:
+  `screen.safeAreaInsets.top > 0` detects it, the housing's depth IS that inset, and
+  the window docks flush with `screen.frame.maxY` (notched) or `visibleFrame.maxY`
+  (floating fallback). **Nothing may render behind the camera** — screenshots composite
+  pixels the housing physically blocks, so a design can look fine in captures and be
+  broken live; the drop hangs strictly below `restHeight`. `screencapture` shows the
+  lock screen when the Mac is locked — check captures aren't black before trusting a
+  recording session.
+- **Drop layout laws (hard-won):** a ScrollView clips hard at x=0, so the first chip
+  pads 3pt inside the scroll content or its curve shears. A capsule's round end eats
+  its corners, so optical margin = geometric margin + compensation. Contract chips are
+  `fixedSize` — the scrolling token strip absorbs all compression, a truncated mode
+  name ("Skip permissio…") is a safety bug, not a layout bug.
 - **Frecency comparator must be transitive**, no epsilon "≈ tie" band, it breaks strict
   weak ordering and makes `sort()` reshuffle the list every render.
 - **New-SDK symbols need a compiler gate, not just `#available`.** Liquid Glass APIs

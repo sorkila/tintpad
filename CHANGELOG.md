@@ -3,9 +3,36 @@
 All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepachangelog.com), this project aims for [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
-- Developer: the Liquid Glass call sites are compiler-gated (`#if compiler(>=6.2)`)
-  so older toolchains (CI's macos-15 image, Xcode 16) build the vibrancy fallback
-  instead of failing on symbols their SDK lacks. No behavior change on macOS 26.
+
+The drop: the palette redesigned from scratch, again, and this time it fell
+out of the notch.
+
+### The drop
+- **The palette is now a black capsule that falls out of the camera housing.**
+  Summon, and a bead drips from the notch's lip, falls, and splats into a
+  hanging capsule holding your repos, settling with one soft bob, springs all
+  the way down. Launch runs the film backwards. Reduce Motion gets a
+  crossfade. Macs without a notch get the identical drop as a floating pill
+  below the menu bar.
+- **Stark black and white.** Repo names in gray, the selected repo a white
+  chip with black ink, and nothing else, the repo hues retired from the
+  palette (they live on in Settings and the Supporter tint perk). Danger red
+  is the only color the drop allows: the MODE chip and the confirm line.
+- **The contract is two instrument chips.** AGENT and MODE as etched hairline
+  capsules with micro-label eyebrows, always present, quietly clickable, real
+  flags in the tooltips, and never truncated. The mode that skips permissions
+  is a red-etched chip.
+- **Fully mute at rest.** The drop holds only the tokens. The query
+  materializes at the left as you type, with a live match count.
+- **Settings matches the drop**: SF Pro throughout (mono survives only for
+  machine values like paths and flags), forced dark, monochrome sidebar and
+  controls. One scheme across the product.
+- The website redesigned around the drop, and the demo re-scripted to show
+  the fall, the filter, and the chips.
+
+### Developer
+- The Liquid Glass call sites and their compiler gates are gone with the
+  glass itself, the drop is plain black and builds on every toolchain.
 
 ## [0.2.0] — 2026-07-28
 

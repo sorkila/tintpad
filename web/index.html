@@ -3,122 +3,119 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Tintpad | Summon a coding agent into your terminal</title>
-<meta name="description" content="A macOS hotkey that opens your terminal at the right repo with Claude Code, Codex, or any agent already running. Hands off to the terminal you already use. Local-only, free and open source (MIT)." />
+<title>Tintpad | The launcher that falls out of your notch</title>
+<meta name="description" content="Press a hotkey and a black drop falls out of your Mac's notch with your repos inside. Return opens your terminal at that repo with Claude Code, Codex, or any agent already running. Free and open source (MIT), local-only, native macOS." />
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://tintpad.com" />
 <meta property="og:site_name" content="Tintpad" />
-<meta property="og:title" content="Tintpad | Summon a coding agent into your terminal" />
-<meta property="og:description" content="Press a hotkey, pick a repo, and your terminal opens there with Claude Code, Codex, or any agent already running. Free, open source, native macOS." />
+<meta property="og:title" content="Tintpad | The launcher that falls out of your notch" />
+<meta property="og:description" content="A hotkey, a black drop from the notch, your repos inside. Return opens your terminal with your coding agent already running. Free, open source, native macOS." />
 <meta property="og:image" content="https://tintpad.com/assets/og.png" />
 <meta property="og:image:width" content="1280" />
 <meta property="og:image:height" content="640" />
-<meta property="og:image:alt" content="Tintpad. Your agent, your repo, one keystroke. Free, open source, macOS." />
+<meta property="og:image:alt" content="Tintpad. A black drop falls from the Mac notch, holding repo names, with AGENT and MODE chips." />
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:title" content="Tintpad | Summon a coding agent into your terminal" />
-<meta name="twitter:description" content="One hotkey to your terminal at the right repo, with your coding agent already running. Free, open source, native macOS." />
+<meta name="twitter:title" content="Tintpad | The launcher that falls out of your notch" />
+<meta name="twitter:description" content="A hotkey, a black drop from the notch, your repos inside. Return opens your terminal with your agent already running. Free, open source, native macOS." />
 <meta name="twitter:image" content="https://tintpad.com/assets/og.png" />
-<link rel="icon" type="image/png" href="data:image/png;base64,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" />
 <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png" />
+<link rel="icon" type="image/png" href="assets/icon.png" />
 <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png" />
 <script defer src="https://cloud.umami.is/script.js" data-website-id="e2f753b7-c462-48c7-8bfc-46e6e78aa516"></script>
 <style>
   :root{
-    --bg:#08080a; --panel:#141417; --panel2:#1a1a1e; --line:rgba(255,255,255,.06);
-    --text:#f4f3f1; --dim:#a2a29d; --faint:#9a9a95;
-    --accent:#ff7333; --accent-soft:rgba(255,115,51,.16);
-    --mono:"SF Mono",ui-monospace,"JetBrains Mono",monospace;
-    --sans:-apple-system,BlinkMacSystemFont,"Inter","Helvetica Neue",sans-serif;
+    --bg:#050506; --panel:#101013; --line:rgba(255,255,255,.07);
+    --text:#f5f5f3; --dim:#9a9a9f; --faint:#6e6e73;
+    --danger:#e5484d; --danger-soft:rgba(229,72,77,.10);
+    --mono:"SF Mono",ui-monospace,Menlo,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html{scroll-behavior:smooth}
   body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.6;font-size:16px;
-    -webkit-font-smoothing:antialiased;position:relative;overflow-x:hidden}
-  /* Linear-style single warm glow behind the hero */
-  body::before{content:"";position:absolute;top:-260px;left:50%;transform:translateX(-50%);
-    width:1100px;height:760px;border-radius:50%;
-    background:radial-gradient(closest-side,rgba(255,115,51,.16),rgba(255,115,51,.04) 55%,transparent 72%);
-    filter:blur(30px);pointer-events:none;z-index:0}
-  .wrap{max-width:720px;margin:0 auto;padding:0 28px;position:relative;z-index:1}
+    -webkit-font-smoothing:antialiased;overflow-x:hidden}
+  .wrap{max-width:720px;margin:0 auto;padding:0 28px}
   a{color:var(--text);text-decoration:none}
   .mono{font-family:var(--mono)}
 
-  nav{display:flex;justify-content:space-between;align-items:center;padding:24px 0;font-size:14px}
+  /* The notch, drawn once, at the very top of the page. */
+  .notch{width:150px;height:26px;margin:0 auto;background:#000;border-radius:0 0 12px 12px;
+    border:1px solid var(--line);border-top:0}
+
+  nav{display:flex;justify-content:space-between;align-items:center;padding:22px 0;font-size:14px}
   .logo{display:flex;align-items:center;gap:9px;font-weight:550;letter-spacing:-.01em}
-  .logo img{width:23px;height:23px;border-radius:6px}
-  .logo .beta{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
-    color:var(--accent);background:var(--accent-soft);border:1px solid rgba(255,115,51,.3);
-    border-radius:99px;padding:1px 7px;line-height:1.5}
+  .logo img{width:22px;height:22px;border-radius:6px}
+  .logo .beta{font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.08em;
+    color:var(--faint);border:1px solid var(--line);border-radius:99px;padding:1px 8px;line-height:1.6}
   nav .links a{color:var(--dim);margin-left:22px;transition:color .15s}
   nav .links a:hover{color:var(--text)}
 
-  .hero{text-align:center;padding:64px 0 0}
-  h1{font-size:clamp(38px,6.4vw,62px);font-weight:600;letter-spacing:-.035em;line-height:1.03;
-    background:linear-gradient(180deg,#fff,#cfcec9);-webkit-background-clip:text;background-clip:text;color:transparent}
-  h1 .a{background:linear-gradient(180deg,#ff8a45,#ec5f28);-webkit-background-clip:text;background-clip:text;color:transparent}
-  .hero p{color:var(--dim);font-size:18.5px;line-height:1.55;margin:24px auto 0;max-width:540px;letter-spacing:-.01em}
-  .actions{margin-top:34px;display:flex;align-items:center;justify-content:center;gap:22px}
-  .buy{display:inline-block;background:var(--accent);color:#170a03;font-weight:600;padding:12px 22px;
-    border-radius:10px;font-size:15px;cursor:pointer;border:0;
-    box-shadow:0 8px 28px rgba(255,115,51,.34),inset 0 1px 0 rgba(255,255,255,.25);transition:transform .15s,box-shadow .15s}
-  .buy:hover{transform:translateY(-1px);box-shadow:0 12px 34px rgba(255,115,51,.42),inset 0 1px 0 rgba(255,255,255,.25)}
+  .hero{text-align:center;padding:56px 0 0}
+  h1{font-size:clamp(38px,6.4vw,60px);font-weight:600;letter-spacing:-.035em;line-height:1.05;color:var(--text)}
+  .hero p{color:var(--dim);font-size:18px;line-height:1.55;margin:22px auto 0;max-width:540px;letter-spacing:-.01em}
+  .actions{margin-top:32px;display:flex;align-items:center;justify-content:center;gap:22px}
+  /* The CTA is the product's own signature: the white chip, black ink. */
+  .chip-cta{display:inline-block;background:#fff;color:#0a0a0c;font-weight:600;padding:12px 24px;
+    border-radius:99px;font-size:15px;cursor:pointer;border:0;
+    transition:transform .15s,box-shadow .15s;box-shadow:0 10px 34px rgba(255,255,255,.10)}
+  .chip-cta:hover{transform:translateY(-1px);box-shadow:0 14px 40px rgba(255,255,255,.16)}
   .ghost{color:var(--dim);font-size:14.5px;transition:color .15s}
   .ghost:hover{color:var(--text)}
   .meta{margin-top:18px;color:var(--faint);font-size:12.5px;font-family:var(--mono);letter-spacing:.01em}
 
-  /* product shot */
-  .shot{margin:54px auto 0;max-width:660px;position:relative;animation:rise .55s cubic-bezier(.16,1,.3,1) both}
-  @keyframes rise{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:none}}
-  .shot::after{content:"";position:absolute;inset:-1px;border-radius:16px;padding:1px;
-    background:linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,.02) 40%,transparent);
-    -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
-  .demo{position:relative;background:rgba(18,18,21,.94);backdrop-filter:blur(22px);border-radius:16px;overflow:hidden;text-align:left;
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 2px 6px rgba(0,0,0,.4),0 24px 50px -20px rgba(0,0,0,.6),0 60px 120px -30px rgba(0,0,0,.85),0 0 70px -26px rgba(255,115,51,.22)}
+  .shot{margin:48px auto 0;max-width:680px;animation:fall .5s cubic-bezier(.2,.9,.3,1) both}
+  @keyframes fall{from{opacity:0;transform:translateY(-14px)}to{opacity:1;transform:none}}
+  .demo{display:block;width:100%;background:#000;border-radius:16px;overflow:hidden;
+    border:1px solid var(--line);
+    box-shadow:0 30px 80px -20px rgba(0,0,0,.9)}
 
   section{padding:46px 0}
   section + section{border-top:1px solid var(--line)}
-  h2{font-size:14px;font-weight:600;color:var(--faint);font-family:var(--mono);letter-spacing:.02em;margin-bottom:18px}
+  h2{font-size:12px;font-weight:600;color:var(--faint);font-family:var(--mono);
+    letter-spacing:.09em;margin-bottom:18px}
   .lede{color:var(--dim);font-size:16.5px;max-width:560px;letter-spacing:-.01em}
   .list{margin-top:24px;display:flex;flex-direction:column}
-  .item{display:grid;grid-template-columns:150px 1fr;gap:18px;align-items:baseline;padding:13px 0;border-top:1px solid var(--line)}
+  .item{display:grid;grid-template-columns:160px 1fr;gap:18px;align-items:baseline;padding:13px 0;border-top:1px solid var(--line)}
   .item:first-child{border-top:0}
   .item .h{font-size:14.5px;color:var(--text);font-weight:500}
   .item .d{font-size:14.5px;color:var(--dim)}
+  .item.red .h{color:var(--danger)}
   @media(max-width:520px){.item{grid-template-columns:1fr;gap:3px}}
 
+  /* Etched chips, straight from the drop. */
+  .fieldchip{display:inline-flex;align-items:baseline;gap:6px;border:1px solid var(--line);
+    border-radius:99px;padding:3px 11px;font-size:12.5px;color:var(--dim);white-space:nowrap}
+  .fieldchip b{font-size:9px;font-weight:600;letter-spacing:.08em;color:var(--faint)}
+  .fieldchip.red{border-color:rgba(229,72,77,.45);background:var(--danger-soft);color:var(--danger)}
+  .fieldchip.red b{color:rgba(229,72,77,.7)}
+  .chiprow{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+
   .price{display:flex;gap:48px;margin-top:8px;flex-wrap:wrap}
-  .price .t{font-size:13px;color:var(--faint);font-family:var(--mono)}
+  .price .t{font-size:12px;color:var(--faint);font-family:var(--mono);letter-spacing:.08em}
   .price .amt{font-size:26px;font-weight:600;margin:6px 0;letter-spacing:-.02em}
   .price .amt small{font-size:13px;color:var(--faint);font-weight:400}
   .price ul{list-style:none;margin-top:10px}
   .price li{color:var(--dim);font-size:14px;padding:3px 0}
   .coffee{display:inline-flex;align-items:center;gap:8px;margin-top:15px;
-    background:var(--accent-soft);color:var(--accent);border:1px solid rgba(255,115,51,.32);
-    border-radius:11px;padding:9px 15px;font-size:14px;font-weight:550;
-    transition:transform .15s,background .15s,box-shadow .15s}
-  .coffee:hover{transform:translateY(-1px);background:rgba(255,115,51,.22);
-    box-shadow:0 8px 22px rgba(255,115,51,.16)}
-  /* Supporter "how?" tooltip */
+    color:var(--text);border:1px solid var(--line);
+    border-radius:99px;padding:9px 16px;font-size:14px;font-weight:550;
+    transition:transform .15s,border-color .15s}
+  .coffee:hover{transform:translateY(-1px);border-color:rgba(255,255,255,.22)}
   .tipwrap{position:relative;display:inline-flex;align-items:center;gap:7px;cursor:help;outline:none}
-  .tipwrap .hint{font-size:10.5px;font-weight:600;letter-spacing:.02em;color:var(--accent);
-    background:var(--accent-soft);border:1px solid rgba(255,115,51,.3);border-radius:99px;padding:1px 8px;
-    transition:background .15s}
-  .tipwrap:hover .hint,.tipwrap:focus-visible .hint{background:rgba(255,115,51,.24)}
+  .tipwrap .hint{font-size:10.5px;font-weight:600;letter-spacing:.02em;color:var(--dim);
+    border:1px solid var(--line);border-radius:99px;padding:1px 8px;transition:color .15s,border-color .15s}
+  .tipwrap:hover .hint,.tipwrap:focus-visible .hint{color:var(--text);border-color:rgba(255,255,255,.22)}
   .tipwrap .bubble{position:absolute;bottom:calc(100% + 12px);left:-4px;width:268px;
-    background:var(--panel2);border:1px solid var(--line);border-radius:13px;padding:13px 15px;
-    font-size:12.5px;color:var(--dim);line-height:1.55;text-align:left;font-weight:400;letter-spacing:0;
-    box-shadow:0 14px 40px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.02);
+    background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:13px 15px;
+    font-size:12.5px;color:var(--dim);line-height:1.55;text-align:left;font-weight:400;
+    box-shadow:0 14px 40px rgba(0,0,0,.55);
     opacity:0;transform:translateY(7px) scale(.97);transform-origin:24px bottom;pointer-events:none;
     transition:opacity .2s cubic-bezier(.16,1,.3,1),transform .2s cubic-bezier(.16,1,.3,1);z-index:6}
   .tipwrap:hover .bubble,.tipwrap:focus .bubble,.tipwrap:focus-within .bubble{opacity:1;transform:none;pointer-events:auto}
   .tipwrap .bubble strong{color:var(--text);font-weight:600}
-  .tipwrap .bubble a{color:var(--accent)}
+  .tipwrap .bubble a{color:var(--text);text-decoration:underline}
   .tipwrap .bubble::after{content:"";position:absolute;top:100%;left:22px;
-    border:7px solid transparent;border-top-color:var(--panel2)}
-  @media (prefers-reduced-motion: reduce){.tipwrap .bubble{transition:opacity .2s}}
-  .coffee .cup{display:inline-block;transform-origin:50% 80%}
-  .coffee:hover .cup{animation:wobble .6s ease}
-  @keyframes wobble{0%,100%{transform:rotate(0)}20%{transform:rotate(-14deg)}60%{transform:rotate(11deg)}}
+    border:7px solid transparent;border-top-color:var(--panel)}
 
   details{padding:15px 0;border-top:1px solid var(--line)}
   details:first-of-type{border-top:0}
@@ -130,64 +127,52 @@
 
   #get .actions{margin-top:26px;justify-content:flex-start}
   .dl{margin-top:22px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-  .dl .lbl{color:var(--faint);font-size:12.5px;font-family:var(--mono);letter-spacing:.01em}
+  .dl .lbl{color:var(--faint);font-size:12.5px;font-family:var(--mono)}
   .dl code{background:var(--panel);border:1px solid var(--line);border-radius:9px;
     padding:9px 13px;color:var(--dim);font-size:13.5px;user-select:all}
   footer{padding:40px 0 64px;color:var(--faint);font-size:12.5px;font-family:var(--mono);border-top:1px solid var(--line)}
   footer .wrap{display:flex;flex-direction:column;gap:7px}
   footer a{color:var(--dim);transition:color .15s}
-  footer a:hover{color:var(--accent)}
+  footer a:hover{color:var(--text)}
   footer .fine{font-size:11.5px;opacity:.72;margin-top:2px}
-  @media (prefers-reduced-motion: reduce){
-    .shot{animation:none}
-    .coffee:hover .cup{animation:none}
-  }
+  @media (prefers-reduced-motion: reduce){.shot{animation:none}}
 
-  /* ---- Mobile ---- */
   @media (max-width:640px){
     body{font-size:15px}
     .wrap{padding:0 20px}
-    body::before{width:120vw;height:560px;top:-200px}
-    nav{padding:18px 0;font-size:13px}
+    nav{padding:16px 0;font-size:13px}
     nav .links a{margin-left:15px}
     h1{font-size:clamp(30px,9vw,40px);line-height:1.1}
     .hero p{font-size:16px}
     .actions{flex-direction:column;align-items:stretch;gap:12px;margin-top:28px}
-    .actions .buy{width:100%;text-align:center}
+    .actions .chip-cta{width:100%;text-align:center}
     .actions .ghost{text-align:center}
-    .meta{font-size:11.5px;word-break:break-word}
-    .shot{margin-top:38px}
+    .shot{margin-top:36px}
     section{padding:38px 0}
     .price{gap:32px}
-    .item{grid-template-columns:1fr;gap:3px}
-    .dl{gap:8px}
     .dl code{font-size:12px;word-break:break-all}
     #get .actions{align-items:stretch}
+    .notch{width:120px;height:22px}
   }
-  @media (max-width:380px){
-    h1{font-size:28px}
-    .dl code{font-size:11px}
-  }
-
-  /* ---- Focus (keyboard a11y) ---- */
   a:focus-visible,button:focus-visible,summary:focus-visible,video:focus-visible{
-    outline:2px solid var(--accent);outline-offset:3px;border-radius:6px}
+    outline:2px solid var(--text);outline-offset:3px;border-radius:6px}
 </style>
 </head>
 <body>
+<div class="notch" aria-hidden="true"></div>
 <div class="wrap">
   <nav>
-    <span class="logo"><img src="assets/icon.png" alt=""/>tintpad<span class="beta">beta</span></span>
+    <span class="logo"><img src="assets/icon.png" alt=""/>tintpad<span class="beta">BETA</span></span>
     <span class="links"><a href="#how">How</a><a href="#price">Price</a><a href="#faq">FAQ</a><a href="https://github.com/sorkila/tintpad">Source</a></span>
   </nav>
 
   <div class="hero">
-    <h1>Your agent. Your repo.<br/>One <span class="a">keystroke</span>.</h1>
-    <p>Think ⌘Tab, for repos. Press a hotkey, arrow to a project, and your terminal
-       opens there with Claude Code, Codex, or whatever you run already going.
-       It hands off to the terminal you use, not a new one.</p>
+    <h1>It falls out of<br/>your notch.</h1>
+    <p>Press a hotkey and a black drop falls from the camera housing, your repos inside.
+       Arrow to one, Return, and your terminal opens there with Claude Code, Codex, or
+       whatever you run already going. Hands off to the terminal you use, not a new one.</p>
     <div class="actions">
-      <a href="https://github.com/sorkila/tintpad/releases/latest/download/Tintpad.dmg"><button class="buy">Download for macOS</button></a>
+      <a href="https://github.com/sorkila/tintpad/releases/latest/download/Tintpad.dmg"><button class="chip-cta">Download for macOS</button></a>
       <a class="ghost" href="https://github.com/sorkila/tintpad">view source ›</a>
     </div>
     <div class="meta">macOS 14+ · native Swift · signed &amp; notarized · no accounts</div>
@@ -195,7 +180,7 @@
     <div class="shot">
       <video class="demo" autoplay loop muted playsinline preload="metadata"
              poster="assets/demo-poster.jpg" style="display:block;width:100%"
-             aria-label="Demo: the palette appears as floating glass pieces, arrow keys move through a strip of repo tiles, typing filters them, and the launch line shows which agent and mode will run">
+             aria-label="Demo: a black drop falls from the Mac notch holding repo names, arrow keys move a white selection chip through them, typing filters, and AGENT and MODE chips show what Return will run, MODE turning red when the mode skips permissions">
         <source src="assets/demo.mp4" type="video/mp4" />
       </video>
     </div>
@@ -207,12 +192,19 @@
     <h2>WHAT IT DOES</h2>
     <p class="lede">The Claude and Codex menu-bar apps watch your usage. This is the part they skipped, so you get into the work.</p>
     <div class="list">
+      <div class="item"><div class="h">The drop</div><div class="d">Black on black, it grows out of the housing itself. No window, no glass, nothing behind it to fight. Macs without a notch get the same drop below the menu bar.</div></div>
       <div class="item"><div class="h">Hands off to your terminal</div><div class="d">Ghostty, iTerm2, kitty, WezTerm, Alacritty, Terminal, Warp. Detected, opened at the repo, command running.</div></div>
-      <div class="item"><div class="h">Run modes</div><div class="d">Named in each agent's own words: Default, Skip permissions, Full access. The dangerous one is marked red, never silent.</div></div>
+      <div class="item red"><div class="h">The contract</div><div class="d">Two chips say exactly what Return runs, the agent and the mode, in each agent's own words. The mode that skips permissions is red, never silent, and always asks twice.</div>
+      </div>
       <div class="item"><div class="h">Frecency</div><div class="d">Repos you use most float up, the way zoxide does it, and each one reopens with the agent and mode you used last. ⌘0 replays your last session exactly.</div></div>
-      <div class="item"><div class="h">Git-aware</div><div class="d">The launch line names the agent, the mode, and the branch, with a * when the tree is dirty. Nothing runs that the line didn't announce.</div></div>
       <div class="item"><div class="h">Worktrees</div><div class="d">One keystroke spins up an isolated branch checkout and launches the agent in it.</div></div>
       <div class="item"><div class="h">Local only</div><div class="d">A JSON file on your Mac. No accounts, no telemetry, license checked offline. The core is open.</div></div>
+    </div>
+    <div class="chiprow" aria-hidden="true">
+      <span class="fieldchip"><b>AGENT</b>Claude Code</span>
+      <span class="fieldchip red"><b>MODE</b>Skip permissions</span>
+      <span class="fieldchip"><b>AGENT</b>Codex</span>
+      <span class="fieldchip"><b>MODE</b>Untrusted</span>
     </div>
   </div>
 </section>
@@ -223,13 +215,13 @@
     <p class="lede">Free and open source. The whole thing. If it earns a spot in your day, leave a tip.</p>
     <div class="price">
       <div>
-        <div class="t">Everything</div><div class="amt">$0</div>
+        <div class="t">EVERYTHING</div><div class="amt">$0</div>
         <ul><li>Every repo, agent, terminal</li><li>Frecency, all run modes, worktrees</li><li>Dispatch, prompts, GitHub import</li><li>MIT, build it yourself if you like</li></ul>
       </div>
       <div>
-        <div class="t">Supporter</div><div class="amt">tip <small>· pay what you want</small></div>
-        <ul><li>Funds the work, keeps it free</li><li><span class="tipwrap" tabindex="0" role="note" aria-label="How to unlock custom accent tints">Custom accent tints <em class="hint">how?</em><span class="bubble"><strong>Tint the whole app your color.</strong> The unlock is gloriously manual for now: leave a tip, email your receipt to <a href="mailto:erik@sorkila.com">erik@sorkila.com</a>, and I hand-sign you a license key. Yes, by hand, like it's 1998. A proper one-tap unlock is on the roadmap, building it is half the fun. 🛠️</span></span></li><li>A little heart in the About box ♥</li></ul>
-        <a class="coffee" href="https://www.buymeacoffee.com/eriknielsen" target="_blank" rel="noopener"><span class="cup">☕</span> Buy me a coffee</a>
+        <div class="t">SUPPORTER</div><div class="amt">tip <small>· pay what you want</small></div>
+        <ul><li>Funds the work, keeps it free</li><li><span class="tipwrap" tabindex="0" role="note" aria-label="How to unlock accent tints"><span>Accent tints <em class="hint">how?</em></span><span class="bubble"><strong>A drop of color, on your terms.</strong> The unlock is gloriously manual for now: leave a tip, email your receipt to <a href="mailto:erik@sorkila.com">erik@sorkila.com</a>, and I hand-sign you a license key. Yes, by hand, like it's 1998. A proper one-tap unlock is on the roadmap, building it is half the fun. 🛠️</span></span></li><li>A little heart in the About box ♥</li></ul>
+        <a class="coffee" href="https://www.buymeacoffee.com/eriknielsen" target="_blank" rel="noopener">☕ Buy me a coffee</a>
       </div>
     </div>
   </div>
@@ -238,9 +230,10 @@
 <section id="faq">
   <div class="wrap">
     <h2>QUESTIONS</h2>
+    <details><summary>What if my Mac has no notch?</summary><p>The same drop falls from under the menu bar instead, a floating black pill, same everything. The notch just makes the trick look like the hardware did it.</p></details>
     <details><summary>Isn't this a shell alias?</summary><p>For the simple case, basically. The difference is frecency, run-mode safety, worktrees, seven terminals, and no config. It's open source, so read it or keep your alias.</p></details>
     <details><summary>Why not Raycast?</summary><p>Raycast runs things inside Raycast. This opens your real terminal, and it's built around the agent loop specifically. Free, local-only, native.</p></details>
-    <details><summary>Is it really free?</summary><p>Yes. The whole app is MIT-licensed and open source, and everything works without paying. The Supporter tip is optional, and only unlocks custom tints plus my thanks.</p></details>
+    <details><summary>Is it really free?</summary><p>Yes. The whole app is MIT-licensed and open source, and everything works without paying. The Supporter tip is optional, and only unlocks accent tints plus my thanks.</p></details>
     <details><summary>Does it phone home?</summary><p>No accounts, no telemetry, nothing leaves your Mac. It's open source, so you can check.</p></details>
     <details><summary>Why the Accessibility prompt?</summary><p>Only for Ghostty, which can't be told to open a window with a command any other way on macOS, so Tintpad types it. Other terminals don't need it.</p></details>
   </div>
@@ -251,7 +244,7 @@
     <h2>GET TINTPAD</h2>
     <p class="lede">macOS 14 or later. Free, MIT, no account.</p>
     <div class="actions">
-      <a href="https://github.com/sorkila/tintpad/releases/latest/download/Tintpad.dmg"><button class="buy">Download for macOS</button></a>
+      <a href="https://github.com/sorkila/tintpad/releases/latest/download/Tintpad.dmg"><button class="chip-cta">Download for macOS</button></a>
       <a class="ghost" href="https://github.com/sorkila/tintpad">view source ›</a>
     </div>
     <div class="dl">

@@ -4,10 +4,11 @@
 
 # Tintpad
 
-**Your agent. Your repo. One keystroke.**
+**It falls out of your notch.**
 
-A macOS hotkey that opens your terminal at the right repo with Claude Code, Codex,
-or whatever you run, already going.
+Press a hotkey and a black drop falls from the camera housing with your repos
+inside. Return opens your terminal at that repo with Claude Code, Codex, or
+whatever you run, already going.
 
 [![CI](https://github.com/sorkila/tintpad/actions/workflows/ci.yml/badge.svg)](https://github.com/sorkila/tintpad/actions/workflows/ci.yml)
 &nbsp;![macOS 14+](https://img.shields.io/badge/macOS-14%2B-000)
