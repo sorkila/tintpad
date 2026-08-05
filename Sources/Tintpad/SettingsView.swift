@@ -216,7 +216,6 @@ struct AppearanceSettingsView: View {
     // Paired with the callout-based type below so the chip and swatches keep
     // fitting their content at accessibility sizes (a11y #3).
     @ScaledMetric(relativeTo: .callout) private var chipWidth: CGFloat = 48
-    @ScaledMetric(relativeTo: .callout) private var swatchSize: CGFloat = 30
 
     var body: some View {
         Form {
@@ -225,15 +224,7 @@ struct AppearanceSettingsView: View {
                     .disabled(!store.isSupporter)
                 Text(store.isSupporter
                      ? "One drop of color in the black: the white chip blooms in the repo's hue. Off keeps the drop pure black and white."
-                     : "The Supporter perk. Tip, email your receipt, get a key — the chip blooms in each repo's own hue.")
-                    .font(.caption).foregroundStyle(.secondary)
-                HStack(spacing: 14) {
-                    ForEach(TintAccent.allCases) { tint in
-                        swatch(tint)
-                    }
-                }
-                .padding(.vertical, 6)
-                Text("The accent colors onboarding.")
+                     : "The Supporter perk. Tip, email your receipt to erik@sorkila.com, get a hand-signed key, and the chip blooms in each repo's own hue.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 
@@ -280,31 +271,6 @@ struct AppearanceSettingsView: View {
         }
     }
 
-    private func swatch(_ tint: TintAccent) -> some View {
-        let selected = store.settings.tintAccent == tint
-        // Default orange is free; other tints are the Supporter thank-you.
-        let locked = !store.isSupporter && tint != .orange
-        return Button {
-            if locked { return }
-            store.settings.tintAccent = tint
-            store.save()
-        } label: {
-            Circle()
-                .fill(tint.color)
-                .frame(width: swatchSize, height: swatchSize)
-                .opacity(locked ? 0.4 : 1)
-                .overlay(Circle().strokeBorder(.primary.opacity(selected ? 0.9 : 0), lineWidth: 2)
-                    .padding(-3))
-                .overlay(Image(systemName: "checkmark")
-                    .font(.callout.weight(.bold))
-                    .foregroundStyle(.black.opacity(selected ? 0.8 : 0)))
-                .overlay(Image(systemName: "lock.fill")
-                    .font(.footnote.weight(.bold))
-                    .foregroundStyle(.white.opacity(locked ? 0.9 : 0)))
-        }
-        .buttonStyle(.plain)
-        .help(locked ? "\(tint.displayName) — Supporter" : tint.displayName)
-    }
 }
 
 // MARK: - About
