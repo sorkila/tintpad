@@ -864,14 +864,9 @@ struct PaletteView: View {
     private func token(_ repo: Repo, index: Int, selected: Bool) -> some View {
         let agent = model.activeAgent(for: repo)
         let mode = agent.map { model.displayMode(agent: $0, repo: repo) }
+        // No pin glyph: pinned repos already speak by standing first in the
+        // row (VoiceOver still says "pinned" — the mark was decoration).
         return HStack(spacing: 4) {
-            if repo.pinned {
-                Image(systemName: "pin.fill")
-                    .font(.system(size: 7))
-                    .foregroundStyle(selected ? AnyShapeStyle(Color.black.opacity(0.45))
-                                              : AnyShapeStyle(.tertiary))
-                    .accessibilityHidden(true)
-            }
             Text(repo.name)
                 .font(.system(size: fieldSize, weight: selected ? .semibold : .regular))
                 .foregroundStyle(selected ? Color.black : Color(white: 0.58))

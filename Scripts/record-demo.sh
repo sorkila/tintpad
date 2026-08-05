@@ -15,7 +15,6 @@ APP="/Applications/Tintpad.app/Contents/MacOS/Tintpad"
 
 cleanup() {
   pkill -x Tintpad 2>/dev/null || true
-  pkill -f demo-backdrop.swift 2>/dev/null || true
   if [ -f "$WORK/store-backup.json" ]; then
     cp "$WORK/store-backup.json" "$STORE"
     open /Applications/Tintpad.app
@@ -32,10 +31,10 @@ path = sys.argv[1]
 with open(path) as f: s = json.load(f)
 claude = next(a['id'] for a in s['agents'] if 'Claude' in a['name'])
 codex  = next((a['id'] for a in s['agents'] if 'Codex' in a['name']), claude)
-names = [("Velm", claude, 9.0, True), ("Kuta", claude, 7.5, False),
+names = [("Velm", claude, 9.0, False), ("Kuta", claude, 7.5, False),
          ("Lockpaw", codex, 6.2, False), ("Dela", claude, 5.1, False),
-         ("Tintpad", claude, 4.0, False), ("shipit", codex, 3.1, False),
-         ("regretbox", claude, 2.2, False), ("unnamed-3", claude, 1.4, False)]
+         ("Tintpad", claude, 4.0, False), ("Moonshot", codex, 3.1, False),
+         ("Sidequest", claude, 2.2, False), ("Regretbox", claude, 1.4, False)]
 s['repos'] = [{
     "addedVia": "manual", "frecencyScore": score,
     "id": str(uuid.uuid4()).upper(), "lastAgentID": agent,
@@ -45,25 +44,6 @@ s['repos'] = [{
 s['sessions'] = []
 with open(path, 'w') as f: json.dump(s, f, indent=1)
 EOF
-
-echo "▸ Staging backdrop…"
-cat > "$WORK/demo-backdrop.swift" <<'EOF'
-import AppKit
-final class V: NSView { override func draw(_ r: NSRect) {
-    NSGradient(colors: [NSColor(calibratedWhite: 0.075, alpha: 1),
-                        NSColor(calibratedWhite: 0.03, alpha: 1)])?
-        .draw(fromCenter: NSPoint(x: bounds.midX, y: bounds.height * 0.72), radius: 0,
-              toCenter: NSPoint(x: bounds.midX, y: bounds.height * 0.72),
-              radius: max(bounds.width, bounds.height) * 0.9, options: [])
-} }
-let app = NSApplication.shared
-app.setActivationPolicy(.accessory)
-guard let s = NSScreen.screens.first else { exit(1) }
-let w = NSWindow(contentRect: s.frame, styleMask: .borderless, backing: .buffered, defer: false)
-w.backgroundColor = .black; w.contentView = V(); w.orderFrontRegardless()
-app.run()
-EOF
-swift "$WORK/demo-backdrop.swift" & sleep 5
 
 echo "▸ Recording (10s)…"
 screencapture -v -V 10 "$WORK/demo-raw.mov" & sleep 0.7
@@ -77,12 +57,13 @@ pkill -x Tintpad || true
 pkill -f demo-backdrop.swift || true
 
 echo "▸ Cutting assets…"
-# Screen is 3024x1964 (2x). The band: menu bar + notch + drop, centered.
-ffmpeg -y -i "$WORK/demo-raw.mov" -vf "crop=2000:440:512:0,fps=30" \
+# Screen is 3024x1964 (2x). The band: menu bar + notch + drop, centered —
+# narrowed to keep the screen-recording indicator (menu bar right) out of frame.
+ffmpeg -y -i "$WORK/demo-raw.mov" -vf "crop=1800:440:612:0,fps=30" \
   -c:v libx264 -preset slow -crf 20 -pix_fmt yuv420p -movflags +faststart -an \
   web/assets/demo.mp4
 ffmpeg -y -ss 2.6 -i web/assets/demo.mp4 -frames:v 1 -q:v 3 web/assets/demo-poster.jpg
-sips -c 440 2000 --cropOffset 0 512 "$WORK/hero-full.png" --out docs/assets/palette.png >/dev/null
+sips -c 440 1800 --cropOffset 0 612 "$WORK/hero-full.png" --out docs/assets/palette.png >/dev/null
 sips -c 800 1600 --cropOffset 0 712 "$WORK/hero-full.png" --out "$WORK/og-crop.png" >/dev/null
 sips -z 640 1280 "$WORK/og-crop.png" --out web/assets/og.png >/dev/null
 

@@ -141,8 +141,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 (4.3, { model.query = "" }),
                 (4.9, { model.move(1) }),
                 (5.5, { model.cycleAgent() }),
-                (6.3, { model.cycleMode() }),
-                (7.3, { model.cycleMode() }),
+                (6.1, { model.cycleAgent() }),
+                (6.7, { model.cycleMode() }),   // Skip permissions — red, held
+                (8.3, { model.cycleMode() }),   // back to Default, rest
             ]
             for (t, beat) in beats {
                 DispatchQueue.main.asyncAfter(deadline: .now() + t, execute: beat)
