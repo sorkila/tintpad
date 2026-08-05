@@ -50,9 +50,9 @@ for a in s['agents']:
 with open(path, 'w') as f: json.dump(s, f, indent=1)
 EOF
 
-echo "▸ Recording (14s)…"
-screencapture -v -V 14 "$WORK/demo-raw.mov" & sleep 0.7
-TINTPAD_DEMO=1 TINTPAD_SCREEN_PRIMARY=1 "$APP" & sleep 15.5
+echo "▸ Recording (10.5s)…"
+screencapture -v -V 10.5 "$WORK/demo-raw.mov" & sleep 0.7
+TINTPAD_DEMO=1 TINTPAD_SCREEN_PRIMARY=1 "$APP" & sleep 12
 pkill -x Tintpad || true
 
 echo "▸ Hero still…"
@@ -62,20 +62,58 @@ pkill -x Tintpad || true
 pkill -f demo-backdrop.swift || true
 
 echo "▸ Cutting assets…"
-# Screen is 3024x1964 (2x). The produced cut: crop the story band, then a
-# zoompan camera with smoothstep easing — wide for the fall, a slow push-in
-# while arrowing, a drift right into the chips for the red dwell at maximum
-# zoom, and an eased pull back to wide so the loop point is calm. Deliberate
-# zooms tied to real beats, never random punch-ins.
-EASE='st(1,clip((ld(0)-2)/2.5,0,1));st(1,ld(1)*ld(1)*(3-2*ld(1)));st(2,clip((ld(0)-6.6)/2.4,0,1));st(2,ld(2)*ld(2)*(3-2*ld(2)));st(3,clip((ld(0)-11.2)/1.8,0,1));st(3,ld(3)*ld(3)*(3-2*ld(3)))'
-Z="st(0,in/60);${EASE};1+0.18*ld(1)+0.27*ld(2)-0.45*ld(3)"
-X="st(0,in/60);${EASE};st(4,1000+400*ld(2)-400*ld(3));clip(ld(4)-(iw/zoom)/2,0,iw-iw/zoom)"
-Y="clip(150-(ih/zoom)/2,0,ih-ih/zoom)"
-ffmpeg -y -i "$WORK/demo-raw.mov" \
-  -vf "crop=1900:470:512:0,fps=60,zoompan=z='${Z}':x='${X}':y='${Y}':d=1:s=1600x396:fps=60" \
+# A crisp notch matte with real rounded bottom corners — drawbox can't
+# round, so a tiny stdlib PNG writer builds it once per run.
+python3 - "$WORK/notch.png" <<'EOF'
+import struct, sys, zlib
+W, H, R = 360, 78, 22
+rows = []
+for y in range(H):
+    row = bytearray([0])
+    for x in range(W):
+        a = 255
+        if y > H - R:
+            dy = y - (H - R)
+            for cx in (R, W - R):
+                if (x < R and cx == R) or (x > W - R and cx == W - R):
+                    import math
+                    if math.hypot(x - (R if cx == R else W - R), dy) > R:
+                        a = 0
+        row += bytes([0, 0, 0, a])
+    rows.append(bytes(row))
+raw = b"".join(rows)
+def chunk(t, d):
+    c = struct.pack(">I", len(d)) + t + d
+    return c + struct.pack(">I", zlib.crc32(t + d) & 0xffffffff)
+png = b"\x89PNG\r\n\x1a\n"
+png += chunk(b"IHDR", struct.pack(">IIBBBBB", W, H, 8, 6, 0, 0, 0))
+png += chunk(b"IDAT", zlib.compress(raw))
+png += chunk(b"IEND", b"")
+open(sys.argv[1], "wb").write(png)
+EOF
+
+# The cut film: four shots, hard cuts, each landing just before an action.
+#   S1 wide        — the fall out of the notch, micro push for life
+#   S2 medium      — the selection walking the tokens (cut lands between chips)
+#   S3 tight       — the chips: agent flip, then the red dwell (micro push)
+#   S4 wide        — rest, the calm loop point
+# The menu-bar text left and right is smeared away (boxblur) so the top of
+# frame reads as hardware: blank bar, crisp black notch, the drop beneath it.
+MASK="crop=1900:470:512:0,fps=60,split=3[b0][ml][mr];\
+[ml]crop=830:78:0:0,boxblur=luma_radius=30:luma_power=3:chroma_radius=15:chroma_power=2[mlb];\
+[mr]crop=730:78:1170:0,boxblur=luma_radius=30:luma_power=3:chroma_radius=15:chroma_power=2[mrb];\
+[b0][mlb]overlay=0:0[t1];[t1][mrb]overlay=1170:0[t2];[t2][1:v]overlay=820:0"
+ffmpeg -y -i "$WORK/demo-raw.mov" -i "$WORK/notch.png" -filter_complex "\
+[0:v]${MASK}[band];\
+[band]split=4[s1][s2][s3][s4];\
+[s1]trim=0.9:2.55,setpts=PTS-STARTPTS,zoompan=z='min(1.0+0.0003*in,1.05)':x='(iw-iw/zoom)/2':y=0:d=1:s=1600x396:fps=60[c1];\
+[s2]trim=2.55:4.55,setpts=PTS-STARTPTS,crop=1439:356:181:10,scale=1600:396[c2];\
+[s3]trim=4.55:8.35,setpts=PTS-STARTPTS,zoompan=z='min(1.62+0.00028*in,1.70)':x='min(1400-(iw/zoom)/2,iw-iw/zoom)':y=30:d=1:s=1600x396:fps=60[c3];\
+[s4]trim=8.35:10.3,setpts=PTS-STARTPTS,scale=1600:396[c4];\
+[c1][c2][c3][c4]concat=n=4:v=1:a=0[out]" -map "[out]" \
   -c:v libx264 -preset slow -crf 19 -pix_fmt yuv420p -movflags +faststart -an \
   web/assets/demo.mp4
-ffmpeg -y -ss 10.0 -i web/assets/demo.mp4 -frames:v 1 -q:v 3 web/assets/demo-poster.jpg
+ffmpeg -y -ss 6.6 -i web/assets/demo.mp4 -frames:v 1 -q:v 3 web/assets/demo-poster.jpg
 sips -c 440 1800 --cropOffset 0 612 "$WORK/hero-full.png" --out docs/assets/palette.png >/dev/null
 sips -c 800 1600 --cropOffset 0 712 "$WORK/hero-full.png" --out "$WORK/og-crop.png" >/dev/null
 sips -z 640 1280 "$WORK/og-crop.png" --out web/assets/og.png >/dev/null

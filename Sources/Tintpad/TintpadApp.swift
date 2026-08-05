@@ -134,19 +134,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // (the AGENT chip flips where a repo remembers Codex), a filter,
             // an agent cycle, the MODE chip turning red and back. Ends at
             // rest — the loop point is calm.
-            // Paced for the produced cut: unhurried beats with air between
-            // them, so the camera's slow push-ins land on stillness, and a
-            // long red dwell before the release back to rest.
+            // Paced for the cut film: three snappy moves, the agent flip,
+            // then the red dwell — no typing beat, the film is about the
+            // drop and the chips. Each cut in the edit lands just before
+            // one of these.
             let beats: [(Double, @MainActor @Sendable () -> Void)] = [
-                (2.6, { model.move(1) }),
+                (2.2, { model.move(1) }),
+                (2.7, { model.move(1) }),
                 (3.2, { model.move(1) }),
-                (4.2, { model.query = "de" }),
-                (5.4, { model.query = "" }),
-                (6.2, { model.move(1) }),
-                (7.0, { model.cycleAgent() }),
-                (7.8, { model.cycleAgent() }),
-                (8.6, { model.cycleMode() }),    // Skip permissions — red, held long
-                (10.8, { model.cycleMode() }),   // back to Default, rest for the loop
+                (4.0, { model.cycleAgent() }),
+                (4.6, { model.cycleAgent() }),
+                (5.2, { model.cycleMode() }),   // Skip permissions — red, held
+                (7.4, { model.cycleMode() }),   // back to Default, rest for the loop
             ]
             for (t, beat) in beats {
                 DispatchQueue.main.asyncAfter(deadline: .now() + t, execute: beat)
