@@ -32,9 +32,9 @@ It doesn't try to be one.
   <img src="docs/assets/palette.png" alt="Tintpad: a black drop below the MacBook notch holding repo names, with AGENT and MODE chips reading Claude Code, Default" width="720" />
 </div>
 
-The bottom line is the contract: `claude code · default · ⑂ main*` — which agent, which
-mode, which branch, and whether the tree is dirty. Nothing happens that this line didn't
-announce, and a mode that skips permissions shows up red before you ever press ↵.
+The chips are the contract: `AGENT Claude Code · MODE Default` — exactly what ↵ will
+run, in the agent's own words. Nothing happens that the chips didn't announce, and a
+mode that skips permissions is a red chip before you ever press ↵.
 
 <!-- Animated demo: record per docs/DEMO.md and drop at docs/assets/demo.gif. -->
 
@@ -70,15 +70,15 @@ swift run                  # dev run
 
 - **Frecency repo search**, your most-used repos rise to the top, zoxide-style, and
   Tintpad **remembers how you opened each repo last** (agent and mode), so ↵ repeats it.
-- **Git-aware**, the launch line shows the current branch with a `*` when the working
-  tree is dirty, checked in the background so the palette never waits on git.
+- **Git-aware**, worktree creation and branch context are checked in the background,
+  so the drop never waits on git.
 - **<kbd>⌘0</kbd> resume** replays your last session exactly, from the palette or a
   global hotkey.
 - **Hands off to 7 terminals**, Ghostty, iTerm2, kitty, WezTerm, Alacritty, Terminal, Warp.
 - **Run modes in each agent's own words**, Default and Skip permissions for Claude
   Code, Untrusted, Default, and Full access for Codex. A mode that skips permissions is
-  ringed red on its tile, red in the launch line, and (optionally) requires a confirm —
-  on every path, including dispatch and resume.
+  a red chip, and (optionally) requires a confirm — on every path, including dispatch
+  and resume.
 - **Worktrees**, <kbd>⌃W</kbd> spins up an isolated branch checkout and launches the agent in it.
 - **Headless dispatch**, <kbd>⌃↵</kbd> runs an agent in the background and notifies you when it's done.
 - **Prompt library, per-repo presets, GitHub import, open-in-editor.**
@@ -92,10 +92,10 @@ swift run                  # dev run
 | Key | Action |
 |---|---|
 | <kbd>⌥⌘Space</kbd> | Summon (change in Settings → Hotkeys) |
-| <kbd>←</kbd> <kbd>→</kbd> / <kbd>↑</kbd> <kbd>↓</kbd> | Move through the strip |
-| <kbd>↵</kbd> | Launch what the bottom line says |
+| <kbd>←</kbd> <kbd>→</kbd> / <kbd>↑</kbd> <kbd>↓</kbd> | Move through your repos |
+| <kbd>↵</kbd> | Launch what the chips say |
 | <kbd>⌘0</kbd> | Resume the last session exactly |
-| <kbd>⌘1</kbd>–<kbd>⌘9</kbd> | Jump straight to the nth tile and launch it |
+| <kbd>⌘1</kbd>–<kbd>⌘9</kbd> | Jump straight to the nth repo and launch it |
 | <kbd>⌘↵</kbd> | Open repo in editor |
 | <kbd>⌥↵</kbd> | Launch the dangerous mode |
 | <kbd>⇧↵</kbd> | Launch the safest mode |
