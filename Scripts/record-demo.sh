@@ -99,16 +99,16 @@ EOF
 #   S4 wide        — rest, the calm loop point
 # The menu-bar text left and right is smeared away (boxblur) so the top of
 # frame reads as hardware: blank bar, crisp black notch, the drop beneath it.
-MASK="crop=1900:470:512:0,fps=60,split=3[b0][ml][mr];\
-[ml]crop=830:78:0:0,boxblur=luma_radius=30:luma_power=3:chroma_radius=15:chroma_power=2[mlb];\
-[mr]crop=730:78:1170:0,boxblur=luma_radius=30:luma_power=3:chroma_radius=15:chroma_power=2[mrb];\
-[b0][mlb]overlay=0:0[t1];[t1][mrb]overlay=1170:0[t2];[t2][1:v]overlay=820:0"
+MASK="crop=1800:446:612:0,fps=60,split=3[b0][ml][mr];\
+[ml]crop=720:78:0:0,boxblur=luma_radius=30:luma_power=3:chroma_radius=15:chroma_power=2[mlb];\
+[mr]crop=720:78:1080:0,boxblur=luma_radius=30:luma_power=3:chroma_radius=15:chroma_power=2[mrb];\
+[b0][mlb]overlay=0:0[t1];[t1][mrb]overlay=1080:0[t2];[t2][1:v]overlay=720:0"
 ffmpeg -y -i "$WORK/demo-raw.mov" -i "$WORK/notch.png" -filter_complex "\
 [0:v]${MASK}[band];\
 [band]split=4[s1][s2][s3][s4];\
-[s1]trim=0.9:2.55,setpts=PTS-STARTPTS,zoompan=z='min(1.0+0.0003*in,1.05)':x='(iw-iw/zoom)/2':y=0:d=1:s=1600x396:fps=60[c1];\
-[s2]trim=2.55:4.55,setpts=PTS-STARTPTS,crop=1439:356:181:10,scale=1600:396[c2];\
-[s3]trim=4.55:8.35,setpts=PTS-STARTPTS,zoompan=z='min(1.62+0.00028*in,1.70)':x='min(1400-(iw/zoom)/2,iw-iw/zoom)':y=30:d=1:s=1600x396:fps=60[c3];\
+[s1]trim=0.9:2.55,setpts=PTS-STARTPTS,scale=5400:-2,zoompan=z='st(0,clip(in/99,0,1));st(0,ld(0)*ld(0)*(3-2*ld(0)));1+0.05*ld(0)':x='(iw-iw/zoom)/2':y=0:d=1:s=1600x396:fps=60[c1];\
+[s2]trim=2.55:4.55,setpts=PTS-STARTPTS,crop=1440:357:80:8,scale=1600:396[c2];\
+[s3]trim=4.55:8.35,setpts=PTS-STARTPTS,scale=5400:-2,zoompan=z='st(0,clip(in/228,0,1));st(0,ld(0)*ld(0)*(3-2*ld(0)));1.62+0.08*ld(0)':x='min(4350-(iw/zoom)/2,iw-iw/zoom)':y=60:d=1:s=1600x396:fps=60[c3];\
 [s4]trim=8.35:10.3,setpts=PTS-STARTPTS,scale=1600:396[c4];\
 [c1][c2][c3][c4]concat=n=4:v=1:a=0[out]" -map "[out]" \
   -c:v libx264 -preset slow -crf 19 -pix_fmt yuv420p -movflags +faststart -an \

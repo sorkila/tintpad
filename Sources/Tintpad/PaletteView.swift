@@ -688,8 +688,10 @@ struct PaletteView: View {
         .frame(width: width, height: height)
         .offset(y: drip || model.launching ? -Self.fall : 0)
         .opacity(phase >= 1 ? 1 : 0)
-        .shadow(color: .black.opacity(spread ? 0.5 : 0.25), radius: spread ? 16 : 5,
-                y: spread ? 8 : 3)
+        // The shadow arrives with the landing: a drop in flight casting a
+        // grounded shadow reads as two objects, so it casts nothing until
+        // it has spread.
+        .shadow(color: .black.opacity(spread ? 0.5 : 0), radius: 16, y: 8)
         .animation(reduceMotion ? nil : .easeIn(duration: 0.15), value: model.launching)
     }
 
