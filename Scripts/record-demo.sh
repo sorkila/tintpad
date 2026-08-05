@@ -67,28 +67,26 @@ echo "▸ Cutting assets…"
 # top edge, so the frame reads as hardware, not as a crop.
 python3 - "$WORK/notch.png" <<'EOF'
 import math, struct, sys, zlib
-W, H = 340, 36          # canvas: 320x24 tab + room for shadow and rim
+# Pure black tab, 3x3 supersampled edges, shadow given room to breathe —
+# margins sized so the falloff ends inside the canvas, never boxed.
+W, H = 360, 48
 CX, HW, TH, R = W / 2, 160, 24, 10
+def sd(px, py):
+    qx = max(abs(px - CX) - (HW - R), 0)
+    qy = max(py - (TH - R), 0)
+    return math.hypot(qx, qy) - R
 rows = []
 for y in range(H):
     row = bytearray([0])
     for x in range(W):
-        qx = max(abs(x - CX) - (HW - R), 0)
-        qy = max(y - (TH - R), 0)
-        d = math.hypot(qx, qy) - R
-        fill = max(0.0, min(1.0, (0.75 - d) / 1.5))
-        # A hairline of light just inside the silhouette — the notch
-        # catching light, so the tab reads on any backdrop.
-        rim = max(0.0, 1 - abs(d + 0.4) / 1.3)
-        shadow = 0.0
-        if d > 0:
-            shadow = 0.34 * (1 - min(d / 9, 1)) ** 2
-        if rim > 0.12:
-            c = int(210 * rim)
-            aa = int(255 * max(fill, rim * 0.55, shadow))
-            row += bytes([c, c, min(255, c + 8), aa])
-        else:
-            row += bytes([0, 0, 0, int(255 * max(fill, shadow))])
+        acc = 0.0
+        for sy in (-0.33, 0.0, 0.33):
+            for sx in (-0.33, 0.0, 0.33):
+                d = sd(x + sx, y + sy)
+                fill = max(0.0, min(1.0, (0.5 - d) / 1.0))
+                shadow = 0.30 * (1 - min(max(d, 0) / 14, 1)) ** 2 if d > 0 else 0.0
+                acc += max(fill, shadow)
+        row += bytes([0, 0, 0, int(255 * acc / 9)])
     rows.append(bytes(row))
 raw = b"".join(rows)
 def chunk(t, d):
@@ -115,11 +113,8 @@ Y="st(0,in/60);${QUINT};st(5,(223-45*ld(1)-41*ld(2)+86*ld(3))*3);clip(ld(5)-(ih/
 ffmpeg -y -i "$WORK/demo-raw.mov" -i "$WORK/notch.png" -filter_complex "\
 [0:v]crop=1800:446:612:78,fps=60,trim=0.9:12.9,setpts=PTS-STARTPTS,scale=5400:-2,\
 zoompan=z='${Z}':x='${X}':y='${Y}':d=1:s=1600x396:fps=60[cam];\
-[1:v]loop=loop=720:size=1:start=0,fps=60,format=rgba,split=2[ta0][tb0];\
-[ta0]fade=out:st=2.5:d=0.45:alpha=1[ta];\
-[tb0]fade=in:st=10.0:d=0.5:alpha=1[tb];\
-[cam][ta]overlay=630:0:shortest=1[o1];\
-[o1][tb]overlay=630:0:shortest=1[out]" -map "[out]" \
+[1:v]loop=loop=720:size=1:start=0,fps=60,format=rgba[tab];\
+[cam][tab]overlay=620:0:shortest=1[out]" -map "[out]" \
   -c:v libx264 -preset slow -crf 19 -pix_fmt yuv420p -movflags +faststart -an \
   web/assets/demo.mp4
 ffmpeg -y -ss 8.2 -i web/assets/demo.mp4 -frames:v 1 -q:v 3 web/assets/demo-poster.jpg
