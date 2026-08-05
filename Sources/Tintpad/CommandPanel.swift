@@ -28,15 +28,17 @@ final class CommandPanel: NSPanel {
             defer: false
         )
         isFloatingPanel = true
-        level = .floating
+        // Status-bar level: the island fuses with the camera housing, which
+        // means drawing over the menu bar's strip — .floating sits below it.
+        level = .statusBar
         becomesKeyOnlyIfNeeded = false      // we DO want key for typing
         hidesOnDeactivate = false
-        isMovableByWindowBackground = true
+        isMovableByWindowBackground = false // the bar is chrome, not a window
         backgroundColor = .clear
         isOpaque = false
-        // No system shadow: AppKit computes it for the rectangular frame, which
-        // reads as a ghost box around the floating glass pieces. Each piece
-        // draws its own SwiftUI shadow inside the window's transparent margin.
+        // No system shadow: AppKit would shadow the whole window rect, which
+        // includes the transparent margin below the bar. The bar draws its own
+        // SwiftUI shadow into that margin instead.
         hasShadow = false
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
         animationBehavior = .utilityWindow
@@ -75,6 +77,9 @@ final class CommandPanelController: NSObject {
         onClose: { [weak self] in self?.hide() },
         onOpenSettings: { [weak self] in self?.openSettings() })
 
+    /// Per-summon notch geometry, bridged into the SwiftUI island.
+    private let anchor = NotchAnchor()
+
     /// Install the key monitor at launch so the very first summon is responsive.
     func warm() { model.startMonitoring() }
 
@@ -108,8 +113,11 @@ final class CommandPanelController: NSObject {
     func show() {
         let panel = panel ?? makePanel()
         self.panel = panel
-        panel.appearance = AppStore.shared.settings.appearance.nsAppearance  // follow theme
-        center(panel)
+        // The island is a black world in every theme — it matches the camera
+        // housing, not the appearance setting. Dark fixes AppKit's field
+        // editor + focus ring colors to match.
+        panel.appearance = NSAppearance(named: .darkAqua)
+        dock(panel)
         // Activate so the search field becomes first responder and accepts
         // typing; focus returns to the prior app via NSApp.hide on close.
         NSApp.activate(ignoringOtherApps: true)
@@ -120,14 +128,16 @@ final class CommandPanelController: NSObject {
     }
 
     /// Write the panel's frame in screencapture coordinates (top-left origin)
-    /// so a capture script can crop to it exactly. Showcase mode only.
+    /// so a capture script can crop to it exactly. Showcase mode only. The
+    /// bar spans the screen and its shadow lives inside the window, so the
+    /// crop needs headroom only for the menu bar above it.
     private func dumpRect(_ panel: NSPanel) {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
             guard let screen = NSScreen.screens.first else { return }
             let f = panel.frame
-            let pad: CGFloat = 40   // include the window shadow
             let top = screen.frame.maxY - f.maxY
-            let line = "\(Int(f.minX - pad)),\(Int(top - pad)),\(Int(f.width + pad * 2)),\(Int(f.height + pad * 2))"
+            let pad: CGFloat = 30   // include the menu bar + a little desktop below
+            let line = "\(Int(f.minX)),\(Int(top - pad)),\(Int(f.width)),\(Int(f.height + pad * 2))"
             try? line.write(toFile: "/tmp/tintpad-panel-rect", atomically: true, encoding: .utf8)
         }
     }
@@ -141,13 +151,12 @@ final class CommandPanelController: NSObject {
     }
 
     private func makePanel() -> CommandPanel {
-        // The visible cluster is panelWidth wide; the window adds a transparent
-        // margin on each side where the pieces' shadows live.
-        let width = AppStore.shared.settings.panelWidth + PaletteView.windowMargin * 2
-        let rect = NSRect(x: 0, y: 0, width: width, height: 320)
+        // The island's window is sized by `dock` on every show (the summon
+        // screen can change), so this rect is a placeholder.
+        let rect = NSRect(x: 0, y: 0, width: 800, height: 72)
         let panel = CommandPanel(contentRect: rect)
         panel.controller = self
-        let root = PaletteView(model: model) { [weak self] height in
+        let root = PaletteView(model: model, anchor: anchor) { [weak self] height in
             self?.resize(toContentHeight: height)
         }
         let hosting = NSHostingView(rootView: root)
@@ -157,14 +166,14 @@ final class CommandPanelController: NSObject {
         return panel
     }
 
-    /// Grow/shrink the panel to fit its content, pinned at the top edge so the
-    /// search field never moves under the cursor while you type.
+    /// The bar reports its window height (bar + shadow room), which changes
+    /// only with Dynamic Type. The top edge stays glued under the menu bar —
+    /// height grows into the transparent margin below.
     ///
-    /// The palette reports the height it wants for its *content*. The panel is
-    /// borderless now, so the content view's safe-area insets are zero — but we
-    /// still read the real insets rather than assuming, so a future style-mask
-    /// change can't silently re-clip the last row (the `.titled` era reserved a
-    /// ~32pt titlebar strip that had to be added back here).
+    /// The panel is borderless, so the content view's safe-area insets are
+    /// zero — but we still read the real insets rather than assuming, so a
+    /// future style-mask change can't silently clip the bar (the `.titled`
+    /// era reserved a ~32pt titlebar strip that had to be added back here).
     private func resize(toContentHeight height: CGFloat) {
         guard let panel else { return }
         let insets = panel.contentView?.safeAreaInsets ?? NSEdgeInsetsZero
@@ -176,19 +185,34 @@ final class CommandPanelController: NSObject {
         panel.setFrame(frame, display: true, animate: false)
     }
 
-    private func center(_ panel: NSPanel) {
+    /// Dock the island at the summon screen's top center and feed the view
+    /// its notch geometry. On a notched screen the window's top edge sits at
+    /// the very top of the screen (over the menu bar strip), so the black
+    /// island fuses with the camera housing; the width of the housing is the
+    /// gap between the two auxiliary menu-bar areas. Plain displays get the
+    /// floating pill just below the menu bar instead.
+    private func dock(_ panel: NSPanel) {
         // Harness pin: screenshot/demo runs must land on the primary display
         // regardless of where the user's focus is, or the capture (which reads
         // the primary) and the panel end up on different screens.
         let pinned = ProcessInfo.processInfo.environment["TINTPAD_SCREEN_PRIMARY"] == "1"
             ? NSScreen.screens.first : nil
-        guard let screen = pinned ?? NSScreen.main else { panel.center(); return }
-        let visible = screen.visibleFrame
-        let size = panel.frame.size
-        let origin = NSPoint(
-            x: visible.midX - size.width / 2,
-            y: visible.midY - size.height / 2 + visible.height * 0.12  // sit slightly above center
-        )
-        panel.setFrameOrigin(origin)
+        guard let screen = pinned ?? NSScreen.main else { return }
+        let hasNotch = screen.safeAreaInsets.top > 0
+        // Notched: the window is flush with the screen's very top, and the
+        // housing's depth becomes transparent headroom — the string begins
+        // exactly where the housing ends. Plain displays: flush under the
+        // menu bar, the string hangs from its edge instead.
+        anchor.geometry = NotchGeometry(
+            hasNotch: hasNotch,
+            restHeight: hasNotch ? screen.safeAreaInsets.top : 0,
+            maxWidth: min(640, screen.frame.width - 160))
+        let width = anchor.geometry.maxWidth + PaletteView.shadowMargin * 2
+        let height = panel.frame.height
+        let top = hasNotch ? screen.frame.maxY : screen.visibleFrame.maxY
+        panel.setFrame(
+            NSRect(x: screen.frame.midX - width / 2, y: top - height,
+                   width: width, height: height),
+            display: true)
     }
 }

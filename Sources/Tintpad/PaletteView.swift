@@ -527,129 +527,132 @@ final class PaletteModel: ObservableObject {
     }
 }
 
+// MARK: - Notch anchor
+
+/// Where the drop hangs from on the summon screen. Computed by the
+/// controller on every show — the screen (and whether it has a notch) can
+/// change between summons.
+struct NotchGeometry: Equatable {
+    /// True when the summon screen has a camera housing to hang from.
+    var hasNotch: Bool
+    /// The housing's depth — the transparent gap above the string when the
+    /// window is flush with the screen's top edge. Zero when floating.
+    var restHeight: CGFloat
+    /// The settled droplet width for this screen.
+    var maxWidth: CGFloat
+
+    static let fallback = NotchGeometry(hasNotch: false, restHeight: 0, maxWidth: 640)
+}
+
+/// Bridges the controller's per-summon geometry into the SwiftUI drop.
+@MainActor
+final class NotchAnchor: ObservableObject {
+    @Published var geometry: NotchGeometry = .fallback
+}
+
 // MARK: - View
 
-/// The palette: a floating cluster of Liquid Glass pieces — ⌘Tab for repos.
+/// The palette: a black drop that falls out of the notch.
 ///
-/// Not a sheet with rows (every launcher is that). Three discrete glass
-/// pieces with real gaps: a search pill, a horizontal strip of repo tiles you
-/// arrow through like the app switcher, and a launch pill that says exactly
-/// what ⏎ will do.
+/// Summon, and a bead of black drips from the camera housing's lip, falls
+/// free — stretching slightly, the way liquid does — lands a beat below,
+/// and splats sideways into a floating capsule that settles with one soft
+/// bob. The drop holds the repos as words: stark black and white, nothing
+/// else. Launch, and the capsule condenses back into the bead and is pulled
+/// up into the housing.
 ///
 /// Rules the layout obeys:
 ///
-/// 1. **One material, three pieces.** On macOS 26 each piece is real Liquid
-///    Glass inside a shared `GlassEffectContainer`; earlier systems get the
-///    legacy vibrancy stack per piece. The window draws no system shadow —
-///    each piece carries its own, inside a transparent margin, so AppKit can
-///    never mis-shadow a shape it doesn't understand.
-/// 2. **The accent means "here, now"** — the text caret and the selected
-///    tile's tint. Danger red means exactly "skips permissions"; a dangerous
-///    tile is ringed red before you arrive, and the mode word is red.
-/// 3. **The launch pill is the contract.** Agent (with its mark), mode, and
-///    `⑂ branch*` — the agent and mode words are quietly clickable (the
-///    visible counterpart of ⇥/⇧⇥, real flags in the tooltip). Nothing
-///    happens that this line didn't announce, and nothing on it repeats
-///    what the strip already says.
-/// 4. **One voice of type.** SF Mono only, at exactly two sizes — `fieldSize`
-///    for what you type, `metaSize` for everything else — and weight carries
-///    the hierarchy. The palette speaks machine, quietly.
-/// 5. **Keyboard first, mouse honest.** ←/→ (or ↑/↓) move, ⏎ launches,
-///    ⌘1–⌘9 jump, ⌘0 resumes; tiles click, launch words cycle.
+/// 1. **Nothing behind the camera.** The drop floats strictly below the
+///    housing line; the housing keeps every one of its pixels.
+/// 2. **Black and white, fully mute.** The capsule is pure black in every
+///    theme, the ink is white and gray, the caret included. At rest the
+///    drop speaks one object language: every element is a capsule of one
+///    height. White chip = where you are, gray chips = the contract (what
+///    ⏎ does — always present, a contract that hides reads as a bug), red
+///    chip = it skips permissions, the only color the drop ever allows.
+///    The query materializes at the left as you type.
+/// 3. **The fall is the brand.** Drip (a bead pops at the lip) → fall
+///    (easeIn, elongating) → splat (one spring with a touch of overshoot,
+///    squash into spread) → settle (a single bob) → tokens surfacing
+///    center-out. Squash and stretch, anticipation, follow-through —
+///    springs, not durations, so any interruption retargets mid-flight.
+///    Reduce Motion replaces the film with a crossfade.
+/// 4. **Keyboard first, mouse honest.** ←/→ (or ↑/↓) move through tokens
+///    while the field is empty, ⏎ launches, ⌘1–⌘9 jump, ⌘0 resumes, ⇥/⇧⇥
+///    cycle agent/mode — the contract's words are the clickable counterparts.
 struct PaletteView: View {
     @ObservedObject private var model: PaletteModel
+    @ObservedObject private var anchor: NotchAnchor
     let onResize: (CGFloat) -> Void
     @FocusState private var searchFocused: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.colorScheme) private var scheme
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    @State private var hovered: Int?
-    @State private var shown = false
+    @State private var phase = 0          // 0 rest · 1 drip · 2 fallen · 3 spread
+    @State private var contentShown = false
+    @State private var landBob = false    // one soft bounce as the drop settles
 
-    /// Transparent margin around the cluster: the pieces' own shadows live
-    /// here. The window is this much larger than the visible content.
-    static let windowMargin: CGFloat = 30
+    /// Transparent room around the drop where its shadow falls.
+    static let shadowMargin: CGFloat = 30
+    /// How far the bead falls from the housing's lip to where it rests.
+    private static let fall: CGFloat = 22
+    /// The bead before it spreads.
+    private static let beadSize: CGFloat = 14
 
-    private enum Metric {
-        static let gap: CGFloat = 12
-        static let tileCorner: CGFloat = 16
-        static let stripCorner: CGFloat = 30
-        static let maxPanel: CGFloat = 560
-        static let minPanel: CGFloat = 120
-    }
-
-    // Dynamic Type. Type and the grid scale together, or the panel's computed
-    // height stops matching what it actually lays out. Capped at xxLarge below,
-    // since a fixed-width HUD can't absorb the accessibility sizes.
-    @ScaledMetric(relativeTo: .body) private var pillH: CGFloat = 50
-    @ScaledMetric(relativeTo: .body) private var tileSize: CGFloat = 66
-    @ScaledMetric(relativeTo: .body) private var tileLabelH: CGFloat = 17
-    @ScaledMetric(relativeTo: .body) private var stripPad: CGFloat = 14
-    @ScaledMetric(relativeTo: .body) private var fieldSize: CGFloat = 15
-    @ScaledMetric(relativeTo: .body) private var metaSize: CGFloat = 12
-    @ScaledMetric(relativeTo: .body) private var bannerH: CGFloat = 38
+    // Dynamic Type. The drop's height derives from these, so they scale
+    // together. Capped at xxLarge — one line cannot absorb accessibility sizes.
+    @ScaledMetric(relativeTo: .body) private var dropH: CGFloat = 38
+    @ScaledMetric(relativeTo: .body) private var fieldSize: CGFloat = 12
+    @ScaledMetric(relativeTo: .body) private var metaSize: CGFloat = 11
+    @ScaledMetric(relativeTo: .body) private var chipH: CGFloat = 21
 
     /// The model is owned by the controller (created + monitored at launch) so
     /// the very first summon is already warm.
-    init(model: PaletteModel, onResize: @escaping (CGFloat) -> Void = { _ in }) {
+    init(model: PaletteModel, anchor: NotchAnchor,
+         onResize: @escaping (CGFloat) -> Void = { _ in }) {
         self.model = model
+        self.anchor = anchor
         self.onResize = onResize
     }
 
     private var accent: Color { model.accent }
-    private var isDark: Bool { scheme == .dark }
-    /// Which content the middle piece shows — drives the crossfade.
-    private var modeToken: Int {
-        if model.worktreeRepo != nil { return 1 }
-        if model.promptRepo != nil { return 2 }
+    /// Which content the middle region shows — drives the crossfade.
+    private var middleToken: Int {
+        if model.isPendingDangerous { return 1 }
+        if model.status != nil { return 2 }
+        if model.worktreeRepo != nil { return 3 }
+        if model.promptRepo != nil { return 4 }
         return 0
     }
 
     var body: some View {
-        Group {
-            // The compiler gate matters as much as the availability check:
-            // Liquid Glass symbols only exist in the macOS 26 SDK (Swift
-            // 6.2+), and older toolchains (CI's macos-15 image, contributors
-            // on Xcode 16) must still compile the fallback path.
-            #if compiler(>=6.2)
-            if #available(macOS 26.0, *) {
-                // Blend distance just under the resting gap: pieces fuse into
-                // one glass body only while the summon settle has them close,
-                // then read as three crisp objects at rest.
-                GlassEffectContainer(spacing: 10) { cluster }
-            } else {
-                cluster
-            }
-            #else
-            cluster
-            #endif
+        VStack(spacing: 0) {
+            // The housing's own depth — the window is flush with the screen
+            // top on notched Macs, and the fall begins where the housing ends.
+            Spacer().frame(height: anchor.geometry.restHeight + Self.fall)
+            droplet
+                // Follow-through: the landing carries 4pt past the resting
+                // line and springs back — the splat has weight.
+                .offset(y: landBob ? 0 : -4)
+            Spacer(minLength: 0)
         }
-        .scaleEffect(model.launching ? 0.985 : (shown ? 1 : 0.99), anchor: .top)
-        .opacity(model.launching ? 0 : (shown ? 1 : 0))
-        .offset(y: model.launching ? 10 : 0)
-        // The launch gesture: the cluster releases downward as it fades.
-        .animation(reduceMotion ? nil : .easeIn(duration: 0.15), value: model.launching)
-        // Scale text with the system size, but cap it so this fixed-width HUD
-        // stays usable (accessibility sizes would otherwise overflow the strip).
+        .frame(maxWidth: .infinity)
+        // The drop is a black world regardless of system theme — fix the
+        // hierarchy styles to dark so .secondary/.tertiary read on black.
+        .environment(\.colorScheme, .dark)
         .dynamicTypeSize(...DynamicTypeSize.xxLarge)
         .onAppear { model.startMonitoring(); model.reset(); searchFocused = true; animateIn(); pushHeight() }
         // Typing always lands in the field — no one should ever have to click
-        // it first. If a tile tap or a launch-line word steals first responder,
-        // take it back. Exception: when VoiceOver/Full Keyboard Access owns
-        // focus traversal, forcing it back would trap the user (a11y #1).
+        // it first. Exception: when VoiceOver/Full Keyboard Access owns focus
+        // traversal, forcing it back would trap the user (a11y #1).
         .onChange(of: searchFocused) { _, focused in
             if !focused && !model.tabTraverses() {
                 DispatchQueue.main.async { searchFocused = true }
             }
         }
-        .onChange(of: model.worktreeRepo?.id) { _, _ in pushHeight() }
-        .onChange(of: model.promptRepo?.id) { _, _ in pushHeight() }
         .onChange(of: model.status) { _, s in
-            pushHeight()
             if let s { AccessibilityNotification.Announcement(s).post() }
         }
         .onChange(of: model.isPendingDangerous) { _, pending in
-            pushHeight()
             if pending, let d = model.pendingDangerousDescription {
                 AccessibilityNotification.Announcement(
                     "Confirm dangerous launch: \(d). Press return again to launch, or escape to cancel."
@@ -664,195 +667,189 @@ struct PaletteView: View {
         }
     }
 
-    private var cluster: some View {
-        VStack(spacing: shown ? Metric.gap : -10) {
-            searchPill
-                .modifier(glassPiece(Capsule(), interactive: true))
-            contentPiece
-                .modifier(glassPiece(RoundedRectangle(cornerRadius: Metric.stripCorner, style: .continuous),
-                                     prominent: true))
-                .transition(.opacity)
-            if model.isPendingDangerous {
-                confirmBanner
-                    .modifier(glassPiece(RoundedRectangle(cornerRadius: 14, style: .continuous)))
-            } else if model.status != nil {
-                statusBanner
-                    .modifier(glassPiece(RoundedRectangle(cornerRadius: 14, style: .continuous)))
-            }
-            launchPill
-                .modifier(glassPiece(Capsule(), interactive: true))
+    // MARK: - The droplet
+
+    private var droplet: some View {
+        let g = anchor.geometry
+        let spread = phase >= 3 && !model.launching
+        let falling = phase == 2 && !model.launching
+        let drip = phase == 1 && !model.launching
+        // The bead elongates while it falls — liquid stretches under its
+        // own weight — and rides above the resting line until it lands.
+        let width: CGFloat = spread ? g.maxWidth : (falling ? Self.beadSize - 2 : Self.beadSize)
+        let height: CGFloat = spread ? dropH : (falling ? Self.beadSize + 5 : Self.beadSize)
+        return ZStack {
+            Capsule(style: .continuous).fill(.black)
+            content
+                .opacity(contentShown && !model.launching ? 1 : 0)
+                .animation(reduceMotion ? nil : .easeIn(duration: 0.08), value: model.launching)
         }
-        // Worktree/prompt swap the strip for a side panel — as a crossfade,
-        // never a hard cut.
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.16), value: modeToken)
-        .padding(Self.windowMargin)
+        .clipShape(Capsule(style: .continuous))
+        .frame(width: width, height: height)
+        .offset(y: drip || model.launching ? -Self.fall : 0)
+        .opacity(phase >= 1 ? 1 : 0)
+        .shadow(color: .black.opacity(spread ? 0.5 : 0.25), radius: spread ? 16 : 5,
+                y: spread ? 8 : 3)
+        .animation(reduceMotion ? nil : .easeIn(duration: 0.15), value: model.launching)
     }
 
-    private func glassPiece<S: InsettableShape>(_ shape: S, interactive: Bool = false,
-                                                prominent: Bool = false) -> GlassPiece<S> {
-        GlassPiece(shape: shape, isDark: isDark, reduceTransparency: reduceTransparency,
-                   interactive: interactive, prominent: prominent)
-    }
-
-    /// Quick fade + a barely-there scale, replayed on every show (skipped if
-    /// Reduce Motion). A launcher that announces itself gets tiring.
-    private func animateIn() {
-        if reduceMotion { shown = true; return }
-        shown = false
-        DispatchQueue.main.async {
-            // A settle, not a pop: the pieces separate out of one glass body.
-            withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) { shown = true }
-        }
-    }
-
-    // MARK: - Panel sizing
-
-    /// Height is derived from the grid, not measured, so the resize is exact and
-    /// can never oscillate against SwiftUI's own layout pass.
-    private func pushHeight() {
-        onResize(min(max(naturalHeight, Metric.minPanel), Metric.maxPanel) + Self.windowMargin * 2)
-    }
-
-    private var naturalHeight: CGFloat {
-        var h = pillH * 2 + Metric.gap * 2 + contentHeight
-        if model.isPendingDangerous || model.status != nil { h += bannerH + Metric.gap }
-        return h
-    }
-
-    private var contentHeight: CGFloat {
-        if model.worktreeRepo != nil || model.promptRepo != nil { return 128 }
-        return stripPad * 2 + tileSize + 5 + tileLabelH
-    }
-
-    // MARK: - Search pill
-
-    /// A shell prompt, not a search box: the prefix names the mode you're in, so
-    /// worktree and prompt modes don't need a separate banner to explain
-    /// themselves.
-    private var searchPill: some View {
+    private var content: some View {
+        // Spacing is owned by the regions (the field pads itself only while
+        // visible; the contract carries its own separation) so the token row
+        // starts hard at the drop's left padding — an honest rag, no drift.
         HStack(spacing: 0) {
+            searchRegion
+                .stagger(0.02, shown: contentShown, reduced: reduceMotion)
+            middleRegion
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .transition(.opacity)
+            contractRegion
+                .layoutPriority(1)
+                .padding(.leading, 32)   // separation is space, not a divider
+                .stagger(0.05, shown: contentShown, reduced: reduceMotion)
+        }
+        // The middle-region swap is a crossfade, never a hard cut.
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.16), value: middleToken)
+        // Optical law: the first chip's margin matches the vertical inset —
+        // plus the round-end compensation. A capsule's curve eats into the
+        // corner, so the geometric margin alone reads as a clip; the extra
+        // points give back what the curve takes.
+        .padding(.horizontal, (dropH - chipH) / 2 + 5)
+    }
+
+    // MARK: - Search region
+
+    /// Fully mute: at rest the field is invisible (a hairline that still
+    /// holds keyboard focus). It materializes at the left as you type; in
+    /// worktree/prompt modes it names the state and widens — it is
+    /// capturing, not filtering. The caret is white: the drop is monochrome
+    /// down to the last pixel.
+    private var searchRegion: some View {
+        let resting = model.query.isEmpty && !capturing
+        return HStack(spacing: 8) {
             if !promptPrefix.isEmpty {
-                Text(promptPrefix + "  ")
-                    .font(.mono(metaSize, .semibold))
-                    .foregroundStyle(accent)
+                Text(promptPrefix)
+                    .font(.system(size: metaSize, weight: .semibold))
+                    .foregroundStyle(.primary)
                     .accessibilityHidden(true)
             }
-            TextField(placeholder, text: $model.query)
+            TextField("", text: $model.query)
                 .textFieldStyle(.plain)
-                .font(.mono(fieldSize))
+                .font(.system(size: fieldSize))
                 .foregroundStyle(.primary)
                 .focused($searchFocused)
-                .tint(accent)   // the caret wears the brand, not system blue
-                .accessibilityLabel("Search repositories")
+                .tint(model.isPendingDangerous ? dangerTint : .white)
+                .accessibilityLabel(fieldAccessibilityLabel)
             if !model.query.isEmpty, model.worktreeRepo == nil, model.promptRepo == nil {
-                // How much the filter cut. Only shown while filtering, because
-                // "11 of 11" is not information.
+                // Shown only while filtering — "11 of 11" is not information.
                 Text("\(model.filtered.count)")
-                    .font(.mono(metaSize))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: metaSize))
+                    .foregroundStyle(.tertiary)
                     .monospacedDigit()
             }
         }
-        .padding(.horizontal, 20)
-        .frame(height: pillH)
+        .frame(width: capturing ? 280 : (resting ? 0 : 150), alignment: .leading)
+        .padding(.trailing, resting ? 0 : 12)
+        .opacity(resting ? 0 : 1)
+        .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.85),
+                   value: resting)
     }
 
-    /// Empty in the normal state: the caret alone is the prompt (the brand
-    /// lives in the icon now). Worktree/prompt name themselves because that
-    /// is state the user must not lose track of.
+    private var capturing: Bool { model.worktreeRepo != nil || model.promptRepo != nil }
+
     private var promptPrefix: String {
-        if model.worktreeRepo != nil { return "worktree" }
-        if model.promptRepo != nil { return "prompt" }
+        if model.worktreeRepo != nil { return "Worktree" }
+        if model.promptRepo != nil { return "Prompt" }
         return ""
     }
 
-    private var placeholder: String {
-        if let wt = model.worktreeRepo { return "branch name for \(wt.name)" }
-        if let pr = model.promptRepo { return "prompt for \(pr.name)" }
-        return "search repos"
+    private var fieldAccessibilityLabel: String {
+        if let wt = model.worktreeRepo { return "Branch name for \(wt.name)" }
+        if let pr = model.promptRepo { return "Prompt for \(pr.name)" }
+        return "Search repositories"
     }
 
-    // MARK: - Content piece
+    // MARK: - Middle region
 
-    @ViewBuilder private var contentPiece: some View {
-        if let wt = model.worktreeRepo {
-            sidePanel(
-                title: "git worktree add",
-                body: "An isolated checkout of \(wt.name) on a new branch. The agent launches there, leaving your working tree untouched.",
-                detail: model.worktreePreviewPath().map(displayPath))
-        } else if let pr = model.promptRepo {
-            sidePanel(
-                title: "starting prompt",
-                body: "Handed to \(model.activeAgent(for: pr)?.name ?? "the agent") in \(pr.name) as its first message.",
-                detail: nil)
+    /// The drop becomes the question: confirm, status, worktree, and prompt
+    /// all speak here, in place of the tokens. One storey, always.
+    @ViewBuilder private var middleRegion: some View {
+        if model.isPendingDangerous {
+            middleLine("Return again to launch \(model.pendingDangerousDescription ?? "") — Esc cancels",
+                       color: dangerTint)
+        } else if let status = model.status {
+            let isError = status.hasPrefix("⚠")
+            middleLine(isError ? String(status.dropFirst(2)) : status,
+                       color: isError ? dangerTint : nil)
+        } else if model.worktreeRepo != nil {
+            middleLine(worktreeExplainer)
+        } else if model.promptRepo != nil {
+            middleLine("Handed to \(model.promptRepo.flatMap { model.activeAgent(for: $0) }?.name ?? "the agent") as its first message — Return launches, Esc goes back")
         } else {
-            tileStrip
+            tokenStrip
         }
     }
 
-    private func sidePanel(title: String, body: String, detail: String?) -> some View {
-        VStack(alignment: .leading, spacing: 9) {
-            Text(title)
-                .font(.mono(metaSize, .semibold))
-                .tracking(0.1)
-                .foregroundStyle(accent)
-            Text(body)
-                .font(.mono(metaSize))
-                .foregroundStyle(.secondary)
-                .lineSpacing(3)
-                .fixedSize(horizontal: false, vertical: true)
-            if let detail {
-                Text(detail)
-                    .font(.mono(metaSize))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1).truncationMode(.middle)
-                    .padding(.top, 2)
-            }
-            Spacer(minLength: 0)
+    private var worktreeExplainer: String {
+        if let path = model.worktreePreviewPath() {
+            return "New worktree at \(displayPath(path)) — Return creates and launches"
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 20)
-        .padding(.vertical, 16)
-        .frame(height: contentHeight)
+        return "An isolated checkout on a new branch — Return creates and launches"
     }
 
-    /// The repo strip — ⌘Tab, but for repos. Frecency order, ←/→ to move,
-    /// ⏎ to launch, pinned repos first.
-    private var tileStrip: some View {
+    private func middleLine(_ text: String, color: Color? = nil) -> some View {
+        Text(text)
+            .font(.system(size: fieldSize))
+            .foregroundStyle(color.map(AnyShapeStyle.init) ?? AnyShapeStyle(.secondary))
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .textSelection(.enabled)
+    }
+
+    /// The token strip — ⌘Tab, but for repos, as words on black. Gray at
+    /// rest; the selected repo is a white chip with black ink. That is the
+    /// entire palette.
+    private var tokenStrip: some View {
         let repos = model.filtered
+        let mid = Double(max(repos.count - 1, 0)) / 2
+        // Left-anchored, like a line of type: the row begins at the drop's
+        // padding and rags right. Only the right edge fades (overflow is the
+        // only thing worth signaling — the left edge is the margin).
         return ScrollViewReader { proxy in
             ScrollView(.horizontal) {
-                LazyHStack(spacing: 8) {
+                // The scroll viewport clips hard at x=0 — the first chip's
+                // curve needs protected points inside the clip or its left
+                // edge shears. This padding lives inside the scroll content,
+                // so the rag still reads flush with the computed margin.
+                HStack(spacing: 6) {
                     // Index identity throughout (id: \.self == .id(index) == selection),
-                    // so a selection change updates the tile in place instead of
+                    // so a selection change updates the token in place instead of
                     // being mis-diffed as a remove/insert.
                     ForEach(repos.indices, id: \.self) { index in
-                        tile(repos[index], index: index,
-                             selected: index == model.selection, hovered: hovered == index)
+                        token(repos[index], index: index, selected: index == model.selection)
                             .id(index)
-                            .onHover { inside in hovered = inside ? index : (hovered == index ? nil : hovered) }
                             .onTapGesture { model.activate(at: index) }
+                            // Tokens surface like objects floating up as the
+                            // liquid stills — center-out, a beat apart.
+                            .stagger(0.04 + abs(Double(index) - mid) * 0.022,
+                                     shown: contentShown, reduced: reduceMotion)
                     }
-                    if repos.isEmpty { emptyState }
+                    if repos.isEmpty {
+                        emptyState.stagger(0.04, shown: contentShown, reduced: reduceMotion)
+                    }
                 }
-                .padding(.horizontal, 20)   // same grid line as the pills' text
-                .padding(.vertical, stripPad)
+                .padding(.leading, 3)
             }
             .scrollIndicators(.never)
-            // Soft edges: tiles fade out at the sides instead of being
-            // guillotined by the clip — the strip reads as continuing.
             .mask(
                 HStack(spacing: 0) {
-                    LinearGradient(colors: [.clear, .black],
-                                   startPoint: .leading, endPoint: .trailing)
-                        .frame(width: 18)
                     Color.black
                     LinearGradient(colors: [.black, .clear],
                                    startPoint: .leading, endPoint: .trailing)
-                        .frame(width: 18)
+                        .frame(width: 16)
                 }
             )
-            .frame(height: contentHeight)
             .onChange(of: model.selection) { _, new in
                 let scroll = { proxy.scrollTo(new, anchor: .center) }
                 reduceMotion ? scroll() : withAnimation(.easeOut(duration: 0.14), scroll)
@@ -860,70 +857,36 @@ struct PaletteView: View {
         }
     }
 
-    /// One repo as a tile — every repo gets its tint. Identity is the repo:
-    /// a stable hue hashed from its name, its monogram in that hue, and the
-    /// agent's mark as a small corner badge. Recognition works the way ⌘Tab
-    /// works: color + letter, at a glance. A red ring still warns before you
-    /// arrive that this tile's mode skips permissions.
-    private func tile(_ repo: Repo, index: Int, selected: Bool, hovered: Bool) -> some View {
+    /// One repo as a token: its name in gray, and when you arrive, a white
+    /// chip with black ink — stark reverse video, no hue anywhere. The chip
+    /// alone is selection; danger speaks once, as the red mode word in the
+    /// contract (and again at the confirm gate), never as a ring here.
+    private func token(_ repo: Repo, index: Int, selected: Bool) -> some View {
         let agent = model.activeAgent(for: repo)
         let mode = agent.map { model.displayMode(agent: $0, repo: repo) }
-        let dangerous = mode?.isDangerous == true
-        // Whisper at rest, bloom on arrival (color treatment C).
-        let repoColor = selected ? RepoTint.vivid(for: repo.name, dark: isDark)
-                                 : RepoTint.color(for: repo.name, dark: isDark)
-        let repoFill = RepoTint.fill(for: repo.name, dark: isDark)
-        // Micro-motion is transform-only (scale + glow), so it can never fight
-        // the layout pass — the strip's geometry stays put.
-        let scale: CGFloat = selected ? (model.launching ? 0.92 : 1.05) : (hovered ? 1.03 : 1)
-        return VStack(spacing: 6) {
-            ZStack {
-                // Flat, the native way: the idle tile is a neutral surface and
-                // the color lives in the letterform. The hue floods the tile
-                // only on selection — color as state, not decoration.
-                RoundedRectangle(cornerRadius: Metric.tileCorner, style: .continuous)
-                    .fill(selected ? repoFill.opacity(isDark ? 0.3 : 0.2)
-                                   : Color.primary.opacity(isDark ? (hovered ? 0.09 : 0.055)
-                                                                  : (hovered ? 0.07 : 0.045)))
-                // A ring means danger, nothing else — selection already has
-                // the fill, the glow, the scale, and the name.
-                RoundedRectangle(cornerRadius: Metric.tileCorner, style: .continuous)
-                    .strokeBorder(
-                        dangerous ? dangerTint.opacity(selected ? 0.85 : 0.45)
-                                  : repoColor.opacity(hovered && !selected ? 0.35 : 0),
-                        lineWidth: selected ? 1.5 : 1)
-                // The short name is the identity — no badges competing with it.
-                // The agent lives in the launch pill, where agent info belongs.
-                Text(RepoTint.shortName(for: repo.name))
-                    .font(.mono(tileSize * 0.24, .semibold))
-                    .tracking(0.5)
-                    .foregroundStyle(repoColor)
+        return HStack(spacing: 4) {
+            if repo.pinned {
+                Image(systemName: "pin.fill")
+                    .font(.system(size: 7))
+                    .foregroundStyle(selected ? AnyShapeStyle(Color.black.opacity(0.45))
+                                              : AnyShapeStyle(.tertiary))
                     .accessibilityHidden(true)
-                if repo.pinned {
-                    Image(systemName: "pin.fill")
-                        .font(.system(size: 7))
-                        .foregroundStyle(selected ? AnyShapeStyle(.secondary) : AnyShapeStyle(.tertiary))
-                        .frame(maxWidth: .infinity, maxHeight: .infinity,
-                               alignment: .topTrailing)
-                        .padding(6)
-                }
             }
-            .frame(width: tileSize, height: tileSize)
-            .shadow(color: selected ? (dangerous ? dangerTint : repoColor).opacity(isDark ? 0.4 : 0.3) : .clear,
-                    radius: 9, y: 2)
-            .scaleEffect(scale)
-            .animation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.75),
-                       value: scale)
-            // Only the selected tile is named, the way ⌘Tab names only the
-            // app you are on — the tiles already say who they are.
             Text(repo.name)
-                .font(.mono(metaSize, .semibold))
-                .foregroundStyle(.primary)
-                .lineLimit(1).truncationMode(.middle)
-                .frame(width: tileSize + 22)
-                .frame(height: tileLabelH)
-                .opacity(selected ? 1 : 0)
+                .font(.system(size: fieldSize, weight: selected ? .semibold : .regular))
+                .foregroundStyle(selected ? Color.black : Color(white: 0.58))
+                .lineLimit(1)
         }
+        .padding(.horizontal, selected ? 9 : 5)
+        .frame(height: chipH)
+        .background {
+            if selected {
+                Capsule(style: .continuous).fill(Color(white: 0.96))
+            }
+        }
+        .scaleEffect(selected && model.launching ? 0.94 : 1.0)
+        .animation(reduceMotion ? nil : .spring(response: 0.26, dampingFraction: 0.8),
+                   value: selected)
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText(repo: repo, agent: agent, mode: mode, index: index))
@@ -933,18 +896,12 @@ struct PaletteView: View {
     }
 
     private var emptyState: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "square.dashed")
-                .font(.system(size: 17, weight: .light))
-                .foregroundStyle(.tertiary)
-            Text(model.allRepos.isEmpty
-                 ? "No repos yet — ⌘R scans your folders, or add roots in Settings"
-                 : "No match for “\(model.query)”")
-                .font(.mono(metaSize))
-                .foregroundStyle(.secondary)
-        }
-        .frame(height: tileSize + 5 + tileLabelH)
-        .padding(.horizontal, 8)
+        Text(model.allRepos.isEmpty
+             ? "No repos yet — ⌘R scans your folders, or add roots in Settings"
+             : "No match for “\(model.query)”")
+            .font(.system(size: fieldSize))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
     }
 
     private func accessibilityText(repo: Repo, agent: Agent?, mode: RunMode?, index: Int) -> String {
@@ -962,90 +919,32 @@ struct PaletteView: View {
         return path.hasPrefix(home) ? "~" + path.dropFirst(home.count) : path
     }
 
-    // MARK: - Banners
+    // MARK: - Contract region
 
-    private var confirmBanner: some View {
-        HStack(spacing: 8) {
-            Text("↵ again to launch \(model.pendingDangerousDescription ?? "")")
-                .font(.mono(metaSize))
-            Spacer(minLength: 8)
-            Text("esc cancels")
-                .font(.mono(metaSize))
-                .foregroundStyle(dangerTint.opacity(0.65))
-        }
-        .foregroundStyle(dangerTint)
-        .padding(.horizontal, 20)
-        .frame(height: bannerH)
-        .background(dangerTint.opacity(0.13))
-    }
-
-    /// Full-width, wrapping, selectable banner for status + errors — readable,
-    /// unlike a one-line truncated footer.
-    @ViewBuilder private var statusBanner: some View {
-        if let status = model.status {
-            let isError = status.hasPrefix("⚠")
-            let text = isError ? String(status.dropFirst(2)) : status
-            HStack(alignment: .top, spacing: 8) {
-                Text(text)
-                    .font(.mono(metaSize))
-                    .foregroundStyle(.primary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .textSelection(.enabled)
-                Spacer(minLength: 0)
+    /// The launch contract as two labeled chips — instrument fields, the way
+    /// hardware labels its controls: a micro-label eyebrow (AGENT, MODE) and
+    /// the value. The drop speaks one object language: every element is a
+    /// capsule of one height. White = where you are, gray = what ⏎ does,
+    /// red = it skips permissions. Always present (a contract that sometimes
+    /// hides reads as a bug), and quietly clickable (the visible counterpart
+    /// of ⇥/⇧⇥, real flags in the tooltip). No branch chip: where you are
+    /// launching *from* is the tile's business, not the contract's.
+    @ViewBuilder private var contractRegion: some View {
+        if middleToken == 0, let repo = model.selectedRepo,
+           let agent = model.activeAgent(for: repo) {
+            let mode = model.displayMode(agent: agent, repo: repo)
+            HStack(spacing: 6) {
+                if let prompt = model.selectedPrompt {
+                    chip("prompt", prompt.title,
+                         help: "Starting prompt — ⌘P cycles") { model.cyclePrompt() }
+                }
+                chip("agent", agent.name,
+                     help: "Agent — click or ⇥ to switch") { model.cycleAgent() }
+                chip("mode", mode.name, danger: mode.isDangerous,
+                     help: modeHelp(mode)) { model.cycleMode() }
             }
-            .padding(.horizontal, 20)
-            .frame(minHeight: bannerH, alignment: .center)
-            .background((isError ? dangerTint : accent).opacity(0.1))
+            .transition(.opacity)
         }
-    }
-
-    // MARK: - Launch pill
-
-    /// The launch contract: `❯ agent · mode` and, at the right, the selected
-    /// repo's path and branch. The agent and mode words are quietly clickable
-    /// (the visible counterpart of ⇥/⇧⇥, real flags in the tooltip). In
-    /// worktree/prompt/confirm states it names the state and its two keys.
-    private var launchPill: some View {
-        HStack(spacing: 8) {
-            if model.isPendingDangerous {
-                planText("confirm — ↵ launches, esc cancels", color: dangerTint)
-            } else if model.worktreeRepo != nil {
-                planText("worktree — ↵ creates and launches, esc goes back")
-            } else if model.promptRepo != nil {
-                planText("prompt — ↵ launches with it, esc goes back")
-            } else if let repo = model.selectedRepo, let agent = model.activeAgent(for: repo) {
-                let mode = model.displayMode(agent: agent, repo: repo)
-                segment(agent.name.lowercased(),
-                        help: "Agent — click or ⇥ to switch") { model.cycleAgent() }
-                planDot
-                segment(mode.name.lowercased(), danger: mode.isDangerous,
-                        help: modeHelp(mode)) { model.cycleMode() }
-            }
-            Spacer(minLength: 12)
-            if let prompt = model.selectedPrompt {
-                Text(prompt.title.lowercased())
-                    .font(.mono(metaSize, .medium))
-                    .foregroundStyle(accent)
-                    .lineLimit(1)
-            }
-            pathAndBranch
-        }
-        .padding(.horizontal, 20)
-        .frame(height: pillH)
-    }
-
-    private var planDot: some View {
-        Text("·")
-            .font(.mono(metaSize))
-            .foregroundStyle(.tertiary)
-            .accessibilityHidden(true)
-    }
-
-    private func planText(_ text: String, color: Color? = nil) -> some View {
-        Text(text)
-            .font(.mono(metaSize))
-            .foregroundStyle(color.map(AnyShapeStyle.init) ?? AnyShapeStyle(.secondary))
-            .lineLimit(1)
     }
 
     /// The tooltip carries the truth: the exact flags this mode passes.
@@ -1056,131 +955,141 @@ struct PaletteView: View {
             : "Mode (\(flags)) — click or ⇧⇥ to switch"
     }
 
-    /// Where the launch lands: the selected repo's path, then its branch with
-    /// the shell dirty marker — async from the model's cache, never a
-    /// subprocess or disk read on the render path.
-    @ViewBuilder private var pathAndBranch: some View {
-        if model.worktreeRepo == nil, model.promptRepo == nil, !model.isPendingDangerous,
-           let repo = model.selectedRepo {
-            HStack(spacing: 8) {
-                if let ctx = model.gitContext(for: repo), let branch = ctx.branch {
-                    let dirty = ctx.dirty == true
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.triangle.branch")
-                            .font(.system(size: 8.5, weight: .medium))
-                        Text(dirty ? "\(branch)*" : branch)
-                            .font(.mono(metaSize))
-                    }
-                    .foregroundStyle(dirty ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
-                    .lineLimit(1)
-                    .accessibilityLabel(dirty ? "On branch \(branch), uncommitted changes"
-                                              : "On branch \(branch)")
+    private func chip(_ tag: String, _ label: String, danger: Bool = false, help: String,
+                      action: @escaping () -> Void) -> some View {
+        ChipButton(tag: tag, label: label, danger: danger, help: help,
+                   size: metaSize, height: chipH, action: action)
+    }
+
+    // MARK: - The drop
+
+    /// The choreography, four beats — the classic principles (anticipation,
+    /// squash and stretch, follow-through), springs throughout so any
+    /// interruption retargets mid-flight:
+    ///
+    ///   1. **Drip** — a bead pops at the housing's lip (response 0.22,
+    ///      damping 0.55: a squishy overshoot). Anticipation: the drop
+    ///      forms before it falls.
+    ///   2. **Fall** — 130ms easeIn, accelerating like a thing with weight,
+    ///      the bead elongating as it goes. Stretch.
+    ///   3. **Splat** — the spread spring carries a touch of overshoot
+    ///      (response 0.4, damping 0.72): width blooms past and settles.
+    ///      The whole capsule simultaneously carries 4pt past the resting
+    ///      line and springs back (damping 0.58). Squash + follow-through.
+    ///   4. **Surface** — tokens float up center-out, 22ms apart, as the
+    ///      liquid stills.
+    ///
+    /// Launch runs the film backwards: the capsule condenses to the bead
+    /// and is pulled up into the housing. Reduce Motion replaces all of it
+    /// with a crossfade.
+    private func animateIn() {
+        if reduceMotion { phase = 3; contentShown = true; landBob = true; return }
+        phase = 0
+        contentShown = false
+        landBob = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
+            withAnimation(.spring(response: 0.22, dampingFraction: 0.55)) { phase = 1 }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                withAnimation(.easeIn(duration: 0.13)) { phase = 2 }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.13) {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.72)) { phase = 3 }
+                    withAnimation(.spring(response: 0.45, dampingFraction: 0.58)) { landBob = true }
+                    // Content elements carry their own stagger delays.
+                    contentShown = true
                 }
             }
         }
     }
 
-    /// A quietly clickable word in the launch line. Hover brightens it — all
-    /// the affordance a prompt should carry; the tooltip explains the rest.
-    private func segment(_ label: String, danger: Bool = false, help: String,
-                         action: @escaping () -> Void) -> some View {
-        SegmentButton(label: label, danger: danger, help: help,
-                      size: metaSize, action: action)
+    /// The drop's window height: housing depth + fall + capsule + the
+    /// transparent room the shadow falls into. One storey, always.
+    private func pushHeight() {
+        onResize(anchor.geometry.restHeight + Self.fall + dropH + Self.shadowMargin)
+    }
+}
+
+/// Staggered arrival for drop content: fade + a 6pt rise, delayed per
+/// element so the liquid hands off to the content center-out.
+private struct Stagger: ViewModifier {
+    let delay: Double
+    let shown: Bool
+    let reduced: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(shown ? 1 : 0)
+            .offset(y: shown || reduced ? 0 : 6)
+            .animation(reduced ? nil : .spring(response: 0.32, dampingFraction: 0.85).delay(delay),
+                       value: shown)
+    }
+}
+
+private extension View {
+    func stagger(_ delay: Double, shown: Bool, reduced: Bool) -> some View {
+        modifier(Stagger(delay: delay, shown: shown, reduced: reduced))
     }
 }
 
 
-/// Hover-brightening text button for the launch line.
-private struct SegmentButton: View {
+/// An instrument field that acts: a micro-label eyebrow and its value in a
+/// capsule, the way hardware labels its controls. Hover lifts the fill and
+/// brightens the ink — all the affordance a chip needs. Danger wears red
+/// ink on a red-tinted fill, the drop's one color: impossible to miss,
+/// impossible to shout.
+private struct ChipButton: View {
+    let tag: String
     let label: String
     let danger: Bool
     let help: String
     let size: CGFloat
+    let height: CGFloat
     let action: () -> Void
     @State private var hovering = false
 
     var body: some View {
         Button(action: action) {
-            Text(label)
-                .font(.mono(size, .medium))
-                .foregroundStyle(danger ? AnyShapeStyle(dangerTint)
-                                        : hovering ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
-                .underline(hovering, color: danger ? dangerTint : .secondary)
-                .lineLimit(1)
-                .contentShape(Rectangle())
+            // Baseline-aligned, not box-centered: the eyebrow and the value
+            // are one line of type at two sizes, so they share a baseline
+            // the way set type does.
+            HStack(alignment: .firstTextBaseline, spacing: 5) {
+                Text(tag.uppercased())
+                    .font(.system(size: size * 0.68, weight: .semibold))
+                    .tracking(0.7)
+                    // Optical centering: on the shared baseline the small
+                    // caps hang low against the value's cap height — a
+                    // one-point lift centers the two heights on each other.
+                    .baselineOffset(1)
+                    .foregroundStyle(danger ? AnyShapeStyle(dangerTint.opacity(0.6))
+                                            : AnyShapeStyle(Color(white: 0.42)))
+                Text(label)
+                    .font(.system(size: size, weight: .medium))
+                    .foregroundStyle(danger ? AnyShapeStyle(dangerTint)
+                                            : hovering ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+            }
+            .lineLimit(1)
+            // A contract never truncates — the token strip scrolls, so it
+            // absorbs every point of compression; the chips state their
+            // words in full or the contract is meaningless.
+            .fixedSize()
+            .padding(.horizontal, 11)
+            .frame(height: height)
+            // Etched, not filled: on pure black a fill reads as a smudge, a
+            // hairline reads as an instrument. Danger alone keeps a breath
+            // of fill under its red ink so the warning has a temperature.
+            .background {
+                if danger {
+                    Capsule(style: .continuous).fill(dangerTint.opacity(hovering ? 0.14 : 0.09))
+                }
+            }
+            .overlay(Capsule(style: .continuous)
+                .strokeBorder(danger ? dangerTint.opacity(hovering ? 0.75 : 0.55)
+                                     : Color.white.opacity(hovering ? 0.34 : 0.17),
+                              lineWidth: 1))
+            .contentShape(Capsule(style: .continuous))
         }
         .buttonStyle(.plain)
         .help(help)
-        .accessibilityLabel(help)
+        .accessibilityLabel("\(tag): \(label). \(help)")
         .onHover { hovering = $0 }
-    }
-}
-
-// MARK: - Glass piece
-
-/// One floating element of the cluster. On macOS 26 it is real Liquid Glass
-/// (with a measured frost so small mono type survives a busy window); earlier
-/// systems get the legacy vibrancy stack. Reduce Transparency gets a fully
-/// opaque piece on every OS. Each piece carries its own soft shadow — the
-/// window itself draws none.
-private struct GlassPiece<S: InsettableShape>: ViewModifier {
-    let shape: S
-    let isDark: Bool
-    let reduceTransparency: Bool
-    /// Interactive glass reacts to hover/press like a real Tahoe control —
-    /// the pills are controls, the strip is a surface.
-    var interactive = false
-    /// The strip is the biggest object, so it sits lowest; pills float lighter.
-    var prominent = false
-
-    func body(content: Content) -> some View {
-        Group {
-            if reduceTransparency {
-                content
-                    .background(isDark ? Color(white: 0.11) : Color(white: 0.97))
-                    .clipShape(shape)
-                    .overlay(shape.strokeBorder(
-                        isDark ? Color.white.opacity(0.16) : Color.black.opacity(0.14), lineWidth: 1))
-            } else {
-                liquidOrLegacy(content)
-            }
-        }
-        .shadow(color: .black.opacity(isDark ? 0.32 : 0.15),
-                radius: prominent ? 20 : 12, y: prominent ? 8 : 5)
-    }
-
-    /// Real Liquid Glass where the SDK and OS both allow it; the vibrancy
-    /// stack everywhere else. The `#if compiler` gate keeps older toolchains
-    /// (CI, Xcode 16 contributors) compiling — `#available` alone cannot,
-    /// because the symbols don't exist in their SDK at all.
-    @ViewBuilder private func liquidOrLegacy(_ content: Content) -> some View {
-        #if compiler(>=6.2)
-        if #available(macOS 26.0, *) {
-            // Legibility comes from vibrancy (hierarchical foreground
-            // styles on the glass), not from a heavy scrim — a whisper of
-            // frost is all the material needs over a worst-case window.
-            content
-                .background((isDark ? Color.black : Color.white).opacity(isDark ? 0.18 : 0.15))
-                .clipShape(shape)
-                .glassEffect(interactive ? .regular.interactive() : .regular, in: shape)
-        } else {
-            legacyGlass(content)
-        }
-        #else
-        legacyGlass(content)
-        #endif
-    }
-
-    private func legacyGlass(_ content: Content) -> some View {
-        content
-            .background {
-                ZStack {
-                    GlassBackground(material: isDark ? .hudWindow : .popover)
-                    (isDark ? Color.black : Color.white).opacity(isDark ? 0.45 : 0.6)
-                }
-            }
-            .clipShape(shape)
-            .overlay(shape.strokeBorder(
-                isDark ? Color.white.opacity(0.16) : Color.black.opacity(0.14), lineWidth: 1))
     }
 }

@@ -18,16 +18,15 @@ extension Font {
 
 /// Scalable type ramp for resizable surfaces (honors Dynamic Type).
 ///
-/// The system-wide voice rule: **mono speaks labels and identity, SF Pro
-/// speaks prose.** The palette is all-mono (it has no prose); Settings and
-/// onboarding use mono for titles, sidebar labels, and section headers, and
-/// SF Pro for explanatory text, where reading comfort wins.
+/// The system-wide voice rule, rewritten for the drop: **SF Pro speaks the
+/// product — mono speaks only machine values** (paths, flags, keys). The
+/// drop is all SF Pro; Settings and onboarding match it, so chrome and
+/// palette are one voice. `Font.mono` survives for content that IS code.
 enum TypeRamp {
-    static let paneTitle = Font.monoStyle(.title3, .semibold)
+    static let paneTitle = Font.title3.weight(.semibold)
     static let paneSubtitle = Font.caption
-    static let sidebarLabel = Font.monoStyle(.callout)
+    static let sidebarLabel = Font.callout
     static let mono = Font.monoStyle(.callout)
-    /// Uppercase tracked section label in the palette's monospace voice — the
-    /// thread that ties the resizable surfaces to the HUD.
-    static let sectionLabelMono = Font.monoStyle(.caption2, .semibold)
+    /// Uppercase tracked section label — the chip eyebrow's big sibling.
+    static let sectionLabelMono = Font.caption2.weight(.semibold)
 }

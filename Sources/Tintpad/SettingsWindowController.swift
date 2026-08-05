@@ -13,7 +13,9 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 
     func show() {
         if window == nil { window = makeWindow() }
-        window?.appearance = nil   // follow the app-wide theme (NSApp.appearance)
+        // The drop is a black world in every theme — Settings matches it,
+        // one scheme across the product.
+        window?.appearance = NSAppearance(named: .darkAqua)
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         window?.center()

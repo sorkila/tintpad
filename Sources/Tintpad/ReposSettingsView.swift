@@ -165,20 +165,19 @@ private struct RepoRow: View {
     }
 }
 
-/// A miniature palette tile: the repo's short name in its whisper hue.
+/// A miniature palette token: the repo's short name as ink on a quiet
+/// neutral tile — monochrome, like the drop it previews.
 private struct RepoTintBadge: View {
     let name: String
-    @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        let dark = scheme == .dark
         RoundedRectangle(cornerRadius: 7, style: .continuous)
-            .fill(RepoTint.fill(for: name, dark: dark).opacity(dark ? 0.22 : 0.16))
+            .fill(Color.primary.opacity(0.07))
             .frame(width: 30, height: 30)
             .overlay(
                 Text(RepoTint.shortName(for: name))
-                    .font(.mono(8, .semibold))
-                    .foregroundStyle(RepoTint.vivid(for: name, dark: dark))
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
                     .padding(.horizontal, 2))

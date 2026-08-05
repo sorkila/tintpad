@@ -130,15 +130,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if ProcessInfo.processInfo.environment["TINTPAD_DEMO"] == "1" {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.panelController.show() }
             let model = panelController.model
-            let beats: [(Double, () -> Void)] = [
-                (1.6, { model.move(1) }),
-                (2.2, { model.move(1) }),
-                (2.8, { model.move(1) }),
-                (3.6, { model.query = "ku" }),
-                (4.6, { model.query = "" }),
-                (5.2, { model.move(1) }),
-                (5.8, { model.cycleMode() }),
-                (6.6, { model.cycleMode() }),
+            // The story in nine seconds: the fall, moving through repos
+            // (the AGENT chip flips where a repo remembers Codex), a filter,
+            // an agent cycle, the MODE chip turning red and back. Ends at
+            // rest — the loop point is calm.
+            let beats: [(Double, @MainActor @Sendable () -> Void)] = [
+                (2.0, { model.move(1) }),
+                (2.5, { model.move(1) }),
+                (3.3, { model.query = "de" }),
+                (4.3, { model.query = "" }),
+                (4.9, { model.move(1) }),
+                (5.5, { model.cycleAgent() }),
+                (6.3, { model.cycleMode() }),
+                (7.3, { model.cycleMode() }),
             ]
             for (t, beat) in beats {
                 DispatchQueue.main.asyncAfter(deadline: .now() + t, execute: beat)

@@ -9,16 +9,20 @@ struct SettingsView: View {
     @State private var columns = NavigationSplitViewVisibility.all
     var body: some View {
         NavigationSplitView(columnVisibility: $columns) {
-            // Stark sidebar: text only, the brand tint appears only on the
-            // selected label — same rule as the palette, the accent means
-            // "here, now" and nothing else.
+            // Stark sidebar: text only, monochrome — selection is weight and
+            // ink, matching the drop. Color survives in Settings only where
+            // it is content (the accent swatches, danger red).
             List(selection: $selection) {
                 Section { rows([.general, .appearance, .hotkeys]) }
                 Section { rows([.repos, .agents, .prompts]) } header: { sectionHeader("Workspace") }
                 Section { rows([.recents, .github]) } header: { sectionHeader("Activity") }
                 Section { rows([.about]) }
             }
-            .tint(store.settings.tintAccent.color)
+            .tint(.gray)
+            // Solid black, not sidebar material: the wallpaper tinting
+            // through translucency put color back into a monochrome room.
+            .scrollContentBackground(.hidden)
+            .background(Color(white: 0.055))
             .navigationSplitViewColumnWidth(min: 200, ideal: 210, max: 240)
             .toolbar(removing: .sidebarToggle)
         } detail: {
@@ -44,15 +48,16 @@ struct SettingsView: View {
 
     private func rows(_ tabs: [SettingsTab]) -> some View {
         // Text only: the labels are short, the groups are labeled, and a
-        // glyph next to each word was saying everything twice. The accent
-        // marks "here, now" — macOS list selection stays a quiet gray, so
-        // the label itself carries it.
+        // glyph next to each word was saying everything twice. Monochrome,
+        // like the drop: selection is weight and ink, never color — macOS
+        // list selection stays a quiet gray, the label itself carries it.
         ForEach(tabs) { tab in
             Text(tab.title)
-                .font(TypeRamp.sidebarLabel)
+                .font(tab == selection ? TypeRamp.sidebarLabel.weight(.semibold)
+                                       : TypeRamp.sidebarLabel)
                 .foregroundStyle(tab == selection
-                    ? AnyShapeStyle(store.settings.tintAccent.color)
-                    : AnyShapeStyle(.primary))
+                    ? AnyShapeStyle(.primary)
+                    : AnyShapeStyle(.secondary))
                 .tag(tab)
         }
     }
@@ -216,7 +221,7 @@ struct AppearanceSettingsView: View {
     var body: some View {
         Form {
             Section("Accent tint") {
-                Text("The tint is Tintpad's accent: the text caret, Settings, onboarding, and the menu bar. Repos keep their own hues.")
+                Text("The tint is Tintpad's accent in onboarding. The drop itself stays black and white.")
                     .font(.caption).foregroundStyle(.secondary)
                 HStack(spacing: 14) {
                     ForEach(TintAccent.allCases) { tint in
@@ -235,7 +240,6 @@ struct AppearanceSettingsView: View {
 
             Section {
                 DisclosureGroup("Advanced") {
-                    slider("Palette width", value: store.bind(\.panelWidth), range: 480...860, unit: "pt", snap: 10)
                     slider("Frecency half-life", value: store.bind(\.frecencyHalfLifeDays), range: 3...90, unit: "d", snap: 1)
                     Text("Half-life controls how fast a repo's ranking decays. Shorter = recency wins; longer = frequency wins.")
                         .font(.caption).foregroundStyle(.secondary)
@@ -260,7 +264,7 @@ struct AppearanceSettingsView: View {
                 Slider(value: value, in: range) { editing in
                     if !editing { value.wrappedValue = (value.wrappedValue / snap).rounded() * snap }
                 }
-                .tint(store.settings.tintAccent.color)
+                .tint(.gray)   // monochrome controls, like the drop
                 Text("\(Int((value.wrappedValue / snap).rounded() * snap))\(unit)")
                     .font(TypeRamp.mono.weight(.medium))
                     .foregroundStyle(.secondary)
@@ -318,18 +322,18 @@ struct AboutSettingsView: View {
                 if store.isSupporter {
                     Label("Supporter", systemImage: "heart.fill").font(.caption2.bold())
                         .padding(.horizontal, 7).padding(.vertical, 2)
-                        .background(store.settings.tintAccent.color, in: Capsule())
-                        .foregroundStyle(.black)
+                        .background(.primary, in: Capsule())
+                        .foregroundStyle(.background)
                 }
             }
             Text("Free & open source. Local-only, no accounts.")
                 .font(.callout).foregroundStyle(.secondary)
 
-            Divider().padding(.horizontal, 80)
+            Spacer().frame(height: 8)
 
             licenseSection
 
-            Divider().padding(.horizontal, 80)
+            Spacer().frame(height: 8)
 
             VStack(spacing: 6) {
                 LabeledContent("Version", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.0")
@@ -345,11 +349,13 @@ struct AboutSettingsView: View {
             }
 
             Link(destination: URL(string: "https://www.buymeacoffee.com/eriknielsen")!) {
+                // The one filled control on the pane: white chip, black ink in
+                // dark mode (and the inverse in light) — the drop's chip.
                 Label("Buy me a coffee", systemImage: "cup.and.saucer.fill")
                     .font(.callout.weight(.medium))
-                    .foregroundStyle(.black)
+                    .foregroundStyle(.background)
                     .padding(.horizontal, 14).padding(.vertical, 7)
-                    .background(store.settings.tintAccent.color, in: Capsule())
+                    .background(.primary, in: Capsule())
             }
             .buttonStyle(.plain)
             .padding(.top, 4)
