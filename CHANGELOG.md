@@ -2,7 +2,7 @@
 
 All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepachangelog.com), this project aims for [Semantic Versioning](https://semver.org).
 
-## [Unreleased]
+## [0.3.0] — 2026-08-05
 
 The drop: the palette redesigned from scratch, again, and this time it fell
 out of the notch.
