@@ -104,10 +104,37 @@ enum ShellEnvironment {
         return nil
     }
 
+    /// Env markers an agent session stamps on its children ("this process was
+    /// spawned by session X"). A Tintpad launch is always a fresh, top-level,
+    /// user-initiated session — never a child of another agent's session — so an
+    /// inherited marker is always stale. The concrete harm: Claude Code silently
+    /// stops saving transcripts (no resume) when CLAUDE_CODE_CHILD_SESSION leaks
+    /// in from a terminal or launcher that was itself started inside a session.
+    /// Only session-*instance* markers belong here; deliberate configuration
+    /// (ANTHROPIC_API_KEY, CLAUDE_CONFIG_DIR, CLAUDE_EFFORT, …) is never touched,
+    /// since a user may legitimately export those in their shell rc. Ordered, so
+    /// the `env -u` prefix built from it is deterministic.
+    static let sessionMarkers: [String] = [
+        "CLAUDECODE",
+        "CLAUDE_CODE_CHILD_SESSION",
+        "CLAUDE_CODE_SESSION_ID",
+        "CLAUDE_PID",
+        "CLAUDE_CODE_ENTRYPOINT",
+    ]
+
+    /// Remove inherited session markers from an environment. Pure, so the
+    /// policy is testable without mutating the test process's real environment.
+    static func scrubSessionMarkers(_ env: [String: String]) -> [String: String] {
+        var scrubbed = env
+        for marker in sessionMarkers { scrubbed[marker] = nil }
+        return scrubbed
+    }
+
     /// An environment dictionary suitable for handing to `Process`, with our
-    /// resolved PATH injected over the inherited (minimal) one.
+    /// resolved PATH injected over the inherited (minimal) one and stale
+    /// session markers dropped.
     static var processEnvironment: [String: String] {
-        var env = ProcessInfo.processInfo.environment
+        var env = scrubSessionMarkers(ProcessInfo.processInfo.environment)
         env["PATH"] = resolvedPath
         return env
     }

@@ -53,6 +53,22 @@ enum CommandTemplate {
         return abs + rest
     }
 
+    /// Wrap a resolved command so the agent starts a *fresh* session even when
+    /// the shell it runs in is polluted: `env -u` drops each inherited session
+    /// marker (see `ShellEnvironment.sessionMarkers`) before exec'ing the agent.
+    /// This is the only layer that can fix a dirty *terminal* (e.g. Ghostty
+    /// relaunched from inside a Claude Code session) — scrubbing Tintpad's own
+    /// spawn environment can't reach a shell another app owns.
+    ///
+    /// `env -u`, not `unset …;`: the adapters embed the command in
+    /// `cd … && <command>; exec <shell>` chains, and a `;` in the prefix would
+    /// split the `&&` so the agent runs even when the cd failed. `env -u` keeps
+    /// the whole thing one simple command, leaving the parse structure intact.
+    static func inFreshSession(_ command: String) -> String {
+        let flags = ShellEnvironment.sessionMarkers.map { "-u \($0)" }.joined(separator: " ")
+        return "env \(flags) \(command)"
+    }
+
     // MARK: - Substitution
 
     private static func substitute(_ template: String, context c: Context) -> String {

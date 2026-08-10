@@ -27,7 +27,7 @@ in `Resources/Info.plist` then run `./Scripts/release.sh` to cut the next one.
 ## Commands
 ```sh
 swift build              # debug build
-swift test               # 47 unit tests (pure logic, keep green)
+swift test               # 50 unit tests (pure logic, keep green)
 swift run                # run from source (dev; unsigned)
 ./Scripts/package.sh     # assemble + sign .app/DMG in a TMPDIR scratch (signs if SIGN_IDENTITY set)
 ./Scripts/dev-install.sh # build → Developer ID sign → install to /Applications (local dev)
@@ -55,6 +55,14 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
 ## Conventions
 - All command building goes through `CommandTemplate`, every interpolated value is
   sanitized (control chars stripped) and POSIX single-quoted. Never hand-build shell or AppleScript strings.
+- **Launches are always fresh top-level sessions.** Inherited agent session markers
+  (`ShellEnvironment.sessionMarkers`, e.g. `CLAUDE_CODE_CHILD_SESSION`, which silently
+  disables Claude Code transcript saving) are scrubbed twice: from Tintpad's own spawn
+  env (`processEnvironment`) and via an `env -u` prefix on the launched command
+  (`CommandTemplate.inFreshSession`), which is the only fix that reaches a shell owned
+  by a dirty terminal. `env -u`, never `unset …;` — a `;` splits the adapters'
+  `cd … && cmd` chain. Session-instance markers only, never deliberate config
+  (`ANTHROPIC_API_KEY`, `CLAUDE_CONFIG_DIR`).
 - **Voice**: SF Pro speaks the product, mono speaks only machine values (paths, flags,
   keys) via `Font.mono`/`Font.monoStyle`. Resizable surfaces (Settings, onboarding) use
   the scalable `TypeRamp` (Dynamic Type), the drop uses its own `@ScaledMetric` point

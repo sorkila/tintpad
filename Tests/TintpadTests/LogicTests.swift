@@ -243,7 +243,8 @@ final class LaunchResolutionTests: XCTestCase {
             repo: Repo(path: "/tmp/acme", name: "acme"), agent: agent("/bin/echo {mode} {prompt}"),
             mode: mode, prompt: "fix it", worktreePath: nil, settings: s)
         XCTAssertEqual(launch.workingDirectory, "/tmp/acme")
-        XCTAssertEqual(launch.command, "/bin/echo --go 'fix it'")
+        XCTAssertEqual(launch.command,
+                       CommandTemplate.inFreshSession("/bin/echo --go 'fix it'"))
         XCTAssertFalse(launch.openInTab)
     }
 
@@ -254,7 +255,50 @@ final class LaunchResolutionTests: XCTestCase {
             mode: .defaultMode(), prompt: nil, worktreePath: "/tmp/wt/feature", settings: s)
         XCTAssertTrue(launch.openInTab)
         XCTAssertEqual(launch.workingDirectory, "/tmp/wt/feature")
-        XCTAssertEqual(launch.command, "/bin/echo")
+        XCTAssertEqual(launch.command, CommandTemplate.inFreshSession("/bin/echo"))
+    }
+}
+
+final class FreshSessionTests: XCTestCase {
+    // Hardcoded on purpose: changing the marker list should be a conscious
+    // decision, not a refactor side effect.
+    func testFreshSessionUnsetsExactlyTheSessionMarkers() {
+        XCTAssertEqual(
+            CommandTemplate.inFreshSession("/bin/echo hi"),
+            "env -u CLAUDECODE -u CLAUDE_CODE_CHILD_SESSION -u CLAUDE_CODE_SESSION_ID"
+                + " -u CLAUDE_PID -u CLAUDE_CODE_ENTRYPOINT /bin/echo hi")
+    }
+
+    func testScrubDropsMarkersAndKeepsDeliberateConfig() {
+        let env = ShellEnvironment.scrubSessionMarkers([
+            "CLAUDECODE": "1",
+            "CLAUDE_CODE_CHILD_SESSION": "1",
+            "ANTHROPIC_API_KEY": "sk-x",
+            "CLAUDE_CONFIG_DIR": "/x",
+            "PATH": "/usr/bin",
+        ])
+        XCTAssertNil(env["CLAUDECODE"])
+        XCTAssertNil(env["CLAUDE_CODE_CHILD_SESSION"])
+        XCTAssertEqual(env["ANTHROPIC_API_KEY"], "sk-x")
+        XCTAssertEqual(env["CLAUDE_CONFIG_DIR"], "/x")
+        XCTAssertEqual(env["PATH"], "/usr/bin")
+    }
+
+    // The prefix must survive the adapters' `cd … && cmd` chains as one simple
+    // command: the marker is really unset, and a failed cd still short-circuits.
+    func testFreshSessionCommandBehavesInShellChain() throws {
+        let probe = CommandTemplate.inFreshSession("printenv CLAUDE_CODE_CHILD_SESSION")
+        let dirty = ["CLAUDE_CODE_CHILD_SESSION": "1", "PATH": "/usr/bin:/bin"]
+        let unset = try ProcessRunner.run(
+            "/bin/sh", arguments: ["-c", "cd /tmp && \(probe)"],
+            environment: dirty, timeout: 10)
+        XCTAssertEqual(unset.stdout, "")   // printenv prints nothing when unset
+        XCTAssertNotEqual(unset.status, 0)
+
+        let skipped = try ProcessRunner.run(
+            "/bin/sh", arguments: ["-c", "cd /nonexistent-tintpad && \(CommandTemplate.inFreshSession("echo ran"))"],
+            environment: dirty, timeout: 10)
+        XCTAssertFalse(skipped.stdout.contains("ran"))
     }
 }
 

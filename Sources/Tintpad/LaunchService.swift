@@ -23,7 +23,11 @@ enum LaunchService {
             repo: repo, mode: mode, prompt: prompt, branch: git.branch,
             remote: git.remoteURL, worktreePath: worktreePath)
         let command = try CommandTemplate.resolved(agent.commandTemplate, context: ctx)
-        return TerminalLaunch(workingDirectory: workingDir, command: command,
+        // Launched sessions are always fresh and top-level — strip inherited
+        // session markers so a polluted terminal env can't demote them (a
+        // "child" Claude Code session silently stops saving transcripts).
+        return TerminalLaunch(workingDirectory: workingDir,
+                              command: CommandTemplate.inFreshSession(command),
                               openInTab: settings.openInNewTab)
     }
 

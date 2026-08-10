@@ -2,6 +2,19 @@
 
 All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepachangelog.com), this project aims for [Semantic Versioning](https://semver.org).
 
+## [0.3.1] — 2026-08-10
+
+### Fixed
+- **Launched agents always start fresh, top-level sessions.** If the terminal
+  (or Tintpad itself) was started from inside a Claude Code session, its
+  environment carries session markers like `CLAUDE_CODE_CHILD_SESSION`, and a
+  `claude` launched there thinks it's a subagent and silently stops saving
+  transcripts, so the session never shows up in resume. Tintpad now scrubs
+  these inherited markers from its own spawn environment and prefixes every
+  launched command with `env -u`, which fixes even a polluted terminal it
+  doesn't own. Deliberate configuration (`ANTHROPIC_API_KEY`,
+  `CLAUDE_CONFIG_DIR`) is never touched.
+
 ## [0.3.0] — 2026-08-05
 
 The drop: the palette redesigned from scratch, again, and this time it fell
