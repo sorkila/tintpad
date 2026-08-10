@@ -121,6 +121,10 @@ Every interpolated value is sanitized and shell-quoted before it runs.
 PRs welcome, **especially new terminal adapters**, which are about one protocol and one
 struct. See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
+## Pairs with
+
+[Lockpaw](https://getlockpaw.com) is the other half of the loop. Tintpad starts your agents per repo, Lockpaw covers your screen while they run and glows when one needs you. Also free, also MIT.
+
 ## Support
 
 Tintpad is **free and MIT**, the whole thing. If it earns a spot in your day, leave a tip:
