@@ -4,7 +4,8 @@
 # real store), stages a dark backdrop, records the scripted TINTPAD_DEMO
 # sequence, cuts every published asset, and restores the store.
 #
-# Needs: the current app installed (Scripts/dev-install.sh), ffmpeg, and
+# Needs: the current app installed (Scripts/dev-install.sh), ffmpeg, Pillow
+# (python3 -m pip install Pillow, for the progressive og.jpg), and
 # Screen Recording permission for the terminal running this.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -122,6 +123,15 @@ ffmpeg -y -ss 8.2 -i web/assets/demo.mp4 -frames:v 1 -q:v 3 web/assets/demo-post
 sips -c 446 1800 --cropOffset 78 612 "$WORK/hero-full.png" --out docs/assets/palette.png >/dev/null
 sips -c 800 1600 --cropOffset 78 712 "$WORK/hero-full.png" --out "$WORK/og-crop.png" >/dev/null
 sips -z 640 1280 "$WORK/og-crop.png" --out web/assets/og.png >/dev/null
+# The share card the site actually serves: same 1280x640 frame as og.png,
+# re-encoded as progressive JPEG q90 (ffmpeg's mjpeg and sips only write
+# baseline, Pillow matches the file the pages reference byte-for-byte).
+python3 - web/assets/og.png web/assets/og.jpg <<'EOF'
+import sys
+from PIL import Image
+Image.open(sys.argv[1]).convert("RGB").save(
+    sys.argv[2], "JPEG", quality=90, progressive=True, optimize=True)
+EOF
 
-echo "✓ Assets written: web/assets/demo.mp4, demo-poster.jpg, og.png, docs/assets/palette.png"
+echo "✓ Assets written: web/assets/demo.mp4, demo-poster.jpg, og.png, og.jpg, docs/assets/palette.png"
 echo "  Review them, then: git add web/assets docs/assets && git commit && git push"
