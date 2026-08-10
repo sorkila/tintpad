@@ -1,7 +1,7 @@
 cask "tintpad" do
   # version + sha256 are filled automatically by Scripts/release.sh.
-  version "0.3.0"
-  sha256 "0601cef06b3325db1d3a05dd6f865709d34b5fab6669bcc29b5d49bd26656f1d"
+  version "0.3.1"
+  sha256 "10cdd92e85cea7e1a7c9cfd83746fac688ce15cdb4a5ee994438109fe62ead09"
 
   url "https://github.com/sorkila/tintpad/releases/download/v#{version}/Tintpad.dmg",
       verified: "github.com/sorkila/tintpad/"

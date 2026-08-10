@@ -10,7 +10,10 @@ Hands off to *your* terminal, it isn't one. Accessory app (`LSUIElement`), local
 no accounts. **Free & open source (MIT) + optional Supporter tip.**
 
 ## Status (shipped)
-**v0.3.0 "the drop" is live** (2026-08-05): full design pivot — the palette is a black
+**v0.3.1 is live** (2026-08-10): launches scrub inherited agent session markers
+(`env -u` prefix + spawn-env scrub) so a terminal started inside a Claude Code
+session can't silently disable transcript saving in launched agents.
+**v0.3.0 "the drop"** (2026-08-05): full design pivot — the palette is a black
 capsule that falls out of the notch (see Palette design rules), Settings matches it
 (SF Pro, forced dark, monochrome), website + demo film + app icon + GitHub social card
 all redesigned around it. The Supporter perk is now tinted chips. Same release train
