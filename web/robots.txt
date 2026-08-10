@@ -1,0 +1,7 @@
+# tintpad.com, everything here is public.
+# AI crawlers welcome: GPTBot, ClaudeBot, PerplexityBot, Google-Extended.
+
+User-agent: *
+Allow: /
+
+Sitemap: https://tintpad.com/sitemap.xml

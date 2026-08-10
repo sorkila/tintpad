@@ -1,0 +1,6 @@
+# Force https + apex domain (www.tintpad.com -> tintpad.com).
+# Verify after deploy; prefer Inleed panel redirects if available.
+RewriteEngine On
+RewriteCond %{HTTPS} off [OR]
+RewriteCond %{HTTP_HOST} ^www\. [NC]
+RewriteRule ^ https://tintpad.com%{REQUEST_URI} [L,R=301]
