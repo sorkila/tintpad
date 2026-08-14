@@ -38,10 +38,10 @@ inside. Return opens your terminal at that repo with your coding agent (Claude C
 already running. Hands off to the terminal you already use. Native, local-only, free and open
 source.
 
-### New in 0.3.3
-- **The first repo no longer sits shorn against the edge of the drop.** Centering the first
-  token asked the strip to scroll past its own start, and during the drop's arrival that
-  settled on a stray offset nothing pulled back. It is pinned to the leading edge now.
+### New in 0.3.4
+- **Settings is monochrome everywhere now, not just where it said so.** Toggles, links, and
+  the agent glyphs in the list were still drawing in whatever accent color macOS was set
+  to. Links keep their affordance in ink and a rule instead of turning blue.
 
 ### Install
 - **Download \`Tintpad.dmg\` below**, drag to Applications, launch. macOS 14+.

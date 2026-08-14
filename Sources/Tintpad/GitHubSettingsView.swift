@@ -25,6 +25,7 @@ struct GitHubSettingsView: View {
                         Link("Create a token", destination:
                             URL(string: "https://github.com/settings/tokens/new?scopes=repo&description=Tintpad")!)
                             .font(.caption)
+                            .linkStyle()
                     }
                     if let error {
                         Text(error).font(.caption).foregroundStyle(.red)

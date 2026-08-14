@@ -10,7 +10,17 @@ Hands off to *your* terminal, it isn't one. Accessory app (`LSUIElement`), local
 no accounts. **Free & open source (MIT) + optional Supporter tip.**
 
 ## Status (shipped)
-**v0.3.2 is live** (2026-08-14): the coherence pass. **No theme setting any more**
+**v0.3.4 is live** (2026-08-14): Settings is monochrome for real. **`Color.accentColor`
+is only half the leak** — SwiftUI controls take the accent from the *environment*
+without naming it (a `Toggle`'s track, a `Link`'s ink, a `Label`'s symbol in a `List`),
+so `.tint(.gray)` now sits on the Settings **root**, not just the sidebar. Two cases
+still need saying out loud: a `Link` wears the `.link` button style and stays blue
+through any tint (use `.linkStyle()`, which asks for `.buttonStyle(.plain)` first), and
+a `List` styles a `Label`'s icon itself and beats any `foregroundStyle` set inside it
+(lay the row out as an `HStack`). Links earn affordance from ink and a rule, never blue.
+**v0.3.3** (2026-08-14): the drop's first token is pinned to the leading edge, never
+centered (`PaletteView.anchor(for:)`), fixing a 0.3.2 regression that sheared it flat.
+**v0.3.2** (2026-08-14): the coherence pass. **No theme setting any more**
 (Light/System selected nothing visible, `AppAppearance.applyProductTheme()` pins
 darkAqua app-wide before the single-instance guard); onboarding and Settings went
 truly monochrome (four `Color.accentColor` sites were drawing the *system* accent,

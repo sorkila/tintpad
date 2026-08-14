@@ -2,6 +2,18 @@
 
 All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepachangelog.com), this project aims for [Semantic Versioning](https://semver.org).
 
+## [0.3.4] - 2026-08-14
+
+### Fixed
+- **Settings is monochrome everywhere now, not just where it said so.** 0.3.2
+  replaced the places that named the accent outright, but SwiftUI's controls
+  take it from the environment without ever naming it, so a toggle's track, a
+  link's ink, and an agent's glyph in the list carried on painting whatever
+  colour macOS was set to into a black and white room. The tint is set once at
+  the root, which is the version of this that cannot be half done. Links keep
+  their affordance the way print gives it, in full-strength ink with a rule
+  under them, rather than by turning blue.
+
 ## [0.3.3] - 2026-08-14
 
 ### Fixed

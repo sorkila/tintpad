@@ -21,8 +21,20 @@ struct AgentsSettingsView: View {
         VStack(spacing: 0) {
             List(selection: $selectedID) {
                 ForEach(store.agents) { agent in
-                    Label(agent.name, systemImage: agent.symbol)
-                        .tag(agent.id)
+                    // Deliberately an HStack and not a Label: a list styles a
+                    // Label's icon itself, painting it the system accent, and
+                    // it wins over any foregroundStyle set inside the label.
+                    // Laying the row out by hand is what keeps the glyph in ink.
+                    // The agent's real brand mark lives in the editor beside its
+                    // name, which is where color is content rather than chrome.
+                    HStack(spacing: 6) {
+                        Image(systemName: agent.symbol)
+                            .symbolRenderingMode(.monochrome)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 16)
+                        Text(agent.name)
+                    }
+                    .tag(agent.id)
                 }
             }
             Divider()

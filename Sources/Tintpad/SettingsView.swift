@@ -18,7 +18,6 @@ struct SettingsView: View {
                 Section { rows([.recents, .github]) } header: { sectionHeader("Activity") }
                 Section { rows([.about]) }
             }
-            .tint(.gray)
             // Solid black, not sidebar material: the wallpaper tinting
             // through translucency put color back into a monochrome room.
             .scrollContentBackground(.hidden)
@@ -41,6 +40,14 @@ struct SettingsView: View {
             .navigationTitle("")
         }
         .navigationSplitViewStyle(.balanced)
+        // The tint belongs at the root, not on the sidebar alone. SwiftUI's
+        // controls take the accent from the environment without ever naming
+        // it: a Toggle's track, a Link's ink, a Label's symbol in a list. So
+        // replacing the explicit `Color.accentColor` call sites left the
+        // *implicit* ones still painting the user's macOS accent into a black
+        // and white room. Tinting the root is the version of this fix that
+        // cannot be incomplete, since a control added later inherits it too.
+        .tint(.gray)
         // Roomier default: the Agents pane nests a second list inside the detail,
         // so a wider window keeps its editor from getting cramped.
         .frame(minWidth: 820, idealWidth: 920, minHeight: 560, idealHeight: 640)
@@ -226,6 +233,7 @@ struct AppearanceSettingsView: View {
                      ? "One drop of color in the black: the white chip blooms in the repo's hue. Off keeps the drop pure black and white."
                      : "The Supporter perk. Tip, email your receipt to erik@sorkila.com, get a hand-signed key, and the chip blooms in each repo's own hue.")
                     .font(.caption).foregroundStyle(.secondary)
+                    .withInlineLink()
             }
 
             // No theme picker: the drop, Settings, and onboarding each pin
@@ -306,8 +314,11 @@ struct AboutSettingsView: View {
             HStack(spacing: 12) {
                 Button("Check for Updates…") { updater.checkForUpdates() }
                     .disabled(!updater.canCheckForUpdates)
-                Link("tintpad.com", destination: URL(string: "https://tintpad.com")!)
-                Link("sorkila.com", destination: URL(string: "https://sorkila.com")!)
+                // A link earns its affordance from ink and a rule, not from
+                // blue: the root tint would otherwise sink these to gray and
+                // they would stop reading as clickable at all.
+                Link("tintpad.com", destination: URL(string: "https://tintpad.com")!).linkStyle()
+                Link("sorkila.com", destination: URL(string: "https://sorkila.com")!).linkStyle()
             }
 
             Link(destination: URL(string: "https://www.buymeacoffee.com/eriknielsen")!) {
@@ -341,6 +352,7 @@ struct AboutSettingsView: View {
             VStack(spacing: 8) {
                 Text("Everything's free. If Tintpad saves you time, chip in. Supporters get tinted chips, the selected repo's chip in its own hue: tip, email your receipt to erik@sorkila.com, and I'll send a key to paste below.")
                     .font(.callout).foregroundStyle(.secondary)
+                    .withInlineLink()
                     .multilineTextAlignment(.center).frame(maxWidth: 460)
                 HStack {
                     TextField("Paste supporter key", text: $keyInput)
@@ -362,4 +374,26 @@ struct AboutSettingsView: View {
             }
         }
     }
+}
+
+/// Link styling for the monochrome world.
+///
+/// Settings tints its root gray so no control borrows the user's macOS accent
+/// (see `SettingsView`), but a link that inherits that tint reads as ordinary
+/// dimmed text. These give the affordance back the way print always did it,
+/// with ink and a rule: full-strength foreground, underlined.
+/// `.tint` is not enough here. A `Link` is a button wearing the `.link` button
+/// style, and that style paints the system link blue no matter what the tint
+/// says, so the plain style has to be asked for before the ink obeys.
+extension View {
+    func linkStyle() -> some View {
+        self.buttonStyle(.plain).foregroundStyle(.primary).underline()
+    }
+}
+
+/// For prose that carries a bare address SwiftUI turns into a link (the
+/// Supporter email). The surrounding caption is secondary, so lifting just the
+/// link to primary is what separates it from the sentence around it.
+extension Text {
+    func withInlineLink() -> some View { self.tint(.primary) }
 }
