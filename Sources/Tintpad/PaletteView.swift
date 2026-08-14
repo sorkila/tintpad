@@ -41,6 +41,9 @@ final class PaletteModel: ObservableObject {
         }
     }
     @Published var selection = 0
+    /// True while the token strip holds a scroll offset, which is the only
+    /// time its left edge is hiding tokens rather than being the margin.
+    @Published private(set) var stripScrolled = false
     @Published var agentOverrideID: UUID?
     @Published var modeOverrideID: UUID?
     @Published var status: String?
@@ -92,7 +95,6 @@ final class PaletteModel: ObservableObject {
 
     // MARK: - Derived state
 
-    var accent: Color { store.settings.tintAccent.color }
     /// Supporter perk: tinted selection chip (cosmetic only, like every gate).
     var tintedChips: Bool { store.allows(.customTint) && store.settings.tintedChips }
     var prompts: [PromptTemplate] { store.prompts }
@@ -189,6 +191,7 @@ final class PaletteModel: ObservableObject {
     /// Called when the panel is shown to reset transient per-summon state.
     func reset() {
         launching = false
+        stripScrolled = false
         status = nil
         pendingDangerous = nil
         agentOverrideID = nil
@@ -254,7 +257,7 @@ final class PaletteModel: ObservableObject {
         if mods.contains(.command), chars == "," { openSettings(); return true }
         if mods.contains(.command), chars == "r" {
             let n = store.runAutoDiscovery()
-            status = "Scanned — \(n) new repo\(n == 1 ? "" : "s")"
+            status = "Scanned, \(n) new repo\(n == 1 ? "" : "s")"
             return true
         }
         if mods.contains(.command), chars == "p" { cyclePrompt(); return true }
@@ -288,13 +291,13 @@ final class PaletteModel: ObservableObject {
     func resumeLastSession() -> Bool {
         guard worktreeRepo == nil, promptRepo == nil else { return false }
         clearTransient()
-        guard let session = store.lastSession else { status = "no session to resume yet"; return true }
+        guard let session = store.lastSession else { status = "No session to resume yet"; return true }
         let fire: () -> Void = { [weak self] in
             guard let self else { return }
             switch LaunchService.resumeLast(store: store) {
             case .launched: closeAfterLaunch()
             case .unavailable:
-                status = "⚠ that session can't be resumed — its repo, agent, or mode is gone"
+                status = "⚠ That session can't be resumed, its repo, agent, or mode is gone"
             case .failed(let error):
                 status = "⚠ \(error)"
             }
@@ -323,8 +326,7 @@ final class PaletteModel: ObservableObject {
     }
 
     func cyclePrompt() {
-        guard store.allows(.promptLibrary) else { status = ProFeature.promptLibrary.blurb; return }
-        guard !store.prompts.isEmpty else { status = "No saved prompts — add some in Settings"; return }
+        guard !store.prompts.isEmpty else { status = "No saved prompts, add some in Settings"; return }
         let ids: [UUID?] = [nil] + store.prompts.map { Optional($0.id) }
         let idx = ids.firstIndex(of: selectedPromptID) ?? 0
         selectedPromptID = ids[(idx + 1) % ids.count]
@@ -355,6 +357,12 @@ final class PaletteModel: ObservableObject {
 
     func clearTransient() { status = nil; pendingDangerous = nil }
 
+    /// Guarded so a scroll that never crosses the edge doesn't republish, and
+    /// the strip doesn't redraw itself on every frame of a drag.
+    func setStripScrolled(_ scrolled: Bool) {
+        if stripScrolled != scrolled { stripScrolled = scrolled }
+    }
+
     /// The mode that a plain ⏎ will use right now (no modifiers) — drives the chip.
     func displayMode(agent: Agent, repo: Repo) -> RunMode {
         // The ⇧⇥ override is scoped to the selected row too.
@@ -377,7 +385,6 @@ final class PaletteModel: ObservableObject {
 
     func enterWorktreeMode() {
         guard let repo = selectedRepo else { return }
-        guard store.allows(.worktree) else { status = ProFeature.worktree.blurb; return }
         promptRepo = nil   // the two field-capture modes are mutually exclusive
         worktreeRepo = repo
         query = ""
@@ -403,7 +410,7 @@ final class PaletteModel: ObservableObject {
             guard let self else { return }
             // The git work runs off the main actor (a worktree add on a big
             // repo can take a while); the terminal handoff hops back to main.
-            status = "creating worktree…"
+            status = "Creating worktree…"
             let store = self.store
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
@@ -428,7 +435,6 @@ final class PaletteModel: ObservableObject {
 
     func enterPromptMode() {
         guard let repo = selectedRepo else { return }
-        guard store.allows(.promptLibrary) else { status = ProFeature.promptLibrary.blurb; return }
         worktreeRepo = nil   // the two field-capture modes are mutually exclusive
         promptRepo = repo
         query = ""
@@ -440,7 +446,6 @@ final class PaletteModel: ObservableObject {
         guard let repo = promptRepo, let agent = activeAgent(for: repo) else { return }
         let prompt = query.trimmingCharacters(in: .whitespaces)
         let mode = resolveMode(agent: agent, repo: repo, modifiers: [])
-        if mode.isDangerous && !store.allows(.yoloMode) { status = ProFeature.yoloMode.blurb; return }
         fireOrConfirm(repo: repo, agent: agent, mode: mode) { [weak self] in
             self?.perform(repo: repo, agent: agent, mode: mode, prompt: prompt.isEmpty ? nil : prompt)
         }
@@ -476,7 +481,6 @@ final class PaletteModel: ObservableObject {
             }
             return
         }
-        if mode.isDangerous && !store.allows(.yoloMode) { status = ProFeature.yoloMode.blurb; return }
         fireOrConfirm(repo: repo, agent: agent, mode: mode) { [weak self] in
             self?.perform(repo: repo, agent: agent, mode: mode)
         }
@@ -506,17 +510,16 @@ final class PaletteModel: ObservableObject {
     }
 
     private func dispatch(repo: Repo, agent: Agent, mode: RunMode) {
-        guard store.allows(.dispatch) else { status = ProFeature.dispatch.blurb; return }
         do {
             _ = try DispatchService.shared.dispatch(
                 repo: repo, agent: agent, mode: mode, prompt: selectedPrompt?.text, store: store)
             closeAfterLaunch()
-        } catch { status = "⚠ dispatch: \(error)" }
+        } catch { status = "⚠ Dispatch: \(error)" }
     }
 
     private func openInEditor(repo: Repo) {
         do { try LaunchService.openInEditor(repo: repo, store: store); closeAfterLaunch() }
-        catch { status = "⚠ no editor detected — set one in Settings" }
+        catch { status = "⚠ No editor detected, set one in Settings" }
     }
 
     private func perform(repo: Repo, agent: Agent, mode: RunMode, prompt: String? = nil) {
@@ -603,6 +606,8 @@ struct PaletteView: View {
     private static let fall: CGFloat = 34
     /// The bead before it spreads.
     private static let beadSize: CGFloat = 14
+    /// The token strip's viewport, so its content can measure its own offset.
+    private static let stripSpace = "tokenStrip"
 
     // Dynamic Type. The drop's height derives from these, so they scale
     // together. Capped at xxLarge — one line cannot absorb accessibility sizes.
@@ -620,7 +625,6 @@ struct PaletteView: View {
         self.onResize = onResize
     }
 
-    private var accent: Color { model.accent }
     /// Which content the middle region shows — drives the crossfade.
     private var middleToken: Int {
         if model.isPendingDangerous { return 1 }
@@ -783,7 +787,7 @@ struct PaletteView: View {
     /// all speak here, in place of the tokens. One storey, always.
     @ViewBuilder private var middleRegion: some View {
         if model.isPendingDangerous {
-            middleLine("Return again to launch \(model.pendingDangerousDescription ?? "") — Esc cancels",
+            middleLine("Return again to launch \(model.pendingDangerousDescription ?? ""), Esc cancels",
                        color: dangerTint)
         } else if let status = model.status {
             let isError = status.hasPrefix("⚠")
@@ -792,7 +796,7 @@ struct PaletteView: View {
         } else if model.worktreeRepo != nil {
             middleLine(worktreeExplainer)
         } else if model.promptRepo != nil {
-            middleLine("Handed to \(model.promptRepo.flatMap { model.activeAgent(for: $0) }?.name ?? "the agent") as its first message — Return launches, Esc goes back")
+            middleLine("Handed to \(model.promptRepo.flatMap { model.activeAgent(for: $0) }?.name ?? "the agent") as its first message, Return launches, Esc goes back")
         } else {
             tokenStrip
         }
@@ -800,9 +804,9 @@ struct PaletteView: View {
 
     private var worktreeExplainer: String {
         if let path = model.worktreePreviewPath() {
-            return "New worktree at \(displayPath(path)) — Return creates and launches"
+            return "New worktree at \(displayPath(path)), Return creates and launches"
         }
-        return "An isolated checkout on a new branch — Return creates and launches"
+        return "An isolated checkout on a new branch, Return creates and launches"
     }
 
     private func middleLine(_ text: String, color: Color? = nil) -> some View {
@@ -822,8 +826,11 @@ struct PaletteView: View {
         let repos = model.filtered
         let mid = Double(max(repos.count - 1, 0)) / 2
         // Left-anchored, like a line of type: the row begins at the drop's
-        // padding and rags right. Only the right edge fades (overflow is the
-        // only thing worth signaling — the left edge is the margin).
+        // padding and rags right. At rest only the right edge fades, because
+        // the left edge is margin, not overflow. Once the row is actually
+        // scrolled that stops being true — there are tokens back there, and a
+        // name shorn flat against x=0 reads as a rendering fault — so the left
+        // fade appears with the scroll and leaves with it.
         return ScrollViewReader { proxy in
             ScrollView(.horizontal) {
                 // The scroll viewport clips hard at x=0 — the first chip's
@@ -848,19 +855,53 @@ struct PaletteView: View {
                     }
                 }
                 .padding(.leading, 3)
+                // The measurement rides with the content: its minX in the
+                // viewport's space *is* the scroll offset. A Bool preference,
+                // not the raw offset, so this fires when the edge state flips
+                // rather than on every frame of a drag.
+                .background(
+                    GeometryReader { g in
+                        Color.clear.preference(
+                            key: StripScrolledKey.self,
+                            value: g.frame(in: .named(Self.stripSpace)).minX < -0.5)
+                    })
             }
+            .coordinateSpace(.named(Self.stripSpace))
             .scrollIndicators(.never)
+            .onPreferenceChange(StripScrolledKey.self) { [model] scrolled in
+                // The callback is @Sendable, and a View is not — hop to the
+                // actor that owns the state instead of capturing self.
+                Task { @MainActor in model.setStripScrolled(scrolled) }
+            }
             .mask(
                 HStack(spacing: 0) {
+                    LinearGradient(colors: [.clear, .black],
+                                   startPoint: .leading, endPoint: .trailing)
+                        .frame(width: model.stripScrolled ? 16 : 0)
                     Color.black
                     LinearGradient(colors: [.black, .clear],
                                    startPoint: .leading, endPoint: .trailing)
                         .frame(width: 16)
                 }
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.12),
+                           value: model.stripScrolled)
             )
             .onChange(of: model.selection) { _, new in
                 let scroll = { proxy.scrollTo(new, anchor: .center) }
                 reduceMotion ? scroll() : withAnimation(.easeOut(duration: 0.14), scroll)
+            }
+            // Typing reshapes the row (fewer tokens) but leaves the ScrollView
+            // holding its old offset, clamped to the shorter content — and a
+            // query change sets selection to 0, so when it was *already* 0 the
+            // selection observer above never fires. The row settles scrolled,
+            // shearing the first chip against the hard clip at x=0. Re-anchor on
+            // the query itself, unanimated: the content just swapped, so sliding
+            // it as well reads as noise rather than movement.
+            .onChange(of: model.query) { _, _ in proxy.scrollTo(0, anchor: .center) }
+            // Same staleness across summons: the view is reused, so a strip left
+            // scrolled by the last visit must return to its margin on arrival.
+            .onChange(of: contentShown) { _, shown in
+                if shown { proxy.scrollTo(model.selection, anchor: .center) }
             }
         }
     }
@@ -904,7 +945,7 @@ struct PaletteView: View {
 
     private var emptyState: some View {
         Text(model.allRepos.isEmpty
-             ? "No repos yet — ⌘R scans your folders, or add roots in Settings"
+             ? "No repos yet, ⌘R scans your folders, or add roots in Settings"
              : "No match for “\(model.query)”")
             .font(.system(size: fieldSize))
             .foregroundStyle(.secondary)
@@ -943,10 +984,10 @@ struct PaletteView: View {
             HStack(spacing: 6) {
                 if let prompt = model.selectedPrompt {
                     chip("prompt", prompt.title,
-                         help: "Starting prompt — ⌘P cycles") { model.cyclePrompt() }
+                         help: "Starting prompt, ⌘P cycles") { model.cyclePrompt() }
                 }
                 chip("agent", agent.name,
-                     help: "Agent — click or ⇥ to switch") { model.cycleAgent() }
+                     help: "Agent, click or ⇥ to switch") { model.cycleAgent() }
                 chip("mode", mode.name, danger: mode.isDangerous,
                      help: modeHelp(mode)) { model.cycleMode() }
             }
@@ -958,8 +999,8 @@ struct PaletteView: View {
     private func modeHelp(_ mode: RunMode) -> String {
         let flags = mode.flags.isEmpty ? "no flags" : mode.flags
         return mode.isDangerous
-            ? "Skips permissions (\(flags)) — click or ⇧⇥ to switch"
-            : "Mode (\(flags)) — click or ⇧⇥ to switch"
+            ? "Skips permissions (\(flags)), click or ⇧⇥ to switch"
+            : "Mode (\(flags)), click or ⇧⇥ to switch"
     }
 
     private func chip(_ tag: String, _ label: String, danger: Bool = false, help: String,
@@ -1013,6 +1054,14 @@ struct PaletteView: View {
     private func pushHeight() {
         onResize(anchor.geometry.restHeight + Self.fall + dropH + Self.shadowMargin)
     }
+}
+
+/// Whether the token strip is holding a scroll offset. Deliberately a Bool and
+/// not the offset itself: preferences propagate on change, so answering the
+/// only question the mask asks keeps a drag from republishing every frame.
+private struct StripScrolledKey: PreferenceKey {
+    static let defaultValue = false
+    static func reduce(value: inout Bool, nextValue: () -> Bool) { value = nextValue() }
 }
 
 /// Staggered arrival for drop content: fade + a 6pt rise, delayed per

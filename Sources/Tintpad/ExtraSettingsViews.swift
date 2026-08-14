@@ -98,7 +98,7 @@ struct RecentsSettingsView: View {
     private func row(_ s: Session) -> some View {
         HStack(spacing: 12) {
             AgentBrandIcon(agent: store.agent(s.agentID),
-                           tint: store.agent(s.agentID)?.tintHex.flatMap(Color.init(hex:)) ?? .accentColor,
+                           tint: store.agent(s.agentID)?.tintHex.flatMap(Color.init(hex:)) ?? .primary,
                            selected: true,
                            monogram: store.monogram(for: store.agent(s.agentID)))
             VStack(alignment: .leading, spacing: 2) {

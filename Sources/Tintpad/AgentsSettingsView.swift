@@ -92,7 +92,9 @@ private struct AgentEditor: View {
             Section {
                 HStack(spacing: 12) {
                     AgentBrandIcon(agent: agent,
-                                   tint: agent.tintHex.flatMap(Color.init(hex:)) ?? .accentColor,
+                                   // An agent with no tint of its own draws in
+                                   // ink, never the system accent.
+                                   tint: agent.tintHex.flatMap(Color.init(hex:)) ?? .primary,
                                    selected: true,
                                    monogram: AppStore.shared.monogram(for: agent))
                     TextField("Name", text: $agent.name)
@@ -186,14 +188,16 @@ private struct ModeEditor: View {
                         .labelStyle(.titleAndIcon).font(.caption)
                 }
                 .buttonStyle(.borderless)
-                .foregroundStyle(isDefault ? Color.accentColor : .secondary)
+                // Ink, not color, like the sidebar: the system accent would put
+                // the user's own blue into a monochrome room.
+                .foregroundStyle(isDefault ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
                 Button { onDelete() } label: { Image(systemName: "trash") }
                     .buttonStyle(.borderless).foregroundStyle(.secondary)
                     .help("Delete mode")
             }
             field("Flags", "e.g. --dangerously-skip-permissions", text: $mode.flags, mono: true)
             field("Description", "What this mode does", text: $mode.description, mono: false)
-            Toggle("Dangerous — warns and requires a confirm before launch", isOn: $mode.isDangerous)
+            Toggle("Dangerous, warns and requires a confirm before launch", isOn: $mode.isDangerous)
                 .toggleStyle(.switch).controlSize(.small).font(.callout)
         }
         .padding(16)

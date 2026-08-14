@@ -186,12 +186,11 @@ final class AppStore: ObservableObject {
     var isSupporter: Bool { licenseInfo != nil }
 
     /// Tip-jar model: every functional feature is free. The only thing the
-    /// Supporter purchase unlocks is custom accent tints — a small thank-you,
-    /// never a wall.
+    /// Supporter tip unlocks is tinted chips — the selected repo's chip in its
+    /// own bleached hue, a small thank-you, never a wall.
     func allows(_ feature: ProFeature) -> Bool {
         switch feature {
         case .customTint: return isSupporter
-        default: return true
         }
     }
 

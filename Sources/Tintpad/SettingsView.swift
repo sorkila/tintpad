@@ -11,7 +11,7 @@ struct SettingsView: View {
         NavigationSplitView(columnVisibility: $columns) {
             // Stark sidebar: text only, monochrome — selection is weight and
             // ink, matching the drop. Color survives in Settings only where
-            // it is content (the accent swatches, danger red).
+            // it is content (repo hues, agent tints, danger red).
             List(selection: $selection) {
                 Section { rows([.general, .appearance, .hotkeys]) }
                 Section { rows([.repos, .agents, .prompts]) } header: { sectionHeader("Workspace") }
@@ -104,7 +104,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .prompts:    "Reusable starting prompts"
         case .recents:    "Recent sessions and quick-resume"
         case .github:     "Import repositories from GitHub"
-        case .appearance: "Theme and tints"
+        case .appearance: "Chip tints and ranking"
         case .about:      "Version, license, and updates"
         }
     }
@@ -228,13 +228,9 @@ struct AppearanceSettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
 
-            Section("Appearance") {
-                Picker("Theme", selection: themeBinding) {
-                    ForEach(AppearanceMode.allCases) { Text($0.displayName).tag($0) }
-                }
-                .pickerStyle(.segmented)
-            }
-
+            // No theme picker: the drop, Settings, and onboarding each pin
+            // darkAqua on their own window, so Light and System selected
+            // nothing a user could see. One black world, no control for it.
             Section {
                 DisclosureGroup("Advanced") {
                     slider("Frecency half-life", value: store.bind(\.frecencyHalfLifeDays), range: 3...90, unit: "d", snap: 1)
@@ -245,12 +241,6 @@ struct AppearanceSettingsView: View {
         }
         .formStyle(.grouped)
         .padding(20)
-    }
-
-    private var themeBinding: Binding<AppearanceMode> {
-        Binding(
-            get: { store.settings.appearance },
-            set: { store.settings.appearance = $0; store.save(); AppAppearance.apply($0) })
     }
 
     /// A clean tinted slider (no tick marks) with a value chip; snaps on release.
@@ -341,7 +331,7 @@ struct AboutSettingsView: View {
     @ViewBuilder private var licenseSection: some View {
         if let info = store.licenseInfo {
             VStack(spacing: 6) {
-                Label("Supporter — thank you ♥", systemImage: "checkmark.seal.fill")
+                Label("Supporter, thank you ♥", systemImage: "checkmark.seal.fill")
                     .foregroundStyle(.green)
                 Text(info.email).font(.monoStyle(.callout)).foregroundStyle(.secondary)
                 Button("Remove key") { store.clearLicense(); keyInput = ""; feedback = nil }
@@ -349,7 +339,7 @@ struct AboutSettingsView: View {
             }
         } else {
             VStack(spacing: 8) {
-                Text("Everything's free. If Tintpad saves you time, chip in. Supporters get custom accent tints: tip, email your receipt to erik@sorkila.com, and I'll send a key to paste below.")
+                Text("Everything's free. If Tintpad saves you time, chip in. Supporters get tinted chips, the selected repo's chip in its own hue: tip, email your receipt to erik@sorkila.com, and I'll send a key to paste below.")
                     .font(.callout).foregroundStyle(.secondary)
                     .multilineTextAlignment(.center).frame(maxWidth: 460)
                 HStack {

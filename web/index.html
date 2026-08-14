@@ -3,11 +3,13 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="dark" />
+<meta name="theme-color" content="#050506" />
 <title>Tintpad | macOS launcher for Claude Code, Codex &amp; coding agents</title>
 <meta name="description" content="Press a hotkey and a black drop falls out of your Mac's notch with your repos inside. Return opens your terminal at that repo with Claude Code, Codex, or any agent already running. Free and open source (MIT), local-only, native macOS." />
 <link rel="canonical" href="https://tintpad.com/" />
 <meta property="og:type" content="website" />
-<meta property="og:url" content="https://tintpad.com" />
+<meta property="og:url" content="https://tintpad.com/" />
 <meta property="og:site_name" content="Tintpad" />
 <meta property="og:title" content="Tintpad | The launcher that falls out of your notch" />
 <meta property="og:description" content="A hotkey, a black drop from the notch, your repos inside. Return opens your terminal with your coding agent already running. Free, open source, native macOS." />
@@ -20,7 +22,8 @@
 <meta name="twitter:title" content="Tintpad | The launcher that falls out of your notch" />
 <meta name="twitter:description" content="A hotkey, a black drop from the notch, your repos inside. Return opens your terminal with your agent already running. Free, open source, native macOS." />
 <meta name="twitter:image" content="https://tintpad.com/assets/og.jpg" />
-<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png" />
+<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=2" />
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=2" />
 <link rel="icon" type="image/png" href="assets/icon.png?v=2" />
 <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=2" />
 <script defer src="https://cloud.umami.is/script.js" data-website-id="e2f753b7-c462-48c7-8bfc-46e6e78aa516"></script>
@@ -142,7 +145,14 @@
   footer a{color:var(--dim);transition:color .15s}
   footer a:hover{color:var(--text)}
   footer .fine{font-size:11.5px;opacity:.72;margin-top:2px}
-  @media (prefers-reduced-motion: reduce){.shot{animation:none}}
+  /* Reduce Motion is honored the way the app honors it: nothing moves on its
+     own. The demo keeps playing only if the visitor asks for it (see below). */
+  @media (prefers-reduced-motion: reduce){
+    .shot{animation:none}
+    html{scroll-behavior:auto}
+    .chip-cta,.coffee,.tipwrap .bubble{transition:none}
+    .chip-cta:hover,.coffee:hover{transform:none}
+  }
 
   @media (max-width:640px){
     body{font-size:15px}
@@ -205,7 +215,7 @@
         {
           "@type": "Question",
           "name": "Is it really free?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Yes. The whole app is MIT-licensed and open source, and everything works without paying. The Supporter tip is optional, and only unlocks accent tints plus my thanks." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes. The whole app is MIT-licensed and open source, and everything works without paying. The Supporter tip is optional, and only unlocks tinted chips plus my thanks." }
         },
         {
           "@type": "Question",
@@ -214,8 +224,8 @@
         },
         {
           "@type": "Question",
-          "name": "Why the Accessibility prompt?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Only for Ghostty, which can't be told to open a window with a command any other way on macOS, so Tintpad types it. Other terminals don't need it." }
+          "name": "Why does macOS ask for permissions?",
+          "acceptedAnswer": { "@type": "Answer", "text": "It depends on your terminal. Ghostty can't be told to open a window with a command any other way on macOS, so Tintpad types it, and typing needs Accessibility. Terminal and iTerm2 are driven by AppleScript, so macOS asks for Automation instead, and Terminal also needs Accessibility if you switch on open-in-tab. kitty, Alacritty, and WezTerm need neither." }
         }
       ]
     }
@@ -236,14 +246,15 @@
     <p>Press a hotkey. A black drop falls from the notch, your repos inside.
        Return opens your terminal at that repo, Claude Code, Codex, or any agent already running.</p>
     <div class="actions">
-      <a href="https://github.com/sorkila/tintpad/releases/latest/download/Tintpad.dmg"><button class="chip-cta">Download for macOS</button></a>
+      <a class="chip-cta" href="https://github.com/sorkila/tintpad/releases/latest/download/Tintpad.dmg">Download for macOS</a>
       <a class="ghost" href="https://github.com/sorkila/tintpad">view source ›</a>
     </div>
     <div class="meta">macOS 14+ · signed &amp; notarized · MIT · <code>brew install --cask sorkila/tap/tintpad</code></div>
 
     <div class="shot">
       <video class="demo" autoplay loop muted playsinline preload="metadata"
-             poster="assets/demo-poster.jpg" style="display:block;width:100%"
+             poster="assets/demo-poster.jpg" width="1600" height="396"
+             style="display:block;width:100%;height:auto"
              aria-label="Demo: a black drop falls from the Mac notch holding repo names, arrow keys move a white selection chip through them, typing filters, and AGENT and MODE chips show what Return will run, MODE turning red when the mode skips permissions">
         <source src="assets/demo.mp4" type="video/mp4" />
       </video>
@@ -267,8 +278,8 @@
     <h2>WHAT IT DOES</h2>
     <div class="list">
       <div class="item"><div class="h">The drop</div><div class="d">Black on black, it grows out of the housing. No window, no glass. Macs without a notch get the same drop below the menu bar.</div></div>
-      <div class="item"><div class="h">Hands off to your terminal</div><div class="d">Ghostty, iTerm2, kitty, WezTerm, Alacritty, Terminal, Warp. Opened at the repo, command running.</div></div>
-      <div class="item red"><div class="h">The contract</div><div class="d">Two chips say what Return runs: the agent and the mode. The one that skips permissions is red, and asks twice.</div>
+      <div class="item"><div class="h">Hands off to your terminal</div><div class="d">Ghostty, iTerm2, kitty, WezTerm, Alacritty, Terminal, Warp. Opened at the repo, command running. Warp is the exception: it has no command API, so it opens at the repo and the command lands on your clipboard.</div></div>
+      <div class="item red"><div class="h">The contract</div><div class="d">Two chips say what Return runs: the agent and the mode. The one that skips permissions is red, and can be set to ask first, on every path including background dispatch.</div>
       </div>
       <div class="item"><div class="h">Frecency</div><div class="d">Your most-used repos float up, and each reopens with the agent and mode it had last. ⌘0 replays the last session.</div></div>
       <div class="item"><div class="h">Worktrees</div><div class="d">One keystroke: an isolated branch checkout with the agent launched in it.</div></div>
@@ -301,9 +312,9 @@
     <details><summary>What if my Mac has no notch?</summary><p>The same drop falls from under the menu bar instead, a floating black pill, same everything. The notch just makes the trick look like the hardware did it.</p></details>
     <details><summary>Isn't this a shell alias?</summary><p>For the simple case, basically. The difference is frecency, run-mode safety, worktrees, seven terminals, and no config. It's open source, so read it or keep your alias.</p></details>
     <details><summary>Why not Raycast?</summary><p>Raycast runs things inside Raycast. This opens your real terminal, and it's built around the agent loop specifically. Free, local-only, native.</p></details>
-    <details><summary>Is it really free?</summary><p>Yes. The whole app is MIT-licensed and open source, and everything works without paying. The Supporter tip is optional, and only unlocks accent tints plus my thanks.</p></details>
+    <details><summary>Is it really free?</summary><p>Yes. The whole app is MIT-licensed and open source, and everything works without paying. The Supporter tip is optional, and only unlocks tinted chips plus my thanks.</p></details>
     <details><summary>Does it phone home?</summary><p>No accounts, no telemetry, nothing leaves your Mac. It's open source, so you can check.</p></details>
-    <details><summary>Why the Accessibility prompt?</summary><p>Only for Ghostty, which can't be told to open a window with a command any other way on macOS, so Tintpad types it. Other terminals don't need it.</p></details>
+    <details><summary>Why does macOS ask for permissions?</summary><p>It depends on your terminal. Ghostty can't be told to open a window with a command any other way on macOS, so Tintpad types it, and typing needs Accessibility. Terminal and iTerm2 are driven by AppleScript, so macOS asks for Automation instead, and Terminal also needs Accessibility if you switch on open-in-tab. kitty, Alacritty, and WezTerm need neither.</p></details>
   </div>
 </section>
 
@@ -312,7 +323,7 @@
     <h2>GET TINTPAD</h2>
     <p class="lede">macOS 14 or later. Free, MIT, no account.</p>
     <div class="actions">
-      <a href="https://github.com/sorkila/tintpad/releases/latest/download/Tintpad.dmg"><button class="chip-cta">Download for macOS</button></a>
+      <a class="chip-cta" href="https://github.com/sorkila/tintpad/releases/latest/download/Tintpad.dmg">Download for macOS</a>
       <a class="ghost" href="https://github.com/sorkila/tintpad">view source ›</a>
     </div>
     <div class="dl">
@@ -328,5 +339,15 @@
   <span>also by sorkila: <a href="https://getlockpaw.com" target="_blank" rel="noopener">Lockpaw</a>, covers your screen while agents run and glows when one needs you</span>
   <span class="fine">This site uses <a href="https://umami.is" target="_blank" rel="noopener">umami</a> for light, cookieless analytics. No personal data, no third-party tracking.</span>
 </div></footer>
+<script>
+/* A film that loops forever is motion nobody asked for. Under Reduce Motion the
+   demo holds on its poster and grows controls, so it plays only on request. */
+(function () {
+  var v = document.querySelector('.demo');
+  if (!v || !window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  v.autoplay = false; v.loop = false; v.controls = true;
+  v.pause();
+})();
+</script>
 </body>
 </html>

@@ -26,7 +26,7 @@ enum TerminalLaunchError: Error, CustomStringConvertible, LocalizedError {
     var description: String {
         switch self {
         case .notInstalled: return "That terminal isn't installed."
-        case .launchFailed(let m): return "Couldn't open the terminal — \(m)"
+        case .launchFailed(let m): return "Couldn't open the terminal: \(m)"
         }
     }
     var errorDescription: String? { description }
@@ -120,10 +120,10 @@ struct GhosttyAdapter: TerminalAdapter {
         tell application "Ghostty" to activate
         delay 0.35
         tell application "System Events"
-            if frontmost of process "Ghostty" is false then error "Ghostty lost focus — nothing was typed."
+            if frontmost of process "Ghostty" is false then error "Ghostty lost focus, nothing was typed."
             keystroke "\(newKey)" using command down
             delay 0.45
-            if frontmost of process "Ghostty" is false then error "Ghostty lost focus — nothing was typed."
+            if frontmost of process "Ghostty" is false then error "Ghostty lost focus, nothing was typed."
             keystroke "\(appleScriptEscape(cmd))"
             key code 36
         end tell
@@ -288,10 +288,10 @@ struct WarpAdapter: TerminalAdapter {
         comps.path = "/new_window"
         comps.queryItems = [URLQueryItem(name: "path", value: launch.workingDirectory)]
         if let url = comps.url, NSWorkspace.shared.open(url) {
-            return LaunchOutcome(note: "Command copied — paste in Warp (no command-injection API)")
+            return LaunchOutcome(note: "Command copied, paste in Warp (no command-injection API)")
         }
         try run("/usr/bin/open", ["-nb", bundleID])
-        return LaunchOutcome(note: "Command copied — paste in Warp (no command-injection API)")
+        return LaunchOutcome(note: "Command copied, paste in Warp (no command-injection API)")
     }
 }
 

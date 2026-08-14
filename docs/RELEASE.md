@@ -35,7 +35,7 @@ for local testing.
   `sorkila/homebrew-tap`. See `docs/HOMEBREW.md`.
 
 ## 3. Supporter keys (manual fulfillment)
-The only Supporter perk is custom accent tints. Fulfillment is manual at launch (low volume):
+The only Supporter perk is tinted chips. Fulfillment is manual at launch (low volume):
 a Buy Me a Coffee tip, then the supporter emails their receipt and you send a key.
 
 ```sh

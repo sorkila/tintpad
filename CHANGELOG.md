@@ -2,7 +2,46 @@
 
 All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepachangelog.com), this project aims for [Semantic Versioning](https://semver.org).
 
-## [0.3.1] — 2026-08-10
+## [0.3.2] - 2026-08-14
+
+One black world, and a pass over everything the drop left behind.
+
+### Changed
+- **There is no theme setting any more.** Light and System selected nothing a
+  user could see, because the drop, Settings, and onboarding each pin a dark
+  appearance on their own window. The picker is gone, and the app now pins the
+  theme early enough that even the "already running" alert arrives in the
+  black world instead of flashing white.
+- **Onboarding is monochrome**, like everything the drop introduced. The
+  orange call to action is now the product's own signature, a white chip with
+  black ink, and the step numbers sit back in gray so the titles lead.
+- **Settings is monochrome for real.** The pinned-repo marker, the
+  default-mode marker, and an agent without a tint of its own were drawing in
+  the *system* accent, so whatever color macOS was set to leaked into a room
+  the product paints black and white. They are ink and weight now.
+- Every message the app says was swept to one voice, sentence case and commas,
+  matching the house style the docs and the website already followed.
+
+### Fixed
+- **The first repo no longer shears against the edge of the drop.** Typing
+  reshapes the row but left the scroll view holding its old offset, and
+  because a query change already resets the selection to the first repo, the
+  observer that would have re-anchored it never fired. The row settled
+  scrolled, and the leading chip's curve was cut flat by the viewport.
+- **The strip's left edge now fades only when it is actually hiding
+  something.** At rest that edge is margin, not overflow, so fading it was a
+  lie about where the row begins.
+
+### Removed
+- The accent is fully retired. It had already left the drop, and it now
+  leaves onboarding, the model, and the copy that still promised it.
+- Six unreachable monetization gates. They dated from a Pro tier that never
+  shipped, they could never fire under the tip-jar model, and two of them sat
+  on the path that launches a permission-skipping mode. `ProFeature` is now
+  the single cosmetic thing a tip unlocks, and the check that reads it is
+  exhaustive, so a future gate cannot be added without a deliberate decision.
+
+## [0.3.1] - 2026-08-10
 
 ### Fixed
 - **Launched agents always start fresh, top-level sessions.** If the terminal
@@ -15,7 +54,7 @@ All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepac
   doesn't own. Deliberate configuration (`ANTHROPIC_API_KEY`,
   `CLAUDE_CONFIG_DIR`) is never touched.
 
-## [0.3.0] — 2026-08-05
+## [0.3.0] - 2026-08-05
 
 The drop: the palette redesigned from scratch, again, and this time it fell
 out of the notch.
@@ -47,7 +86,7 @@ out of the notch.
 - The Liquid Glass call sites and their compiler gates are gone with the
   glass itself, the drop is plain black and builds on every toolchain.
 
-## [0.2.0] — 2026-07-28
+## [0.2.0] - 2026-07-28
 
 The 2.0 pass: the palette rebuilt around one idea, the app hardened by a
 three-way engineering audit, and the launch flow taught to remember.

@@ -29,12 +29,12 @@ Auto-updates via Sparkle after install.
 
 ## Supported Terminals (7)
 
-Ghostty, iTerm2, kitty, WezTerm, Alacritty, Terminal.app, Warp. Tintpad opens the chosen terminal at the repo with the command already running. Only Ghostty needs the macOS Accessibility permission (there is no other way to hand it a command); the others need Automation or nothing.
+Ghostty, iTerm2, kitty, WezTerm, Alacritty, Terminal.app, Warp. Tintpad opens the chosen terminal at the repo with the command already running, except Warp, which has no command-injection API, so Tintpad opens it at the repo and puts the command on the clipboard. Permissions depend on the terminal: Ghostty needs macOS Accessibility (typing the command is the only way to hand it one), Terminal.app and iTerm2 are driven by AppleScript and so need Automation, Terminal.app additionally needs Accessibility when open-in-tab is on, and kitty, Alacritty, and WezTerm need neither.
 
 ## Key Differentiators
 
 - **Agent-native:** built around launching Claude Code, Codex, and other coding agent CLIs, not generic app launching. Each repo remembers the agent and run mode it last used.
-- **Run-mode safety:** two chips always state exactly what Return will run (the agent and the mode). The mode that skips permissions is shown in red and asks for confirmation twice.
+- **Run-mode safety:** two chips always state exactly what Return will run (the agent and the mode). A mode that skips permissions turns the mode chip red, and can optionally be set to require a confirm before it launches, on every path including background dispatch and resume.
 - **Frecency ranking:** your most-used repos float to the top. ⌘0 replays the last session.
 - **Worktrees:** one keystroke creates an isolated git branch checkout with the agent launched in it.
 - **Hands off to YOUR terminal:** unlike Raycast (which runs things inside Raycast), Tintpad opens your real terminal.

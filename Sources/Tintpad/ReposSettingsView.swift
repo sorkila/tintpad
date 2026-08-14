@@ -12,7 +12,7 @@ struct ReposSettingsView: View {
                 Button { addRootFolder() } label: { Image(systemName: "plus") }
                     .buttonStyle(.borderless).help("Add a folder to auto-scan for repos"))) {
                 if store.settings.rootScanFolders.isEmpty {
-                    Text("No scan roots — add ~/repos or ~/Developer.")
+                    Text("No scan roots, add ~/repos or ~/Developer.")
                         .font(.callout).foregroundStyle(.secondary).padding(14)
                 } else {
                     ForEach(Array(store.settings.rootScanFolders.enumerated()), id: \.element) { i, folder in
@@ -101,8 +101,8 @@ private struct RepoRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // The row identifies a repo, so it wears the repo's tint — the
-            // same badge grammar as the palette tiles. The agent is already
+            // The row identifies a repo, so it wears the repo's short name in
+            // the same grammar as the drop's tokens. The agent is already
             // named in the picker beside it.
             RepoTintBadge(name: repo.name)
 
@@ -115,7 +115,10 @@ private struct RepoRow: View {
 
             Button { toggle(\.pinned) } label: {
                 Image(systemName: repo.pinned ? "pin.fill" : "pin")
-                    .foregroundStyle(repo.pinned ? Color.accentColor : .secondary)
+                    // Ink, not color: `.accentColor` here was the *system*
+                    // accent, so a user's blue or pink leaked into a room the
+                    // product paints black and white. On/off is weight.
+                    .foregroundStyle(repo.pinned ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
             }
             .buttonStyle(.borderless)
             .help(repo.pinned ? "Unpin" : "Pin to top")

@@ -76,7 +76,8 @@ print("""
 Subject: Your Tintpad Supporter key
 
 Thank you for supporting Tintpad. Paste this into Settings, About,
-"Paste supporter key", then Activate, to unlock custom accent tints:
+"Paste supporter key", then Activate, to unlock tinted chips, the
+selected repo's chip in its own hue:
 
 \(key)
 

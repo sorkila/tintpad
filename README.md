@@ -32,7 +32,7 @@ It doesn't try to be one.
   <img src="docs/assets/palette.png" alt="Tintpad: a black drop below the MacBook notch holding repo names, with AGENT and MODE chips reading Claude Code, Default" width="720" />
 </div>
 
-The chips are the contract: `AGENT Claude Code · MODE Default` — exactly what ↵ will
+The chips are the contract: `AGENT Claude Code · MODE Default`, exactly what ↵ will
 run, in the agent's own words. Nothing happens that the chips didn't announce, and a
 mode that skips permissions is a red chip before you ever press ↵.
 
@@ -75,16 +75,19 @@ swift run                  # dev run
 - **<kbd>⌘0</kbd> resume** replays your last session exactly, from the palette or a
   global hotkey.
 - **Hands off to 7 terminals**, Ghostty, iTerm2, kitty, WezTerm, Alacritty, Terminal, Warp.
+  All open at the repo with the command running, except Warp, which has no
+  command-injection API, so it opens at the repo with the command on your clipboard.
 - **Run modes in each agent's own words**, Default and Skip permissions for Claude
   Code, Untrusted, Default, and Full access for Codex. A mode that skips permissions is
-  a red chip, and (optionally) requires a confirm — on every path, including dispatch
+  a red chip, and (optionally) requires a confirm, on every path, including dispatch
   and resume.
 - **Worktrees**, <kbd>⌃W</kbd> spins up an isolated branch checkout and launches the agent in it.
 - **Headless dispatch**, <kbd>⌃↵</kbd> runs an agent in the background and notifies you when it's done.
 - **Prompt library, per-repo presets, GitHub import, open-in-editor.**
 - **Keyboard-first and accessible**, Dynamic Type in the palette, VoiceOver labels and
-  announcements, Reduce Motion and Reduce Transparency honored, and Tab left alone for
-  focus traversal when assistive tech needs it.
+  announcements, Reduce Motion honored (the drop crossfades instead of falling), and Tab
+  left alone for focus traversal when assistive tech needs it. Nothing is translucent, so
+  there is no Reduce Transparency case to answer.
 - **Local-only.** No accounts, no telemetry, nothing leaves your Mac.
 
 ## Keys
@@ -92,7 +95,8 @@ swift run                  # dev run
 | Key | Action |
 |---|---|
 | <kbd>⌥⌘Space</kbd> | Summon (change in Settings → Hotkeys) |
-| <kbd>←</kbd> <kbd>→</kbd> / <kbd>↑</kbd> <kbd>↓</kbd> | Move through your repos |
+| <kbd>↑</kbd> <kbd>↓</kbd> | Move through your repos |
+| <kbd>←</kbd> <kbd>→</kbd> | Move through your repos, while the query is empty (once you type, they move the caret) |
 | <kbd>↵</kbd> | Launch what the chips say |
 | <kbd>⌘0</kbd> | Resume the last session exactly |
 | <kbd>⌘1</kbd>–<kbd>⌘9</kbd> | Jump straight to the nth repo and launch it |

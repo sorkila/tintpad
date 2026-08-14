@@ -308,7 +308,7 @@ final class ErrorMessageTests: XCTestCase {
                        "That terminal isn't installed.")
         let resolve = CommandTemplate.ResolveError.binaryNotFound("claude")
         XCTAssertEqual((resolve as LocalizedError).errorDescription,
-                       "“claude” isn’t on your PATH — check it’s installed, then Re-scan.")
+                       "“claude” isn’t on your PATH, check it’s installed, then Re-scan.")
         // No raw "error N" Swift boilerplate leaks through.
         XCTAssertFalse((resolve as Error).localizedDescription.contains("error "))
     }
@@ -507,5 +507,88 @@ final class KeyPolicyTests: XCTestCase {
 
     func testFullKeyboardAccessReclaimsTab() {
         XCTAssertTrue(KeyPolicy.tabShouldTraverse(voiceOver: false, fullKeyboardAccess: true))
+    }
+}
+
+/// `Scripts/uitest.sh` drives the real GUI and can only assert on side effects,
+/// so its whole mode-cycle journey rests on one assumption: the marker template
+/// `echo "[{mode}]" > …` writes the *flags of the mode that actually ran*. That
+/// assumption lives in a shell script no CI job runs, and it would break
+/// silently if `{mode}` ever started being quoted or space-collapsed. Pin it
+/// here, where it costs nothing and fails loudly.
+final class UITestHarnessContractTests: XCTestCase {
+    private static let markerTemplate = #"touch /tmp/tp_A; echo "[{mode}]" > /tmp/tp_A_flags"#
+
+    private func render(flags: String) -> String {
+        CommandTemplate.preview(
+            Self.markerTemplate,
+            context: .init(repo: Repo(path: "/tmp/tintpad-uitest", name: "tintpad-uitest"),
+                           mode: RunMode(name: "M", flags: flags, isDangerous: false, description: ""),
+                           prompt: nil, branch: nil, remote: nil))
+    }
+
+    func testCycledModeFlagsReachTheMarker() {
+        // What J4 greps for. The brackets matter: they keep `{mode}` off a space
+        // boundary, so the empty-slot cleanup can't eat the surrounding text.
+        XCTAssertTrue(render(flags: "--test-danger").contains("[--test-danger]"))
+    }
+
+    func testDefaultModeWritesAnEmptyMarker() {
+        // And the Default mode must be distinguishable from it, or J4 would pass
+        // whether or not ⇧⇥ did anything at all.
+        XCTAssertTrue(render(flags: "").contains("[]"))
+        XCTAssertFalse(render(flags: "").contains("--test-danger"))
+    }
+}
+
+/// The tolerant decoder is load-bearing doctrine: a store that fails to decode
+/// is a store that gets reseeded, which silently throws away the user's repos,
+/// agents, and license. It had no coverage, so these pin the three ways a real
+/// store.json drifts from the current struct.
+final class SettingsDecodeTests: XCTestCase {
+    private func decode(_ json: String) throws -> Settings {
+        try JSONDecoder().decode(Settings.self, from: Data(json.utf8))
+    }
+
+    func testMissingKeysFallBackToDefaults() throws {
+        // Adding a field must never invalidate an existing store.
+        let s = try decode("{}")
+        XCTAssertEqual(s.frecencyHalfLifeDays, 30)
+        XCTAssertEqual(s.tintedChips, true)
+        XCTAssertEqual(s.rootScanFolders, [])
+        XCTAssertNil(s.licenseKey)
+    }
+
+    func testRetiredAndUnknownKeysDecodeAndDoNotDisturbTheRest() throws {
+        // Keys from a future build, and from features since retired, must ride
+        // along harmlessly rather than throwing the whole store away.
+        let s = try decode("""
+        {"frecencyHalfLifeDays":7,"somethingFromALaterVersion":{"nested":true},"panelWidth":900}
+        """)
+        XCTAssertEqual(s.frecencyHalfLifeDays, 7)
+        XCTAssertEqual(s.tintedChips, true, "an unknown sibling key must not disturb defaults")
+    }
+
+    func testWronglyTypedValueFallsBackInsteadOfThrowing() throws {
+        // A hand-edited or half-written store shouldn't cost the user everything.
+        let s = try decode("""
+        {"frecencyHalfLifeDays":"thirty","confirmDangerousModes":true}
+        """)
+        XCTAssertEqual(s.frecencyHalfLifeDays, 30)
+        XCTAssertTrue(s.confirmDangerousModes, "a bad neighbor must not take valid keys with it")
+    }
+
+    // The accent and the theme picker are both retired, and their fields survive
+    // only to round-trip. If either is ever deleted outright, this fails and the
+    // deleter has to decide consciously to drop the stored value.
+    func testRetiredAppearanceValuesRoundTrip() throws {
+        let s = try decode("""
+        {"tintAccent":"teal","appearance":"light"}
+        """)
+        XCTAssertEqual(s.tintAccent, .teal)
+        XCTAssertEqual(s.appearance, .light)
+        let again = try JSONDecoder().decode(Settings.self, from: JSONEncoder().encode(s))
+        XCTAssertEqual(again.tintAccent, .teal)
+        XCTAssertEqual(again.appearance, .light)
     }
 }

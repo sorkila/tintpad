@@ -45,23 +45,21 @@ enum LicenseManager {
     }
 }
 
-/// Capabilities gated behind Pro.
+/// The complete set of things a Supporter tip unlocks, which is one cosmetic
+/// thing. This enum used to carry a case per capability (yolo mode, worktrees,
+/// dispatch, the prompt library) from a Pro-tier model that was never shipped,
+/// and every one of those gates was dead code sitting on a functional path.
+///
+/// It stays a single-case enum on purpose. `AppStore.allows` switches over it
+/// exhaustively, with no `default`, so adding a case here fails to compile
+/// until someone decides what it means. That makes "don't add functional
+/// gates" a rule the compiler enforces rather than a comment people read.
 enum ProFeature {
-    case yoloMode
-    case unlimitedAgents
-    case promptLibrary
     case customTint
-    case perRepoPreset
-    case worktree
-    case dispatch
 
-    /// Tip-jar model: everything functional is free, so the only blurb that can
-    /// surface is customTint (the Supporter thank-you). The rest are kept for
-    /// completeness but never shown.
     var blurb: String {
         switch self {
-        case .customTint:      return "Custom tints are a Supporter perk — thanks for chipping in"
-        default:               return "Free in Tintpad"
+        case .customTint: return "Tinted chips are a Supporter perk, thanks for chipping in"
         }
     }
 }

@@ -30,7 +30,8 @@ struct Agent: Identifiable, Codable, Hashable {
     /// The leading binary token is resolved to an absolute path at launch.
     var commandTemplate: String
     var acceptsPrompt: Bool
-    /// Hex tint string, e.g. "#FF7333"; nil = use the global accent.
+    /// Hex tint string, e.g. "#FF7333". Nil draws the mark in plain ink, the
+    /// product has no global accent to fall back to.
     var tintHex: String?
     /// SF Symbol name for the row badge.
     var symbol: String
@@ -124,48 +125,29 @@ struct Session: Identifiable, Codable, Hashable {
 
 // MARK: - Appearance
 
-/// Curated accent palette. The tint is the brand identity.
-enum TintAccent: String, Codable, CaseIterable, Identifiable {
+/// Retired with the accent itself: the drop is black and white, and the one
+/// colored pixel it used to spend is gone. Kept as a bare shell so an existing
+/// store's value round-trips instead of being silently dropped on the next save.
+enum TintAccent: String, Codable {
     case orange, teal, lime, coral, blue, grey
-
-    var id: String { rawValue }
-
-    var color: Color {
-        switch self {
-        case .orange: return Color(red: 1.00, green: 0.45, blue: 0.20)
-        case .teal:   return Color(red: 0.20, green: 0.80, blue: 0.74)
-        case .lime:   return Color(red: 0.65, green: 0.90, blue: 0.25)
-        case .coral:  return Color(red: 1.00, green: 0.42, blue: 0.42)
-        case .blue:   return Color(red: 0.35, green: 0.60, blue: 1.00)
-        case .grey:   return Color(red: 0.70, green: 0.72, blue: 0.75)
-        }
-    }
-
-    var displayName: String { rawValue.capitalized }
 }
 
-/// Dedicated warning tint for dangerous/YOLO modes, regardless of accent.
+/// Danger red, the only color the drop spends.
 let dangerTint = Color(red: 1.0, green: 0.35, blue: 0.35)
 
-enum AppearanceMode: String, Codable, CaseIterable, Identifiable {
+/// Kept only so stores written before 0.3.0 still decode — the theme is no
+/// longer a choice, so nothing reads this value.
+enum AppearanceMode: String, Codable {
     case system, light, dark
-    var id: String { rawValue }
-    var displayName: String { rawValue.capitalized }
-
-    var nsAppearance: NSAppearance? {
-        switch self {
-        case .system: nil
-        case .light: NSAppearance(named: .aqua)
-        case .dark: NSAppearance(named: .darkAqua)
-        }
-    }
 }
 
-/// Applies the chosen theme to standard app windows (Settings, onboarding).
-/// The command palette stays dark glass regardless (its own identity surface).
+/// One black world. Every window Tintpad draws itself (the drop, Settings,
+/// onboarding) pins `.darkAqua` on its own window, and this pins the app so the
+/// system surfaces it opens — the folder chooser, the reset alert — match
+/// instead of flashing white into a black room.
 @MainActor
 enum AppAppearance {
-    static func apply(_ mode: AppearanceMode) { NSApp.appearance = mode.nsAppearance }
+    static func applyProductTheme() { NSApp.appearance = NSAppearance(named: .darkAqua) }
 }
 
 // MARK: - Settings
@@ -174,11 +156,8 @@ struct Settings: Codable {
     var preferredTerminalBundleID: String?
     var preferredEditorID: String?
     var rootScanFolders: [String] = []
-    var tintAccent: TintAccent = .orange
     var frecencyHalfLifeDays: Double = 30
     var confirmDangerousModes: Bool = false
-    var appearance: AppearanceMode = .dark
-    var panelWidth: Double = 640
     /// Multi-step launch: also open the editor when launching an agent.
     var alsoOpenEditor: Bool = false
     /// Open the agent in a new tab of the preferred terminal instead of a new
@@ -193,6 +172,21 @@ struct Settings: Codable {
     /// First-run onboarding completed.
     var hasOnboarded: Bool = false
 
+    // MARK: Retired
+    //
+    // Nothing reads these. They are carried so an existing store.json keeps its
+    // values through a save instead of having them silently dropped, and so a
+    // future build that revives one finds the user's old choice still there.
+    // Adding to this group means removing a feature, never adding one.
+
+    /// Retired with the accent, see `TintAccent`.
+    var tintAccent: TintAccent = .orange
+    /// Retired with the theme picker, see `AppearanceMode`. One black world.
+    var appearance: AppearanceMode = .dark
+    /// Retired with the palette-width slider. The drop sizes itself from the
+    /// notch and its own type scale, so there is nothing left to set.
+    var panelWidth: Double = 640
+
     init() {}
 
     /// Tolerant decode: any missing key falls back to its default, so adding a
@@ -205,15 +199,16 @@ struct Settings: Codable {
         worktreeRoot = try? c.decode(String.self, forKey: .worktreeRoot)
         licenseKey = try? c.decode(String.self, forKey: .licenseKey)
         rootScanFolders = g(.rootScanFolders, [])
-        tintAccent = g(.tintAccent, .orange)
         frecencyHalfLifeDays = g(.frecencyHalfLifeDays, 30)
         confirmDangerousModes = g(.confirmDangerousModes, false)
-        appearance = g(.appearance, .dark)
-        panelWidth = g(.panelWidth, 640)
         alsoOpenEditor = g(.alsoOpenEditor, false)
         openInNewTab = g(.openInNewTab, false)
         tintedChips = g(.tintedChips, true)
         hasOnboarded = g(.hasOnboarded, false)
+        // Retired, read only so they survive the round-trip.
+        tintAccent = g(.tintAccent, .orange)
+        appearance = g(.appearance, .dark)
+        panelWidth = g(.panelWidth, 640)
     }
 
     static func defaults() -> Settings {

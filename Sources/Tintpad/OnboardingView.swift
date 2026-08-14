@@ -55,7 +55,8 @@ struct OnboardingView: View {
     @State private var axTrusted = false
     @State private var testStatus: String?
     @State private var testOK = false
-    private let accent = Color(red: 1.0, green: 0.45, blue: 0.20)
+    // Monochrome, like everything the drop introduces: gray at rest, white
+    // where the eye should land, and red only when something is wrong.
     private let errorRed = Color(red: 1, green: 0.42, blue: 0.32)
 
     var body: some View {
@@ -65,13 +66,13 @@ struct OnboardingView: View {
                     if let icon = BrandImages.appIcon {
                         icon.resizable().interpolation(.high)
                     } else {
-                        Image(systemName: "command").foregroundStyle(accent)
+                        Image(systemName: "command").foregroundStyle(.primary)
                     }
                 }
                 .frame(width: 60, height: 60)
                 Text("Welcome to Tintpad")
                     .font(.monoStyle(.title2, .bold))
-                Text("Summon a coding agent into your terminal at the right repo — in under two seconds, without the mouse.")
+                Text("Summon a coding agent into your terminal at the right repo, in under two seconds, without the mouse.")
                     .font(.callout).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -116,12 +117,12 @@ struct OnboardingView: View {
             }
 
             Button(action: onDone) {
-                Text(testOK ? "Done — start using Tintpad" : "Get started").frame(maxWidth: .infinity)
-                    // Black on the accent, like the step circles: white measures
-                    // 2.7:1 on this orange, black 7.7:1 (a11y #4).
-                    .foregroundStyle(.black.opacity(0.85))
+                // The product's own signature, full width: the white chip with
+                // black ink, the same object the selected repo wears in the drop.
+                Text(testOK ? "Done, start using Tintpad" : "Get started").frame(maxWidth: .infinity)
+                    .foregroundStyle(.black)
             }
-            .controlSize(.large).buttonStyle(.borderedProminent).tint(accent)
+            .controlSize(.large).buttonStyle(.borderedProminent).tint(.white)
             .padding(.top, 4)
         }
         .padding(28)
@@ -171,9 +172,9 @@ struct OnboardingView: View {
         do {
             _ = try terminal.launch(TerminalLaunch(
                 workingDirectory: NSHomeDirectory(),
-                command: "echo 'Tintpad is set up — you can close this window.'"))
+                command: "echo 'Tintpad is set up, you can close this window.'"))
             testOK = true
-            testStatus = "Working — a terminal window just opened."
+            testStatus = "Working, a terminal window just opened."
         } catch {
             testOK = false
             testStatus = "\(error)"
@@ -204,13 +205,13 @@ struct OnboardingView: View {
     private var permissionsBlurb: String {
         switch resolvedTerminalID {
         case "com.mitchellh.ghostty":
-            return "Ghostty has no command-open API on macOS, so Tintpad types the command for you. That needs Accessibility — macOS will ask once, on first launch. No other terminal needs it."
+            return "Ghostty has no command-open API on macOS, so Tintpad types the command for you. That needs Accessibility, so macOS will ask once on first launch. No other terminal needs it."
         case "com.googlecode.iterm2", "com.apple.Terminal":
             return "Tintpad opens your terminal with AppleScript, so macOS asks for Automation once, on first launch. That's the only prompt."
         case "":
             return "Depending on your terminal, macOS may ask once for Automation (iTerm2/Terminal) or Accessibility (Ghostty). Nothing is asked up front."
         default:
-            return "No extra permissions needed — Tintpad launches your terminal directly."
+            return "No extra permissions needed, Tintpad launches your terminal directly."
         }
     }
 
@@ -218,12 +219,12 @@ struct OnboardingView: View {
     private func step<C: View>(_ n: Int, _ title: String, _ subtitle: String,
                                @ViewBuilder control: () -> C) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            // Step index in the palette's monospace voice — accent on dark
-            // measures 7:1, and two mono digits self-align across steps, so
-            // no fixed frame is needed at accessibility sizes (a11y #3/#4).
+            // Step index in the palette's monospace voice, gray so the titles
+            // lead. Two mono digits self-align across steps, so no fixed frame
+            // is needed at accessibility sizes (a11y #3/#4).
             Text(String(format: "%02d", n))
                 .font(.monoStyle(.body, .semibold))
-                .foregroundStyle(accent)
+                .foregroundStyle(.secondary)
                 .padding(.top, 1)
             VStack(alignment: .leading, spacing: 6) {
                 Text(title).font(.monoStyle(.headline))

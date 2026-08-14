@@ -38,6 +38,18 @@ inside. Return opens your terminal at that repo with your coding agent (Claude C
 already running. Hands off to the terminal you already use. Native, local-only, free and open
 source.
 
+### New in 0.3.2
+One black world, and a pass over everything the drop left behind.
+- **No theme setting.** Light and System selected nothing you could see, because every
+  window Tintpad draws pins its own dark appearance. The picker is gone, and the theme is
+  now pinned early enough that even the "already running" alert stays in the black world.
+- **Monochrome for real.** Onboarding drops the orange for the product's own white chip,
+  and Settings stops borrowing your macOS accent for the pin and default-mode markers.
+- **The first repo no longer shears** against the edge of the drop after you type, and the
+  strip's left edge only fades when it is genuinely hiding repos.
+- Six unreachable monetization gates removed, two of which sat on the path that launches a
+  permission-skipping mode. Everything functional stays free, and now structurally so.
+
 ### Install
 - **Download \`Tintpad.dmg\` below**, drag to Applications, launch. macOS 14+.
 - or \`brew install --cask sorkila/tap/tintpad\`

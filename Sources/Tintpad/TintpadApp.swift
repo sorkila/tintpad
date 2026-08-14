@@ -57,6 +57,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let panelController = CommandPanelController()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Before the guard below, so even the "already running" alert arrives in
+        // the black world rather than flashing white on a light Mac.
+        AppAppearance.applyProductTheme()
         // Two instances share one store.json and silently clobber each other —
         // refuse to be the second one (AUDIT 2026-07 #2).
         guard SingleInstance.acquire() else {
@@ -70,7 +73,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         NSApp.setActivationPolicy(.accessory)
-        AppAppearance.apply(AppStore.shared.settings.appearance)
 
         // Pre-warm the login-shell PATH off the main thread. Doing it on a
         // background queue avoids both blocking launch on a slow shell rc and the

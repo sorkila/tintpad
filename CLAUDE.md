@@ -10,7 +10,19 @@ Hands off to *your* terminal, it isn't one. Accessory app (`LSUIElement`), local
 no accounts. **Free & open source (MIT) + optional Supporter tip.**
 
 ## Status (shipped)
-**v0.3.1 is live** (2026-08-10): launches scrub inherited agent session markers
+**v0.3.2 is live** (2026-08-14): the coherence pass. **No theme setting any more**
+(Light/System selected nothing visible, `AppAppearance.applyProductTheme()` pins
+darkAqua app-wide before the single-instance guard); onboarding and Settings went
+truly monochrome (four `Color.accentColor` sites were drawing the *system* accent,
+so the user's blue leaked into a black-and-white room); the accent is fully retired
+(`TintAccent`/`AppearanceMode` are decode-only shells so stored values round-trip);
+the drop's first repo no longer shears against the viewport edge (a query change
+resets selection to 0, so the re-anchor observer never fired and the strip settled
+scrolled) and the left fade now appears only when the strip really is hiding tokens;
+UI copy swept to one voice (sentence case, commas, no em dashes); **six unreachable
+monetization gates deleted** and `ProFeature` reduced to the one cosmetic case, with
+`allows()` now exhaustive so a new gate can't be added by accident.
+**v0.3.1** (2026-08-10): launches scrub inherited agent session markers
 (`env -u` prefix + spawn-env scrub) so a terminal started inside a Claude Code
 session can't silently disable transcript saving in launched agents.
 **v0.3.0 "the drop"** (2026-08-05): full design pivot — the palette is a black
@@ -84,8 +96,14 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   throughout, Reduce Motion gets a crossfade). Displays without a notch get the same
   drop as a floating pill below the menu bar. **Black and white only**: repo names in
   gray, the selected repo a white chip with black ink, the caret white, forced dark
-  world in every theme (`environment(\.colorScheme, .dark)` + darkAqua on the panel and
-  Settings windows). Danger red is the only color, spent on the MODE chip and the
+  world whatever the Mac's theme (`environment(\.colorScheme, .dark)` + darkAqua on the
+  panel and Settings windows). **There is no theme setting**: Light and System selected
+  nothing a user could see, so the picker is gone and `AppAppearance.applyProductTheme()`
+  pins darkAqua app-wide (before the single-instance guard, so even the "already running"
+  alert lands in the black world). The accent is retired with it, `Color.accentColor` is
+  the *system* accent, never ours, so it must not appear in product surfaces, and
+  `AppearanceMode`/`TintAccent` survive only as decode shells so stored values
+  round-trip. Danger red is the only color, spent on the MODE chip and the
   confirm line, said once passively and once at the gate. **One object language**:
   every element is a capsule of `chipH` — white chip (position), etched hairline chips
   (the contract: AGENT and MODE as labeled instrument fields with baseline-aligned

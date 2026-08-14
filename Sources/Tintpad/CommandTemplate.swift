@@ -22,7 +22,7 @@ enum CommandTemplate {
 
         var description: String {
             switch self {
-            case .binaryNotFound(let b): return "“\(b)” isn’t on your PATH — check it’s installed, then Re-scan."
+            case .binaryNotFound(let b): return "“\(b)” isn’t on your PATH, check it’s installed, then Re-scan."
             case .emptyCommand: return "This agent’s command template is empty."
             }
         }
