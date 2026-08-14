@@ -609,6 +609,19 @@ struct PaletteView: View {
     /// The token strip's viewport, so its content can measure its own offset.
     private static let stripSpace = "tokenStrip"
 
+    /// Where a token should land when the strip scrolls to it.
+    ///
+    /// The first token is pinned to the **leading** edge, never centered. The
+    /// row is left-anchored by design, and centering index 0 asks the scroll
+    /// view to scroll past its own start: the target resolves against the
+    /// viewport, and on arrival the viewport is still moving (tokens stagger
+    /// in, the query field animates its width), so it settles on a stray
+    /// offset of a few tens of points that nothing afterwards corrects. The
+    /// leading token then sits shorn flat against the hard clip at x=0, which
+    /// reads as a rendering fault. Leading anchoring needs no viewport
+    /// measurement at all, so a half-built layout cannot mislead it.
+    static func anchor(for index: Int) -> UnitPoint { index == 0 ? .leading : .center }
+
     // Dynamic Type. The drop's height derives from these, so they scale
     // together. Capped at xxLarge — one line cannot absorb accessibility sizes.
     @ScaledMetric(relativeTo: .body) private var dropH: CGFloat = 38
@@ -887,7 +900,7 @@ struct PaletteView: View {
                            value: model.stripScrolled)
             )
             .onChange(of: model.selection) { _, new in
-                let scroll = { proxy.scrollTo(new, anchor: .center) }
+                let scroll = { proxy.scrollTo(new, anchor: Self.anchor(for: new)) }
                 reduceMotion ? scroll() : withAnimation(.easeOut(duration: 0.14), scroll)
             }
             // Typing reshapes the row (fewer tokens) but leaves the ScrollView
@@ -897,11 +910,13 @@ struct PaletteView: View {
             // shearing the first chip against the hard clip at x=0. Re-anchor on
             // the query itself, unanimated: the content just swapped, so sliding
             // it as well reads as noise rather than movement.
-            .onChange(of: model.query) { _, _ in proxy.scrollTo(0, anchor: .center) }
+            .onChange(of: model.query) { _, _ in proxy.scrollTo(0, anchor: .leading) }
             // Same staleness across summons: the view is reused, so a strip left
             // scrolled by the last visit must return to its margin on arrival.
             .onChange(of: contentShown) { _, shown in
-                if shown { proxy.scrollTo(model.selection, anchor: .center) }
+                if shown {
+                    proxy.scrollTo(model.selection, anchor: Self.anchor(for: model.selection))
+                }
             }
         }
     }

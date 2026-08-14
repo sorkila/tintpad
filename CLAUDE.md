@@ -112,9 +112,15 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   business). Fully mute at rest: tokens only, the query materializes as you type.
   **Optical laws**: the first chip's margin = the vertical inset + round-end
   compensation (a capsule's curve eats corners), and the token strip pads 3pt inside
-  its ScrollView (the viewport clips hard at x=0). Only the right edge fades —
-  overflow is the only thing worth signaling. ←/→ move through tokens only while the
-  field is empty; ↑/↓, ⌘1–⌘9, ⌘0 unchanged. `RepoTint` hues survive in Settings and
+  its ScrollView (the viewport clips hard at x=0). The right edge always fades
+  (overflow is worth signaling), the left edge fades **only while the strip actually
+  holds a scroll offset**, because at rest that edge is margin, not overflow.
+  **Scroll to index 0 with `anchor: .leading`, never `.center`** (`PaletteView.anchor(for:)`):
+  the row is left-anchored, and centering the first token asks the ScrollView to scroll
+  past its own start, which resolves against a viewport that is still moving during
+  arrival and settles on a stray offset nothing later corrects, shearing the leading
+  chip flat against the clip (the 0.3.2 regression, fixed in 0.3.3).
+  ←/→ move through tokens only while the field is empty; ↑/↓, ⌘1–⌘9, ⌘0 unchanged. `RepoTint` hues survive in Settings and
   the Supporter tint perk, not in the drop.
 - **Prose has no em dashes and no prose semicolons**, in markdown docs and website copy
   (a deliberate, enforced house style, use commas). Code, identifiers, and code comments

@@ -2,6 +2,18 @@
 
 All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepachangelog.com), this project aims for [Semantic Versioning](https://semver.org).
 
+## [0.3.3] - 2026-08-14
+
+### Fixed
+- **The first repo no longer sits shorn against the edge of the drop.** 0.3.2
+  fixed the scroll offset going stale but still asked the strip to *center* the
+  first token, and centering the first thing in a row means scrolling past the
+  row's own start. The target is worked out against the viewport, the viewport
+  is still moving while the drop arrives, and the strip settled a few tens of
+  points along with nothing to pull it back, so the leading chip was cut flat.
+  The first token is now pinned to the leading edge, which needs no measurement
+  and so cannot be misled by a half-built layout.
+
 ## [0.3.2] - 2026-08-14
 
 One black world, and a pass over everything the drop left behind.
