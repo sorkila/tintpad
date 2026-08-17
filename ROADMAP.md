@@ -55,6 +55,11 @@ it." That's the whole job right now.
   of scattered literals, plus a terminology sweep so the same thing has one name.
 - **Full launch-path tests.** `Launcher` dependency injection so the summon →
   resolve → handoff path can be tested end to end, not just the pure logic.
+- **Native macOS 26 icon (`.icon`).** The app ships a classic icns, which Tahoe
+  re-dresses with its own glass rim at the tile edge. Adopting the layered Icon
+  Composer format (compiled with `actool` into `Assets.car`, with the generated
+  icns kept as the fallback for older macOS) hands edge lighting, dark mode, and
+  the tint variants to the system instead of approximating them in a flat bitmap.
 - **Raycast extension (full).** TypeScript: fuzzy repo search, recents, per-project
   actions, Tintpad's frecency model surfaced inside Raycast for people who live
   there. The script command is the bridge, this is the bridge made of stone.

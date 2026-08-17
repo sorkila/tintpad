@@ -2,6 +2,20 @@
 
 All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepachangelog.com), this project aims for [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+
+### Changed
+- **A new app icon.** The drop, rendered for real: a glossy black bead with a
+  white rim light and a specular you can actually see in the Dock, where the old
+  icon was a black hole. Built to the macOS 26 rules, because Tahoe composites a
+  Liquid Glass rim onto every icon and expects the standard 824-in-1024 squircle
+  grid. The old full-bleed shape made that ring land half on, half off the
+  corners and read broken, and the panel behind the ring is now a flat gray 31,
+  the value native dark icons use, because any gradient there turns the system's
+  quiet edge into a glowing frame. The raw render is checked in at
+  `Resources/appicon-raw.jpg`, and the website favicons and GitHub social card
+  carry the new mark already.
+
 ## [0.3.4] - 2026-08-14
 
 ### Fixed
