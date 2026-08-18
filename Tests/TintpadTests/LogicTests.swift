@@ -306,6 +306,19 @@ final class ErrorMessageTests: XCTestCase {
     func testFriendlyLocalizedDescriptions() {
         XCTAssertEqual((TerminalLaunchError.notInstalled as LocalizedError).errorDescription,
                        "That terminal isn't installed.")
+        // A permission error keeps its short summary and full remedy joined,
+        // and carries the pane so the palette can open it on ⏎.
+        let permission = TerminalLaunchError.permissionNeeded(
+            summary: "Ghostty needs Accessibility",
+            remedy: "Grant Tintpad in System Settings.",
+            pane: .accessibility)
+        XCTAssertEqual((permission as LocalizedError).errorDescription,
+                       "Ghostty needs Accessibility. Grant Tintpad in System Settings.")
+        if case .permissionNeeded(_, _, let pane) = permission {
+            XCTAssertEqual(pane, .accessibility)
+        } else {
+            XCTFail("pattern match lost the pane")
+        }
         let resolve = CommandTemplate.ResolveError.binaryNotFound("claude")
         XCTAssertEqual((resolve as LocalizedError).errorDescription,
                        "“claude” isn’t on your PATH, check it’s installed, then Re-scan.")

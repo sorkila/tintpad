@@ -10,6 +10,15 @@ private struct PendingLaunch {
     let fire: () -> Void
 }
 
+/// A launch that failed on a missing TCC grant. Held so the next ⏎ opens the
+/// right System Settings pane instead of the error being a dead end — a
+/// permission failure whose only affordance is prose reads as "nothing
+/// happened" (the developer proved this personally).
+struct PendingPermission {
+    let summary: String
+    let pane: PrivacyPane
+}
+
 /// Keyboard policy decisions that depend on assistive-tech state, kept pure so
 /// they can be reasoned about and tested without the environment.
 enum KeyPolicy {
@@ -57,6 +66,7 @@ final class PaletteModel: ObservableObject {
     @Published private(set) var launching = false
 
     fileprivate var pendingDangerous: PendingLaunch?
+    @Published private(set) var pendingPermission: PendingPermission?
 
     /// Injectable (like `tabTraverses`) so the gesture can be tested off.
     var reduceMotionActive: () -> Bool = {
@@ -194,6 +204,7 @@ final class PaletteModel: ObservableObject {
         stripScrolled = false
         status = nil
         pendingDangerous = nil
+        pendingPermission = nil
         agentOverrideID = nil
         modeOverrideID = nil
         worktreeRepo = nil
@@ -271,9 +282,10 @@ final class PaletteModel: ObservableObject {
     /// typing into the field, where ⌘<n> should stay inert.
     private func launchByIndex(_ index: Int) -> Bool {
         guard worktreeRepo == nil, promptRepo == nil else { return false }
-        // ⌘n while a dangerous confirm is pending cancels it — the jump must
-        // never fire a YOLO that was armed for a different repo.
-        if pendingDangerous != nil { clearTransient() }
+        // ⌘n while a dangerous confirm (or permission prompt) is pending
+        // cancels it — the jump must never fire a YOLO that was armed for a
+        // different repo, nor bounce the user into System Settings.
+        if pendingDangerous != nil || pendingPermission != nil { clearTransient() }
         guard filtered.indices.contains(index) else { return false }
         selection = index
         agentOverrideID = nil
@@ -299,7 +311,7 @@ final class PaletteModel: ObservableObject {
             case .unavailable:
                 status = "⚠ That session can't be resumed, its repo, agent, or mode is gone"
             case .failed(let error):
-                status = "⚠ \(error)"
+                report(error)
             }
         }
         if let agent = store.agent(session.agentID),
@@ -355,7 +367,17 @@ final class PaletteModel: ObservableObject {
         onOpenSettings()
     }
 
-    func clearTransient() { status = nil; pendingDangerous = nil }
+    func clearTransient() { status = nil; pendingDangerous = nil; pendingPermission = nil }
+
+    /// Routes a launch error: permission failures arm the ⏎-opens-Settings
+    /// state, everything else lands in the status line as before.
+    private func report(_ error: Error) {
+        if case TerminalLaunchError.permissionNeeded(let summary, _, let pane) = error {
+            pendingPermission = PendingPermission(summary: summary, pane: pane)
+        } else {
+            status = "⚠ \(error)"
+        }
+    }
 
     /// Guarded so a scroll that never crosses the edge doesn't republish, and
     /// the strip doesn't redraw itself on every frame of a drag.
@@ -422,7 +444,7 @@ final class PaletteModel: ObservableObject {
                                 repo: repo, agent: agent, mode: mode, prompt: promptText,
                                 store: store, worktreePath: worktreePath)
                             if let note = outcome.note { status = note } else { closeAfterLaunch() }
-                        } catch { status = "⚠ \(error)" }
+                        } catch { report(error) }
                     }
                 } catch {
                     Task { @MainActor [weak self] in self?.status = "⚠ \(error)" }
@@ -454,7 +476,7 @@ final class PaletteModel: ObservableObject {
     // MARK: - Actions
 
     func handleEscape() {
-        if pendingDangerous != nil { clearTransient(); return }
+        if pendingDangerous != nil || pendingPermission != nil { clearTransient(); return }
         if worktreeRepo != nil { exitWorktreeMode(); return }
         if promptRepo != nil { exitPromptMode(); return }
         onClose()
@@ -464,6 +486,14 @@ final class PaletteModel: ObservableObject {
         if let pending = pendingDangerous {
             pendingDangerous = nil
             pending.fire()
+            return
+        }
+        // A permission failure is showing: ⏎ opens the pane that fixes it.
+        // System Settings takes focus, which hides the palette on its own.
+        if let permission = pendingPermission {
+            pendingPermission = nil
+            permission.pane.open()
+            onClose()
             return
         }
         if promptRepo != nil { launchWithTypedPrompt(); return }
@@ -503,7 +533,7 @@ final class PaletteModel: ObservableObject {
     /// while a dangerous confirm is pending cancels the pending launch — a
     /// click must never fire a YOLO that was armed for a different repo.
     func activate(at index: Int) {
-        if pendingDangerous != nil { clearTransient() }
+        if pendingDangerous != nil || pendingPermission != nil { clearTransient() }
         guard filtered.indices.contains(index) else { return }
         selection = index
         handleReturn(modifiers: NSEvent.modifierFlags)
@@ -528,7 +558,7 @@ final class PaletteModel: ObservableObject {
                 repo: repo, agent: agent, mode: mode,
                 prompt: prompt ?? selectedPrompt?.text, store: store)
             if let note = outcome.note { status = note } else { closeAfterLaunch() }
-        } catch { status = "⚠ \(error)" }
+        } catch { report(error) }
     }
 }
 
@@ -641,6 +671,7 @@ struct PaletteView: View {
     /// Which content the middle region shows — drives the crossfade.
     private var middleToken: Int {
         if model.isPendingDangerous { return 1 }
+        if model.pendingPermission != nil { return 5 }
         if model.status != nil { return 2 }
         if model.worktreeRepo != nil { return 3 }
         if model.promptRepo != nil { return 4 }
@@ -679,6 +710,13 @@ struct PaletteView: View {
             if pending, let d = model.pendingDangerousDescription {
                 AccessibilityNotification.Announcement(
                     "Confirm dangerous launch: \(d). Press return again to launch, or escape to cancel."
+                ).post()
+            }
+        }
+        .onChange(of: model.pendingPermission?.summary) { _, summary in
+            if let summary {
+                AccessibilityNotification.Announcement(
+                    "\(summary). Press return to open System Settings, or escape to dismiss."
                 ).post()
             }
         }
@@ -801,6 +839,9 @@ struct PaletteView: View {
     @ViewBuilder private var middleRegion: some View {
         if model.isPendingDangerous {
             middleLine("Return again to launch \(model.pendingDangerousDescription ?? ""), Esc cancels",
+                       color: dangerTint)
+        } else if let permission = model.pendingPermission {
+            middleLine("\(permission.summary), Return opens System Settings, Esc cancels",
                        color: dangerTint)
         } else if let status = model.status {
             let isError = status.hasPrefix("⚠")

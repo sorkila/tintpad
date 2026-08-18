@@ -5,6 +5,16 @@ All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepac
 ## [Unreleased]
 
 ### Changed
+- **A permission failure is no longer a dead end.** When a launch fails because
+  macOS hasn't granted (or has silently un-granted) Accessibility or Automation,
+  the drop now shows a short red line, "Ghostty needs Accessibility, Return
+  opens System Settings, Esc cancels", and Return opens the exact pane,
+  triggering the system prompt that adds Tintpad to the list on the way. The
+  full error text also covers the stale-grant trap, where the toggle shows
+  Tintpad enabled but the grant was keyed to a differently signed build and no
+  longer applies, the fix being to remove the entry and add it back. Born of a
+  live incident where the developer read his own one-line error as "nothing
+  happens".
 - **A new app icon.** The drop, rendered for real: a glossy black bead with a
   white rim light and a specular you can actually see in the Dock, where the old
   icon was a black hole. Built to the macOS 26 rules, because Tahoe composites a

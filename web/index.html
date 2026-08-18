@@ -226,6 +226,11 @@
           "@type": "Question",
           "name": "Why does macOS ask for permissions?",
           "acceptedAnswer": { "@type": "Answer", "text": "It depends on your terminal. Ghostty can't be told to open a window with a command any other way on macOS, so Tintpad types it, and typing needs Accessibility. Terminal and iTerm2 are driven by AppleScript, so macOS asks for Automation instead, and Terminal also needs Accessibility if you switch on open-in-tab. kitty, Alacritty, and WezTerm need neither." }
+        },
+        {
+          "@type": "Question",
+          "name": "Return does nothing, or no terminal opens?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Launch problems show inside the palette as a red line, and pressing Return on that line opens the System Settings pane that fixes it. One macOS quirk is worth knowing: permission grants are keyed to the app's signature, so Accessibility can show Tintpad as enabled yet no longer apply. If that happens, remove Tintpad from the list with the minus button, add it back, and relaunch the app." }
         }
       ]
     }
@@ -315,6 +320,7 @@
     <details><summary>Is it really free?</summary><p>Yes. The whole app is MIT-licensed and open source, and everything works without paying. The Supporter tip is optional, and only unlocks tinted chips plus my thanks.</p></details>
     <details><summary>Does it phone home?</summary><p>No accounts, no telemetry, nothing leaves your Mac. It's open source, so you can check.</p></details>
     <details><summary>Why does macOS ask for permissions?</summary><p>It depends on your terminal. Ghostty can't be told to open a window with a command any other way on macOS, so Tintpad types it, and typing needs Accessibility. Terminal and iTerm2 are driven by AppleScript, so macOS asks for Automation instead, and Terminal also needs Accessibility if you switch on open-in-tab. kitty, Alacritty, and WezTerm need neither.</p></details>
+    <details><summary>Return does nothing, or no terminal opens?</summary><p>Launch problems show inside the palette as a red line, and pressing Return on that line opens the System Settings pane that fixes it. One macOS quirk is worth knowing: permission grants are keyed to the app's signature, so Accessibility can show Tintpad as enabled yet no longer apply. If that happens, remove Tintpad from the list with the minus button, add it back, and relaunch the app.</p></details>
   </div>
 </section>
 

@@ -19,14 +19,42 @@ struct LaunchOutcome {
     var note: String?
 }
 
+/// The System Settings pane a permission failure resolves in. Carried on the
+/// error (not just named in prose) so the palette can open it on ⏎ instead of
+/// asking the user to find it.
+enum PrivacyPane: String, Sendable {
+    case accessibility = "Privacy_Accessibility"
+    case automation = "Privacy_Automation"
+
+    /// Opens the pane. For Accessibility, first fires the system prompt —
+    /// it adds Tintpad to the list by itself, which the pane alone won't do.
+    @MainActor func open() {
+        if self == .accessibility {
+            // Literal value of kAXTrustedCheckOptionPrompt (that global isn't
+            // concurrency-safe under Swift 6).
+            _ = AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
+        }
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(rawValue)") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+}
+
 enum TerminalLaunchError: Error, CustomStringConvertible, LocalizedError {
     case notInstalled
     case launchFailed(String)
+    /// A TCC grant is missing — or stale: macOS keys grants to the app's code
+    /// signature, so a grant made to a differently signed build shows as
+    /// enabled in System Settings yet silently fails to apply. `summary` is
+    /// short enough for the drop's one-line status, `remedy` carries the full
+    /// instructions (including the stale case) for surfaces with room.
+    case permissionNeeded(summary: String, remedy: String, pane: PrivacyPane)
 
     var description: String {
         switch self {
         case .notInstalled: return "That terminal isn't installed."
         case .launchFailed(let m): return "Couldn't open the terminal: \(m)"
+        case .permissionNeeded(let summary, let remedy, _): return "\(summary). \(remedy)"
         }
     }
     var errorDescription: String? { description }
@@ -109,8 +137,10 @@ struct GhosttyAdapter: TerminalAdapter {
         // Accessibility. Without it the keystrokes silently no-op — so fail loudly
         // instead. (Rebuilding an unsigned app resets this grant in macOS.)
         guard AXIsProcessTrusted() else {
-            throw TerminalLaunchError.launchFailed(
-                "Ghostty needs Accessibility. Grant Tintpad in System Settings → Privacy & Security → Accessibility, then relaunch.")
+            throw TerminalLaunchError.permissionNeeded(
+                summary: "Ghostty needs Accessibility",
+                remedy: "Grant Tintpad in System Settings → Privacy & Security → Accessibility. If Tintpad is already listed, the grant has gone stale, remove it and add it back, then relaunch Tintpad.",
+                pane: .accessibility)
         }
         let cmd = "cd \(shellQuote(launch.workingDirectory)) && \(launch.command)"
         let newKey = launch.openInTab ? "t" : "n"   // ⌘T tab / ⌘N window
@@ -239,8 +269,10 @@ struct AppleTerminalAdapter: TerminalAdapter {
         // The tab path types ⌘T via System Events, which needs Accessibility —
         // fail with the actionable message, not a raw AppleScript error.
         if launch.openInTab, !AXIsProcessTrusted() {
-            throw TerminalLaunchError.launchFailed(
-                "Opening a Terminal tab needs Accessibility. Grant Tintpad in System Settings → Privacy & Security → Accessibility, or switch off open-in-tab.")
+            throw TerminalLaunchError.permissionNeeded(
+                summary: "Opening a Terminal tab needs Accessibility",
+                remedy: "Grant Tintpad in System Settings → Privacy & Security → Accessibility, or switch off open-in-tab. If Tintpad is already listed, remove it and add it back.",
+                pane: .accessibility)
         }
         let cmd = "cd \(shellQuote(launch.workingDirectory)) && \(launch.command)"
         // Window: `do script` opens a fresh window. Tab: there's no AppleScript
@@ -318,8 +350,10 @@ enum AppleScriptRunner {
             let num = (error[NSAppleScript.errorNumber] as? Int) ?? 0
             // -1743 = not authorized to send Apple events: make it actionable.
             if num == -1743 {
-                throw TerminalLaunchError.launchFailed(
-                    "Tintpad isn't allowed to control your terminal yet. Grant it in System Settings → Privacy & Security → Automation, then try again.")
+                throw TerminalLaunchError.permissionNeeded(
+                    summary: "Tintpad isn't allowed to control your terminal",
+                    remedy: "Allow it in System Settings → Privacy & Security → Automation, then try again.",
+                    pane: .automation)
             }
             let msg = error[NSAppleScript.errorMessage] as? String ?? "\(error)"
             throw TerminalLaunchError.launchFailed("AppleScript: \(msg)")
