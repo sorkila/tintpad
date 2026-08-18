@@ -152,6 +152,12 @@ chosen precisely so the wallpaper could not tint a monochrome room.
   exercised by launching each at least once before a release. Terminal.app and
   iTerm2 need Automation, Ghostty needs Accessibility, the CLI terminals need
   neither, and Warp falls back to the clipboard.
+- **The permission-failure line.** A launch with a missing Accessibility or
+  Automation grant must show the red one-liner in the drop, and ⏎ must open the
+  named System Settings pane. A dev build cannot reproduce the missing-grant
+  state on a granted machine (TCC matches the bundle ID, so the dev build
+  inherits the grant and really launches), so verify with a temporary forced
+  throw in the adapter, never by resetting the machine's real grants.
 - **Sparkle update flow**, from an older installed build through to relaunch.
 - **System-drawn surfaces.** The folder chooser and the reset alert are drawn
   by macOS, not by us. `AppAppearance.applyProductTheme()` pins darkAqua
