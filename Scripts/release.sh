@@ -38,10 +38,14 @@ inside. Return opens your terminal at that repo with your coding agent (Claude C
 already running. Hands off to the terminal you already use. Native, local-only, free and open
 source.
 
-### New in 0.3.4
-- **Settings is monochrome everywhere now, not just where it said so.** Toggles, links, and
-  the agent glyphs in the list were still drawing in whatever accent color macOS was set
-  to. Links keep their affordance in ink and a rule instead of turning blue.
+### New in 0.3.5
+- **A new app icon.** The drop rendered for real: a glossy black bead with a white rim
+  light that reads in the Dock, built to the macOS 26 icon rules so Tahoe's glass rim
+  sits where Apple's own icons wear it.
+- **A permission failure is no longer a dead end.** If macOS hasn't granted (or has
+  silently un-granted) Accessibility or Automation, the drop says so in red and Return
+  opens the exact System Settings pane. The message also covers the stale-grant trap,
+  where the toggle shows Tintpad enabled but the grant no longer applies.
 
 ### Install
 - **Download \`Tintpad.dmg\` below**, drag to Applications, launch. macOS 14+.
