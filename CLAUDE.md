@@ -10,6 +10,13 @@ Hands off to *your* terminal, it isn't one. Accessory app (`LSUIElement`), local
 no accounts. **Free & open source (MIT) + optional Supporter tip.**
 
 ## Status (shipped)
+**v0.3.6 is live** (2026-08-24): the morning double-Ghostty is fixed. Activating a
+not-running Ghostty launches it, and Ghostty opens its own initial window, so the
+unconditional ⌘N left a blank second window on the day's first cold launch.
+`GhosttyAdapter` now branches on `NSRunningApplication` (finished-launching
+instances only): a cold start types into the window the launch itself produces,
+with bounded polls instead of fixed delays and ⌘N kept only as the fallback for
+`initial-window = false` configs (see the Ghostty cold start gotcha).
 **v0.3.5 is live** (2026-08-18): the new app icon ships (the drop rendered glossy
 with a white rim light, built to the macOS 26 rules — see the Tahoe gotcha below —
 standard 824-in-1024 squircle grid, flat gray-31 panel, raw render at
