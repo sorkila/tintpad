@@ -38,14 +38,12 @@ inside. Return opens your terminal at that repo with your coding agent (Claude C
 already running. Hands off to the terminal you already use. Native, local-only, free and open
 source.
 
-### New in 0.3.5
-- **A new app icon.** The drop rendered for real: a glossy black bead with a white rim
-  light that reads in the Dock, built to the macOS 26 icon rules so Tahoe's glass rim
-  sits where Apple's own icons wear it.
-- **A permission failure is no longer a dead end.** If macOS hasn't granted (or has
-  silently un-granted) Accessibility or Automation, the drop says so in red and Return
-  opens the exact System Settings pane. The message also covers the stale-grant trap,
-  where the toggle shows Tintpad enabled but the grant no longer applies.
+### New in 0.3.6
+- **Ghostty no longer opens a blank extra window on the day's first launch.** Starting
+  Ghostty cold opens its own initial window, and Tintpad used to send ⌘N on top of it,
+  leaving one blank window at home and one correct one in the repo. A cold start now
+  types the command into the window Ghostty opens itself. A running Ghostty behaves
+  exactly as before.
 
 ### Install
 - **Download \`Tintpad.dmg\` below**, drag to Applications, launch. macOS 14+.

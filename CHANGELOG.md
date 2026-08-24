@@ -2,6 +2,18 @@
 
 All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepachangelog.com), this project aims for [Semantic Versioning](https://semver.org).
 
+## [0.3.6] - 2026-08-24
+
+### Fixed
+- **Ghostty no longer opens a blank extra window on the day's first launch.**
+  Activating Ghostty when it isn't running also starts it, and Ghostty opens
+  its own initial window on start, so the unconditional ⌘N that followed left
+  two windows, one blank at home and one correct in the repo. A cold start now
+  types the command into the window the launch itself produces, polling for
+  the process and its window instead of trusting a fixed delay, and ⌘N
+  survives only as a fallback for configs that suppress the initial window. A
+  running Ghostty behaves exactly as before.
+
 ## [0.3.5] - 2026-08-18
 
 ### Changed
