@@ -66,7 +66,7 @@ in `Resources/Info.plist` then run `./Scripts/release.sh` to cut the next one.
 ## Commands
 ```sh
 swift build              # debug build
-swift test               # 50 unit tests (pure logic, keep green)
+swift test               # 58 unit tests (pure logic, keep green)
 swift run                # run from source (dev; unsigned)
 ./Scripts/package.sh     # assemble + sign .app/DMG in a TMPDIR scratch (signs if SIGN_IDENTITY set)
 ./Scripts/dev-install.sh # build → Developer ID sign → install to /Applications (local dev)
@@ -205,6 +205,12 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   safe = `--ask-for-approval untrusted` (needs a value). Claude: `--dangerously-skip-permissions`.
 - **Terminal permissions (TCC):** Terminal.app/iTerm2 use AppleScript → **Automation**, Ghostty types the command → **Accessibility**, CLI terminals (kitty/Alacritty/WezTerm) need neither.
   Surfaced with actionable errors. Open-in-tab is honored by Ghostty/iTerm2/Terminal/WezTerm.
+- **Ghostty cold start:** `activate` on a not-running Ghostty *launches* it, and Ghostty
+  opens its own initial window, so an unconditional ⌘N doubles the windows (one blank at
+  home, one correct). `GhosttyAdapter` branches on `NSRunningApplication` (finished-launching
+  instances only, a mid-launch instance is about to open its window too): warm keeps
+  activate → ⌘N → type, cold types into the initial window with bounded polls instead of
+  fixed delays (NSAppleScript blocks the main actor, so a hung launch must fail, not wait).
 - **Code signing (important):**
   - **Unsigned/ad-hoc builds reset TCC grants on every rebuild** (the designated requirement
     is a cdhash that changes). A **Developer ID signature** has a stable cert-based requirement,

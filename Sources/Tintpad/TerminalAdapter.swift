@@ -127,6 +127,14 @@ private func openApp(bundleID: String, args: [String]) throws {
 /// ignores args. The only reliable way to drive a *running* Ghostty is to open a
 /// new window (⌘N) and type the command — via System Events (needs Accessibility
 /// permission, prompted on first use).
+///
+/// A cold start is different: `activate` *launches* Ghostty, which opens its own
+/// initial window, so sending ⌘N on top of that leaves a second, blank window
+/// (the "two Ghosttys on the day's first launch" bug). When Ghostty wasn't
+/// already running, the script instead types into the window the launch itself
+/// produces, polling for the process and window (a cold start takes seconds
+/// where a warm activate is instant), with ⌘N only as a fallback for
+/// `initial-window = false` configs.
 struct GhosttyAdapter: TerminalAdapter {
     let displayName = "Ghostty"
     let bundleID = "com.mitchellh.ghostty"
@@ -143,23 +151,57 @@ struct GhosttyAdapter: TerminalAdapter {
                 pane: .accessibility)
         }
         let cmd = "cd \(shellQuote(launch.workingDirectory)) && \(launch.command)"
-        let newKey = launch.openInTab ? "t" : "n"   // ⌘T tab / ⌘N window
-        // The frontmost checks pin the target: if focus moved during the
-        // delays, the command must NOT be typed into whatever stole it.
-        let script = """
-        tell application "Ghostty" to activate
-        delay 0.35
-        tell application "System Events"
+        // `isFinishedLaunching` counts: an instance still mid-launch is about to
+        // open its initial window, exactly like the not-running case.
+        let wasRunning = NSRunningApplication
+            .runningApplications(withBundleIdentifier: bundleID)
+            .contains(where: \.isFinishedLaunching)
+        try AppleScriptRunner.run(
+            Self.handoffScript(command: cmd, openInTab: launch.openInTab, wasRunning: wasRunning))
+        return LaunchOutcome()
+    }
+
+    /// The System Events script for each entry state. Pure so the branch is
+    /// testable; the frontmost checks pin the target — if focus moved during
+    /// the delays, the command must NOT be typed into whatever stole it.
+    static func handoffScript(command: String, openInTab: Bool, wasRunning: Bool) -> String {
+        let type = """
             if frontmost of process "Ghostty" is false then error "Ghostty lost focus, nothing was typed."
-            keystroke "\(newKey)" using command down
-            delay 0.45
-            if frontmost of process "Ghostty" is false then error "Ghostty lost focus, nothing was typed."
-            keystroke "\(appleScriptEscape(cmd))"
+            keystroke "\(appleScriptEscape(command))"
             key code 36
         end tell
         """
-        try AppleScriptRunner.run(script)
-        return LaunchOutcome()
+        if wasRunning {
+            let newKey = openInTab ? "t" : "n"   // ⌘T tab / ⌘N window
+            return """
+            tell application "Ghostty" to activate
+            delay 0.35
+            tell application "System Events"
+                if frontmost of process "Ghostty" is false then error "Ghostty lost focus, nothing was typed."
+                keystroke "\(newKey)" using command down
+                delay 0.45
+            \(type)
+            """
+        }
+        // Cold start: bounded polls (~5s + ~3s worst case — NSAppleScript runs
+        // on the main actor, so a hung launch must fail, not sit forever).
+        return """
+        tell application "Ghostty" to activate
+        tell application "System Events"
+            repeat 20 times
+                if (exists process "Ghostty") and frontmost of process "Ghostty" then exit repeat
+                delay 0.25
+            end repeat
+            if (exists process "Ghostty") is false then error "Ghostty did not start, nothing was typed."
+            if frontmost of process "Ghostty" is false then error "Ghostty lost focus, nothing was typed."
+            repeat 12 times
+                if (count of windows of process "Ghostty") > 0 then exit repeat
+                delay 0.25
+            end repeat
+            if (count of windows of process "Ghostty") is 0 then keystroke "n" using command down
+            delay 0.45
+        \(type)
+        """
     }
 }
 

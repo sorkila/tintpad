@@ -302,6 +302,30 @@ final class FreshSessionTests: XCTestCase {
     }
 }
 
+final class GhosttyHandoffTests: XCTestCase {
+    func testColdLaunchTypesIntoTheInitialWindow() {
+        // A cold `activate` launches Ghostty, which opens its own window; an
+        // unconditional ⌘N/⌘T on top of it is the two-window bug. ⌘N survives
+        // only as the guarded fallback for `initial-window = false` configs.
+        let cold = GhosttyAdapter.handoffScript(command: "cd /x && claude",
+                                                openInTab: true, wasRunning: false)
+        XCTAssertFalse(cold.contains("keystroke \"t\" using command down"))
+        XCTAssertTrue(cold.contains(
+            "if (count of windows of process \"Ghostty\") is 0 then keystroke \"n\" using command down"))
+        XCTAssertTrue(cold.contains("keystroke \"cd /x && claude\""))
+    }
+
+    func testWarmLaunchOpensWindowOrTab() {
+        let window = GhosttyAdapter.handoffScript(command: "cd /x && claude",
+                                                  openInTab: false, wasRunning: true)
+        XCTAssertTrue(window.contains("keystroke \"n\" using command down"))
+        let tab = GhosttyAdapter.handoffScript(command: "cd /x && claude",
+                                               openInTab: true, wasRunning: true)
+        XCTAssertTrue(tab.contains("keystroke \"t\" using command down"))
+        XCTAssertTrue(tab.contains("keystroke \"cd /x && claude\""))
+    }
+}
+
 final class ErrorMessageTests: XCTestCase {
     func testFriendlyLocalizedDescriptions() {
         XCTAssertEqual((TerminalLaunchError.notInstalled as LocalizedError).errorDescription,
