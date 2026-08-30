@@ -38,12 +38,12 @@ inside. Return opens your terminal at that repo with your coding agent (Claude C
 already running. Hands off to the terminal you already use. Native, local-only, free and open
 source.
 
-### New in 0.3.6
-- **Ghostty no longer opens a blank extra window on the day's first launch.** Starting
-  Ghostty cold opens its own initial window, and Tintpad used to send ⌘N on top of it,
-  leaving one blank window at home and one correct one in the repo. A cold start now
-  types the command into the window Ghostty opens itself. A running Ghostty behaves
-  exactly as before.
+### New in 0.3.7
+- **The drop's shadow no longer lingers after it is dismissed.** The panel carried
+  AppKit's utility-window fade, so the window was still on screen when the app hid,
+  and the stranded frame's only visible part against the black housing was its
+  shadow on the desktop. The drop now scripts its own arrival and exit, with no
+  AppKit animation underneath it.
 
 ### Install
 - **Download \`Tintpad.dmg\` below**, drag to Applications, launch. macOS 14+.

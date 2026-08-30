@@ -10,6 +10,17 @@ Hands off to *your* terminal, it isn't one. Accessory app (`LSUIElement`), local
 no accounts. **Free & open source (MIT) + optional Supporter tip.**
 
 ## Status (shipped)
+**v0.3.7 is live** (2026-08-30): the drop's shadow no longer lingers after
+dismissal. The panel carried AppKit's `.utilityWindow` animation, which *fades*
+a window out instead of removing it, so `orderOut` returned with the drop still
+on screen and `hide()` called `NSApp.hide` in the same runloop turn, asking
+AppKit to hide a window it still believed was visible. The frame it captured
+could stay composited, and since a black capsule against the black housing is
+invisible, the only part left on the desktop was its shadow. `animationBehavior`
+is now `.none` (the drop scripts its own arrival and exit, an AppKit fade under
+it was always a second uninvited animation) and `NSApp.hide` is deferred one
+runloop turn, guarded on the panel still being hidden so a fast re-summon
+doesn't hide the app under itself.
 **v0.3.6 is live** (2026-08-24): the morning double-Ghostty is fixed. Activating a
 not-running Ghostty launches it, and Ghostty opens its own initial window, so the
 unconditional ⌘N left a blank second window on the day's first cold launch.
@@ -186,6 +197,13 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   style-mask change can't silently re-clip. If it ever goes back to `.titled`: do
   **not** opt out of the safe area (`safeAreaRegions = []` loops AppKit's constraint
   pass and crashes, `.ignoresSafeArea()` hides the prompt line).
+- **The panel takes no AppKit window animation.** `.utilityWindow` (the old setting)
+  *fades* a window out, so `orderOut` returns while it is still on screen. `hide()`
+  then called `NSApp.hide` in the same runloop turn, AppKit hid a window it believed
+  was visible, and the captured frame could stay composited on the desktop. A black
+  capsule against the black housing is invisible, so what you saw stranded was the
+  drop's **shadow** (the 0.3.7 fix). Keep `animationBehavior = .none` and keep the
+  `NSApp.hide` deferred a turn behind the order-out.
 - **The drop and the notch:** the panel is `level = .statusBar` (it must draw over the
   menu bar strip to fuse with the housing; `.floating` sits below it). Notch geometry:
   `screen.safeAreaInsets.top > 0` detects it, the housing's depth IS that inset, and
@@ -282,3 +300,7 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
 - `docs/`, ARCHITECTURE, AUDIT, RELEASE, HOMEBREW, DEMO, good-first-issues. `ROADMAP.md`, `CHANGELOG.md` at root.
 - `secrets/` (gitignored), Ed25519 license **private** key (`sign-license.swift` reads it). `private/` (gitignored),
   internal GTM/launch docs (launch-copy.md, launch-plan.md). **Never commit these.**
+
+## Portfolio context (2026-08-25)
+
+Tintpad is a reputation piece in a portfolio plan targeting 100 000 kr/month in side income (Sorkila session artifacts: "The Demand Ledger"). Research verdict: free, MIT and the tip jar stay; a "Pro checkbox" on a free MIT app is resented and the agent-orchestration lane is nativised or VC-funded. If a paid product is ever built next to Tintpad it should be a *different* product sold once ($19–29) direct via r/macapps and Homebrew, not the Mac App Store. Measured candidates: (1) a **Claude Code transcript/session-history vault** (search, redact, encrypt `~/.claude`; the one rising unmet ask, 9→88 posts/month on r/ClaudeCode Jan→Jul 2026); (2) an **agent config/profile manager** (cc-switch: 129k stars, 2 421 open issues, 11k brew installs/30d, free and unloved); (3) a **Ghostty settings GUI** (Ghostty is brew cask #10, 32k installs/30d, "ghostty config" top autocomplete). Cross-agent status/notification is saturated by free tools. Tintpad's own brew installs were 5 in 30 days; distribution, not product, is its gap. Nothing decided.

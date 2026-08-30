@@ -41,7 +41,16 @@ final class CommandPanel: NSPanel {
         // SwiftUI shadow into that margin instead.
         hasShadow = false
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
-        animationBehavior = .utilityWindow
+        // No AppKit window animation. `.utilityWindow` fades the window in and
+        // out, which is a second animation running over the drop's own scripted
+        // one — and the fade-out makes `orderOut` asynchronous: the window is
+        // still on screen, mid-fade, when `hide()` returns. Hiding the app in
+        // that window (or a summon landing on top of it) can leave the last
+        // composited frame behind, and since the capsule is black-on-black
+        // against the housing, the part you actually see stranded on the
+        // desktop is its shadow. `.none` removes the window in the same
+        // transaction, so there is no frame left to strand.
+        animationBehavior = .none
     }
 
     // A borderless/nonactivating panel must opt in to becoming key.
@@ -145,9 +154,21 @@ final class CommandPanelController: NSObject {
     func hide() {
         guard let panel, panel.isVisible else { return }
         panel.orderOut(nil)
-        // Returning focus: because we never activated, the previously frontmost
-        // app remains active. `hide` is the explicit fallback if it ever did.
-        NSApp.hide(nil)
+        // Returning focus to the app that was frontmost before the summon —
+        // `show` activates us so the field can take typing, so this does real
+        // work on every dismissal.
+        //
+        // It is deferred one runloop turn so the order-out is committed to the
+        // window server first. Hiding the app in the same turn asks AppKit to
+        // hide a window it still believes is on screen, and the frame it
+        // captures can be left composited behind us — a black capsule against
+        // the black housing is invisible, so what you see stranded on the
+        // desktop is its shadow. If a summon lands in between (the hotkey
+        // pressed twice), the panel is visible again and the app stays.
+        DispatchQueue.main.async { [weak panel] in
+            guard panel?.isVisible != true else { return }
+            NSApp.hide(nil)
+        }
     }
 
     private func makePanel() -> CommandPanel {

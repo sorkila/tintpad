@@ -2,6 +2,20 @@
 
 All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepachangelog.com), this project aims for [Semantic Versioning](https://semver.org).
 
+## [0.3.7] - 2026-08-30
+
+### Fixed
+- **The drop's shadow no longer lingers after it is dismissed.** The panel
+  carried AppKit's utility-window animation, which fades a window out rather
+  than removing it, so the order-out returned while the drop was still on
+  screen and the app was hidden in the same breath. AppKit was then asked to
+  hide a window it still believed was visible, and the frame it captured could
+  be left composited behind us. Against the black camera housing the capsule
+  itself is invisible, so the part that survived on the desktop was its shadow.
+  The window now carries no AppKit animation at all, the drop scripts its own
+  arrival and exit, and focus returns to the previous app one runloop turn
+  later, once the removal has reached the window server.
+
 ## [0.3.6] - 2026-08-24
 
 ### Fixed
