@@ -153,27 +153,22 @@
         {
           "@type": "Question",
           "name": "What if my Mac has no notch?",
-          "acceptedAnswer": { "@type": "Answer", "text": "The same drop falls from under the menu bar instead, a floating black pill, same everything. The notch just makes the trick look like the hardware did it." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Same drop, hanging just below the menu bar. The notch only makes it look like the hardware did it." }
         },
         {
           "@type": "Question",
           "name": "Isn't this a shell alias?",
-          "acceptedAnswer": { "@type": "Answer", "text": "For the simple case, basically. The difference is frecency, run-mode safety, worktrees, seven terminals, and no config. It's open source, so read it or keep your alias." }
-        },
-        {
-          "@type": "Question",
-          "name": "Why not Raycast?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Raycast runs things inside Raycast. This opens your real terminal, and it's built around the agent loop specifically." }
+          "acceptedAnswer": { "@type": "Answer", "text": "For one repo and one agent, pretty much. Add frecency, worktrees, seven terminals, and a red chip that asks first, and your alias gets long. Keep it if you like, we won't tell." }
         },
         {
           "@type": "Question",
           "name": "Is it really free?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Yes, the whole thing. MIT and open source, nothing to unlock, no account, and nothing leaves your Mac. If it earns a spot in your day, you can buy me a coffee." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes. MIT, open source, no account, no Pro version, and nothing leaves your Mac. If it saves you a morning, buy me a coffee." }
         },
         {
           "@type": "Question",
           "name": "Why does macOS ask for permissions?",
-          "acceptedAnswer": { "@type": "Answer", "text": "It depends on your terminal. Ghostty can't be told to open a window with a command any other way on macOS, so Tintpad types it, and typing needs Accessibility. Terminal and iTerm2 are driven by AppleScript, so macOS asks for Automation instead. kitty, Alacritty, and WezTerm need neither. Warp has no command API at all, so it opens at the repo and the command lands on your clipboard." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Blame your terminal. Ghostty can't open a window with a command, so Tintpad types it, and typing needs Accessibility. Terminal and iTerm2 take AppleScript, which needs Automation. kitty, Alacritty, and WezTerm need nothing. Warp has no command API at all, so it opens at the repo and the command waits on your clipboard." }
         }
       ]
     }
@@ -189,8 +184,8 @@
 
   <div class="hero">
     <h1>It falls out of<br/>your notch.</h1>
-    <p>Press a hotkey. A black drop falls from the notch, your repos inside.
-       Return opens your terminal at that repo, Claude Code, Codex, or any agent already running.</p>
+    <p>Hotkey, repo, Return. Your terminal opens at that repo with Claude Code, Codex,
+       or whichever agent you're into this week, already running.</p>
     <div class="actions">
       <a class="chip-cta" href="https://github.com/sorkila/tintpad/releases/latest/download/Tintpad.dmg">Download for macOS</a>
       <a class="ghost" href="https://github.com/sorkila/tintpad">view source ›</a>
@@ -211,11 +206,11 @@
   <div class="wrap">
     <h2>WHAT IT DOES</h2>
     <div class="list">
-      <div class="item"><div class="h">The drop</div><div class="d">Black on black, it grows out of the housing. Macs without a notch get the same drop below the menu bar.</div></div>
-      <div class="item"><div class="h">Your terminal</div><div class="d">Ghostty, iTerm2, kitty, WezTerm, Alacritty, Terminal, or Warp, opened at the repo with the agent running.</div></div>
-      <div class="item red"><div class="h">The contract</div><div class="d">Two chips say what Return runs, the agent and the mode. The mode that skips permissions turns red, and can ask first.</div></div>
-      <div class="item"><div class="h">Frecency</div><div class="d">Your most-used repos float up, and each reopens with its last agent and mode. ⌘0 replays the last session.</div></div>
-      <div class="item"><div class="h">Worktrees</div><div class="d">One keystroke, an isolated branch checkout with the agent running in it.</div></div>
+      <div class="item"><div class="h">The drop</div><div class="d">Black on black, straight out of the housing. No notch? It hangs below the menu bar instead.</div></div>
+      <div class="item"><div class="h">Your terminal</div><div class="d">Ghostty, iTerm2, kitty, WezTerm, Alacritty, Terminal, or Warp. Tintpad opens yours, it doesn't replace it.</div></div>
+      <div class="item red"><div class="h">The contract</div><div class="d">Two chips say exactly what Return runs. Skipping permissions turns red first, so nobody yolos by accident.</div></div>
+      <div class="item"><div class="h">Frecency</div><div class="d">The repos you actually use float up, with the agent and mode you used last. ⌘0 does it all again.</div></div>
+      <div class="item"><div class="h">Worktrees</div><div class="d">One keystroke for a fresh branch checkout with an agent already inside.</div></div>
     </div>
   </div>
 </section>
@@ -223,18 +218,17 @@
 <section id="faq">
   <div class="wrap">
     <h2>QUESTIONS</h2>
-    <details><summary>What if my Mac has no notch?</summary><p>The same drop falls from under the menu bar instead, a floating black pill, same everything. The notch just makes the trick look like the hardware did it.</p></details>
-    <details><summary>Isn't this a shell alias?</summary><p>For the simple case, basically. The difference is frecency, run-mode safety, worktrees, seven terminals, and no config. It's open source, so read it or keep your alias.</p></details>
-    <details><summary>Why not Raycast?</summary><p>Raycast runs things inside Raycast. This opens your real terminal, and it's built around the agent loop specifically.</p></details>
-    <details><summary>Is it really free?</summary><p>Yes, the whole thing. MIT and open source, nothing to unlock, no account, and nothing leaves your Mac. If it earns a spot in your day, you can buy me a coffee.</p></details>
-    <details><summary>Why does macOS ask for permissions?</summary><p>It depends on your terminal. Ghostty can't be told to open a window with a command any other way on macOS, so Tintpad types it, and typing needs Accessibility. Terminal and iTerm2 are driven by AppleScript, so macOS asks for Automation instead. kitty, Alacritty, and WezTerm need neither. Warp has no command API at all, so it opens at the repo and the command lands on your clipboard.</p></details>
+    <details><summary>What if my Mac has no notch?</summary><p>Same drop, hanging just below the menu bar. The notch only makes it look like the hardware did it.</p></details>
+    <details><summary>Isn't this a shell alias?</summary><p>For one repo and one agent, pretty much. Add frecency, worktrees, seven terminals, and a red chip that asks first, and your alias gets long. Keep it if you like, we won't tell.</p></details>
+    <details><summary>Is it really free?</summary><p>Yes. MIT, open source, no account, no Pro version, and nothing leaves your Mac. If it saves you a morning, buy me a coffee.</p></details>
+    <details><summary>Why does macOS ask for permissions?</summary><p>Blame your terminal. Ghostty can't open a window with a command, so Tintpad types it, and typing needs Accessibility. Terminal and iTerm2 take AppleScript, which needs Automation. kitty, Alacritty, and WezTerm need nothing. Warp has no command API at all, so it opens at the repo and the command waits on your clipboard.</p></details>
   </div>
 </section>
 
 <footer><div class="wrap">
   <span>tintpad · <a href="https://github.com/sorkila/tintpad">GitHub</a> · made by <a href="https://sorkila.com" target="_blank" rel="noopener">Erik Nielsen</a> · also by sorkila: <a href="https://getlockpaw.com" target="_blank" rel="noopener">Lockpaw</a></span>
   <a class="coffee" href="https://www.buymeacoffee.com/eriknielsen" target="_blank" rel="noopener" aria-label="Buy me a coffee (opens in new tab)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>Buy me a coffee</a>
-  <span class="fine">This site uses <a href="https://umami.is" target="_blank" rel="noopener">umami</a> for light, cookieless analytics. No personal data, no third-party tracking.</span>
+  <span class="fine">This site counts visits with <a href="https://umami.is" target="_blank" rel="noopener">umami</a>. No cookies, no personal data.</span>
 </div></footer>
 <script>
 /* A film that loops forever is motion nobody asked for. Under Reduce Motion the
