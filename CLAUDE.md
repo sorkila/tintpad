@@ -392,7 +392,7 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   carries canonical + SoftwareApplication/FAQPage JSON-LD and a Lockpaw cross-link in the footer),
   `appcast.xml`, `robots.txt`, `sitemap.xml`, `llms.txt`, `.htaccess` (https + apex 301s, verify
   via Inleed if redirects misbehave), and `assets/` (demo.mp4, demo-poster.jpg, og.jpg, og.png).
-  Uses umami analytics + full Open Graph / Twitter-card meta. og.jpg (progressive JPEG ~38KB) is
+  Uses umami analytics + full Open Graph / Twitter-card meta. og.jpg (progressive JPEG ~160KB) is
   the served share card, og.png stays as the pipeline source, `record-demo.sh` emits both (Pillow).
   Auto-deploys to tintpad.com via `.github/workflows/deploy-web.yml`.
 - `Scripts/`, package / dev-install / release / sign-license / uitest. `Casks/tintpad.rb`, Homebrew cask

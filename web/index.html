@@ -80,7 +80,9 @@
     background:#151519;border:1px solid rgba(255,255,255,.15);border-bottom-width:2px;
     border-radius:7px;padding:3px 9px;margin-right:5px;white-space:nowrap}
 
-  .shot{margin:48px auto 0;max-width:680px;animation:fall .5s cubic-bezier(.2,.9,.3,1) both}
+  /* The film is the star: it breaks out of the text column to a wide stage. */
+  .shot{width:min(1120px,calc(100vw - 40px));margin:56px 0 0 calc(50% - min(560px,calc(50vw - 20px)));
+    animation:fall .5s cubic-bezier(.2,.9,.3,1) both}
   @keyframes fall{from{opacity:0;transform:translateY(-14px)}to{opacity:1;transform:none}}
   .demo{display:block;width:100%;background:#000;border-radius:16px;overflow:hidden;
     border:1px solid var(--line);
@@ -258,10 +260,10 @@
 
     <div class="shot">
       <video class="demo" autoplay loop muted playsinline preload="metadata"
-             poster="assets/demo-poster.jpg" width="1600" height="396"
+             poster="assets/demo-poster.jpg?v=4" width="1600" height="396"
              style="display:block;width:100%;height:auto"
-             aria-label="Demo: a black drop falls from the Mac notch holding repo names, arrow keys move a white selection chip through them, typing filters, and AGENT and MODE chips show what Return will run, MODE turning red when the mode skips permissions">
-        <source src="assets/demo.mp4" type="video/mp4" />
+             aria-label="Demo: a black drop hangs from the Mac notch holding repo names. Keycaps show each shortcut as it is pressed: option command space summons it, the right arrow walks a white chip through the repos, tab switches the agent, and shift tab turns the MODE chip red for the mode that skips permissions">
+        <source src="assets/demo.mp4?v=4" type="video/mp4" />
       </video>
     </div>
   </div>
@@ -271,8 +273,9 @@
   <div class="wrap">
     <h2>HOW</h2>
     <div class="keys">
-      <div class="keyrow"><span><kbd>⌥⌘Space</kbd></span><span class="d">The drop falls. <b>Your repos</b>, most-used first.</span></div>
-      <div class="keyrow"><span><kbd>←</kbd><kbd>→</kbd> or type</span><span class="d">Walk the row, or filter it. The chips say <b>exactly what Return runs</b>.</span></div>
+      <div class="keyrow"><span><kbd>⌥⌘Space</kbd></span><span class="d">The drop hangs from the notch. <b>Your repos</b>, most-used first.</span></div>
+      <div class="keyrow"><span><kbd>←</kbd><kbd>→</kbd> or type</span><span class="d">Walk the row, or fuzzy-find it. The chips say <b>exactly what Return runs</b>.</span></div>
+      <div class="keyrow"><span><kbd>tab</kbd><kbd>⇧tab</kbd></span><span class="d">Switch the agent, or the mode. A mode that skips permissions <b>turns red</b> before you launch.</span></div>
       <div class="keyrow"><span><kbd>⏎</kbd></span><span class="d">Your terminal opens at the repo, <b>agent already running</b>. The drop drains home.</span></div>
     </div>
   </div>

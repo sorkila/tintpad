@@ -15,6 +15,8 @@ whatever you run, already going.
 &nbsp;![Swift 6](https://img.shields.io/badge/Swift-6-orange)
 &nbsp;![License: MIT](https://img.shields.io/badge/license-MIT-blue)
 
+<a href="https://tintpad.com"><img src="docs/assets/demo.gif" alt="Tintpad demo: a black drop hangs from the MacBook notch with repo names inside. Keycaps show each shortcut as it is pressed: ⌥⌘Space summons it, → walks a white chip through the repos, tab switches the agent between Claude Code and Codex, and ⇧tab turns the MODE chip red for Skip permissions" width="100%" /></a>
+
 </div>
 
 ---
@@ -28,15 +30,10 @@ It doesn't try to be one.
 
 > Not a usage monitor. Not an IDE. Not a terminal. The launcher the agent menu-bar apps forgot.
 
-<div align="center">
-  <img src="docs/assets/palette.png" alt="Tintpad: a black drop below the MacBook notch holding repo names, with AGENT and MODE chips reading Claude Code, Default" width="720" />
-</div>
-
 The chips are the contract: `AGENT Claude Code · MODE Default`, exactly what ⏎ will
 run, in the agent's own words. Nothing happens that the chips didn't announce, and a
 mode that skips permissions is a red chip before you ever press ⏎.
 
-<!-- Animated demo: record per docs/DEMO.md and drop at docs/assets/demo.gif. -->
 
 ## Why
 

@@ -17,7 +17,8 @@ raw take, then cuts every published asset and restores your store.
 | `web/assets/demo.mp4` | the film on tintpad.com (12s, 60fps) |
 | `web/assets/demo-poster.jpg` | the video's poster frame (the red MODE dwell) |
 | `web/assets/og.png` | Open Graph / Twitter share card |
-| `docs/assets/palette.png` | README hero |
+| `docs/assets/palette.png` | README still (the GIF is the hero) |
+| `docs/assets/demo.gif` | README hero, rendered from `demo.mp4` (see below) |
 
 ## How the film works
 
@@ -36,6 +37,27 @@ Hard-won ffmpeg notes, so nobody relearns them:
   `luma_radius`/`chroma_radius` explicitly if you ever blur again.
 - Raw takes survive in `$TMPDIR` (`tmp.*/demo-raw.mov`), so grading tweaks are a
   re-cut, not a re-record. The take is the negative, this script is the darkroom.
+
+## Keystroke callouts
+
+The cut draws the shortcut for every beat under the drop, one keycap per key
+with a plain label, lighting on each press. They are rendered by Pillow in the
+script (SF Pro, `GROUPS` lists caps, label and the app's beat times) and synced
+by `KEY_OFFSET`. If a new take drifts, re-cut with `KEY_OFFSET=0.25` or similar,
+no re-record needed.
+
+`screencapture` writes frames only when the screen changes, so a raw take ends
+at the last visible change. The cut holds that frame (`tpad`) so the final
+framing settles.
+
+The README GIF is rendered from the film:
+
+```sh
+ffmpeg -i web/assets/demo.mp4 -vf "fps=15,scale=960:-1:flags=lanczos,hqdn3d=3:3:6:6,split[a][b];[a]palettegen=max_colors=96:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle" docs/assets/demo.gif
+```
+
+Record with the MacBook's built-in display as the main display. Every crop is
+set for its notch geometry.
 
 ## Taste notes
 

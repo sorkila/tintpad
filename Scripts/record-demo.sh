@@ -52,9 +52,9 @@ for a in s['agents']:
 with open(path, 'w') as f: json.dump(s, f, indent=1)
 EOF
 
-echo "▸ Recording (13s)…"
-screencapture -v -V 13 "$WORK/demo-raw.mov" & sleep 0.7
-TINTPAD_DEMO=1 TINTPAD_SCREEN_PRIMARY=1 "$APP" & sleep 14.5
+echo "▸ Recording (16s)…"
+screencapture -v -V 16 "$WORK/demo-raw.mov" & sleep 0.7
+TINTPAD_DEMO=1 TINTPAD_SCREEN_PRIMARY=1 "$APP" & sleep 17
 pkill -x Tintpad || true
 
 echo "▸ Hero still…"
@@ -71,8 +71,8 @@ python3 - "$WORK/notch.png" <<'EOF'
 import math, struct, sys, zlib
 # Pure black tab, 3x3 supersampled edges, shadow given room to breathe —
 # margins sized so the falloff ends inside the canvas, never boxed.
-W, H = 360, 48
-CX, HW, TH, R = W / 2, 160, 24, 10
+W, H = 360, 76
+CX, HW, TH, R = W / 2, 160, 50, 10
 def sd(px, py):
     qx = max(abs(px - CX) - (HW - R), 0)
     qy = max(py - (TH - R), 0)
@@ -101,6 +101,9 @@ png += chunk(b"IEND", b"")
 open(sys.argv[1], "wb").write(png)
 EOF
 
+# screencapture writes frames only when the screen changes, so the raw take
+# ends at the last visible change, not at -V. tpad holds that last frame so
+# the final framing has time to settle before the trim's end.
 # One continuous camera, the Motion way: four held framings — wide
 # (arrival), medium (choosing), tight (the contract), wide (rest) —
 # connected by fast quintic-eased dollies (0.45s), each timed to coincide
@@ -112,17 +115,96 @@ QUINT='st(1,clip((ld(0)-2.5)/0.45,0,1));st(1,ld(1)*ld(1)*ld(1)*(ld(1)*(ld(1)*6-1
 Z="st(0,in/60);${QUINT};1+0.25*ld(1)+0.37*ld(2)-0.62*ld(3)"
 X="st(0,in/60);${QUINT};st(4,(900-100*ld(1)+420*ld(2)-320*ld(3))*3);clip(ld(4)-(iw/zoom)/2,0,iw-iw/zoom)"
 Y="st(0,in/60);${QUINT};st(5,(223-45*ld(1)-41*ld(2)+86*ld(3))*3);clip(ld(5)-(ih/zoom)/2,0,ih-ih/zoom)"
-ffmpeg -y -i "$WORK/demo-raw.mov" -i "$WORK/notch.png" -filter_complex "\
-[0:v]crop=1800:446:612:78,fps=60,trim=0.9:12.9,setpts=PTS-STARTPTS,scale=5400:-2,\
-zoompan=z='${Z}':x='${X}':y='${Y}':d=1:s=1600x396:fps=60[cam];\
-[1:v]loop=loop=720:size=1:start=0,fps=60,format=rgba[tab];\
-[cam][tab]overlay=620:0:shortest=1[out]" -map "[out]" \
+# Keystrokes, the keynote way: a keycap and a plain label under the drop, in
+# time with each scripted beat (TINTPAD_DEMO in TintpadApp.swift), the cap
+# lighting briefly on every press. Bezel-fixed like the notch tab, so the
+# camera moves under them, and set low in the frame, below the tightest
+# framing's drop. KEY_OFFSET maps the app's beat clock to film time
+# (screencapture start latency and the trim), checked per take.
+KEY_OFFSET="${KEY_OFFSET:-0.15}"
+python3 - "$WORK" "$KEY_OFFSET" <<'PYKEYS'
+import sys
+from PIL import Image, ImageDraw, ImageFont
+work, off = sys.argv[1], float(sys.argv[2])
+SF = "/System/Library/Fonts/SFNS.ttf"
+def font(size, weight):
+    f = ImageFont.truetype(SF, size)
+    # Axes: width, optical size, grade, weight. Normal width, text optics.
+    f.set_variation_by_axes([100, size, 400, weight])
+    return f
+KEY, LABEL = font(30, 600), font(28, 420)
+# One cap per key, the way Apple prints shortcuts: (caps, label, presses) in
+# the app's beat seconds. SF has no tab arrow, so tab is spelled out.
+GROUPS = [
+    (["⌥", "⌘", "space"], "Summon", [0.45]),
+    (["→"], "Choose a repo", [3.0, 3.7, 4.4]),
+    (["tab"], "Switch agent", [5.4, 6.2]),
+    (["⇧", "tab"], "Switch mode", [7.0, 9.6]),
+]
+H, PAD, CAPGAP, GAP, MINCAP = 56, 16, 8, 18, 56
+def render(caps, label, lit):
+    probe = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
+    widths = [max(MINCAP, int(probe.textlength(c, font=KEY) + 2 * PAD)) for c in caps]
+    capsw = sum(widths) + CAPGAP * (len(caps) - 1)
+    lw = probe.textlength(label, font=LABEL)
+    im = Image.new("RGBA", (int(capsw + GAP + lw + 4), H + 2), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    x = 0
+    for c, w in zip(caps, widths):
+        d.rounded_rectangle((x + 0.5, 0.5, x + w - 0.5, H - 0.5), radius=14,
+                            fill=(255, 255, 255, 64 if lit else 24),
+                            outline=(255, 255, 255, 120 if lit else 72), width=2)
+        d.text((x + w / 2, H / 2), c, font=KEY, fill=(255, 255, 255, 245), anchor="mm")
+        x += w + CAPGAP
+    d.text((capsw + GAP, H / 2), label, font=LABEL, fill=(255, 255, 255, 160), anchor="lm")
+    return im
+inputs, chain, last = [], [], "[out]"
+def still(path, start, fade_in, end, fade_out, tag):
+    n = len(inputs) + 2  # after the raw take and the notch tab
+    inputs.append(path)
+    chain.append(f"[{n}:v]loop=loop=-1:size=1,fps=60,format=rgba,trim=0:12,"
+                 f"fade=t=in:st={start:.2f}:d={fade_in}:alpha=1,"
+                 f"fade=t=out:st={end:.2f}:d={fade_out}:alpha=1[{tag}]")
+for i, (caps, label, presses) in enumerate(GROUPS):
+    base, lit = render(caps, label, False), render(caps, label, True)
+    base.save(f"{work}/key{i}.png")
+    lit.save(f"{work}/key{i}lit.png")
+    x, y = (1600 - base.width) // 2, 300
+    start = presses[0] + off - 0.15
+    # Never two captions at once: each leaves before the next arrives.
+    end = presses[-1] + off + 1.1
+    if i + 1 < len(GROUPS):
+        end = min(end, GROUPS[i + 1][2][0] + off - 0.15 - 0.25)
+    still(f"{work}/key{i}.png", start, 0.2, end, 0.25, f"k{i}")
+    chain.append(f"{last}[k{i}]overlay={x}:{y}:shortest=1[o{i}]")
+    last = f"[o{i}]"
+    for j, t in enumerate(presses):
+        still(f"{work}/key{i}lit.png", t + off, 0.04, t + off + 0.12, 0.2, f"p{i}{j}")
+        chain.append(f"{last}[p{i}{j}]overlay={x}:{y}:shortest=1[q{i}{j}]")
+        last = f"[q{i}{j}]"
+open(f"{work}/keys.inputs", "w").write("\n".join(inputs) + "\n")
+open(f"{work}/keys.filter", "w").write(";".join(chain) + f";{last}null[final]")
+PYKEYS
+KEY_INPUTS=()
+while IFS= read -r f; do [ -n "$f" ] && KEY_INPUTS+=(-i "$f"); done < "$WORK/keys.inputs"
+{
+  printf '%s' "[0:v]crop=1800:406:612:48,pad=1800:446:0:40:color=0x0b0b12,tpad=stop_mode=clone:stop_duration=4,fps=60,trim=0.9:12.9,setpts=PTS-STARTPTS,scale=5400:-2,zoompan=z='${Z}':x='${X}':y='${Y}':d=1:s=1600x396:fps=60[cam];[1:v]loop=loop=720:size=1:start=0,fps=60,format=rgba[tab];[cam][tab]overlay=620:0:shortest=1[out];"
+  cat "$WORK/keys.filter"
+} > "$WORK/film.filter"
+ffmpeg -y -i "$WORK/demo-raw.mov" -i "$WORK/notch.png" "${KEY_INPUTS[@]}" \
+  -filter_complex_script "$WORK/film.filter" -map "[final]" \
   -c:v libx264 -preset slow -crf 19 -pix_fmt yuv420p -movflags +faststart -an \
   web/assets/demo.mp4
-ffmpeg -y -ss 8.2 -i web/assets/demo.mp4 -frames:v 1 -q:v 3 web/assets/demo-poster.jpg
-sips -c 446 1800 --cropOffset 78 612 "$WORK/hero-full.png" --out docs/assets/palette.png >/dev/null
-sips -c 800 1600 --cropOffset 78 712 "$WORK/hero-full.png" --out "$WORK/og-crop.png" >/dev/null
-sips -z 640 1280 "$WORK/og-crop.png" --out web/assets/og.png >/dev/null
+ffmpeg -v error -y -ss 8.2 -i web/assets/demo.mp4 -frames:v 1 -update 1 -q:v 3 web/assets/demo-poster.jpg
+# Stills framed like the film: the band under the menu bar, a dark bezel strip
+# above it and the notch tab (drawn at film scale, 1600/1800, so scaled back
+# up for these source-scale crops), so the drop hangs from hardware here too.
+ffmpeg -v error -y -i "$WORK/hero-full.png" -i "$WORK/notch.png" -filter_complex \
+  "[1:v]scale=405:-1[tab];[0:v]crop=1800:406:612:48,pad=1800:446:0:40:color=0x0b0b12[b];[b][tab]overlay=697:0" \
+  -frames:v 1 -update 1 docs/assets/palette.png
+ffmpeg -v error -y -i "$WORK/hero-full.png" -i "$WORK/notch.png" -filter_complex \
+  "[1:v]scale=405:-1[tab];[0:v]crop=1600:770:712:48,pad=1600:800:0:30:color=0x0b0b12[b];[b][tab]overlay=597:-10,scale=1280:640" \
+  -frames:v 1 -update 1 web/assets/og.png
 # The share card the site actually serves: same 1280x640 frame as og.png,
 # re-encoded as progressive JPEG q90 (ffmpeg's mjpeg and sips only write
 # baseline, Pillow matches the file the pages reference byte-for-byte).
