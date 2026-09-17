@@ -80,18 +80,19 @@ save(render(px: 180) { r in
 func favicon(_ px: Int) -> NSBitmapImageRep {
     render(px: px) { r in
         let n = r.width
-        func pill(_ x0: CGFloat, _ y0: CGFloat, _ x1: CGFloat, _ y1: CGFloat, _ radius: CGFloat, _ white: CGFloat) {
+        func pill(_ x0: CGFloat, _ y0: CGFloat, _ x1: CGFloat, _ y1: CGFloat, _ radius: CGFloat, _ rgb: (CGFloat, CGFloat, CGFloat)) {
             // Proportions are measured top-down, AppKit draws bottom-up.
             let rect = NSRect(x: n * x0, y: n * (1 - y1), width: n * (x1 - x0), height: n * (y1 - y0))
-            NSColor(white: white, alpha: 1).setFill()
+            NSColor(srgbRed: rgb.0 / 255, green: rgb.1 / 255, blue: rgb.2 / 255, alpha: 1).setFill()
             NSBezierPath(roundedRect: rect, xRadius: n * radius, yRadius: n * radius).fill()
         }
         let rim = max(1, n * 0.045) / n
-        pill(0, 0, 1, 1, 0.24, 0.38)
-        pill(rim, rim, 1 - rim, 1 - rim, 0.24 - rim, 0.08)
-        pill(0.10, 0.56, 0.90, 0.93, 0.17, 0.25)
-        pill(0.20, 0.17, 0.80, 0.48, 0.155, 0.48)
-        pill(0.31, 0.25, 0.69, 0.40, 0.075, 1.0)
+        // Colors sampled from the export: graphite tile, navy pad, white light.
+        pill(0, 0, 1, 1, 0.24, (92, 100, 110))
+        pill(rim, rim, 1 - rim, 1 - rim, 0.24 - rim, (22, 23, 25))
+        pill(0.10, 0.56, 0.90, 0.93, 0.17, (44, 68, 94))
+        pill(0.20, 0.17, 0.80, 0.48, 0.155, (118, 122, 128))
+        pill(0.31, 0.25, 0.69, 0.40, 0.075, (255, 255, 255))
     }
 }
 save(favicon(16), to: "web/assets/favicon-16.png")
