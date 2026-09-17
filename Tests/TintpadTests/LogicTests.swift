@@ -867,3 +867,165 @@ final class DismissSequencerTests: XCTestCase {
         XCTAssertEqual(s.handle(.summon), [.restoreAndOrderIn])
     }
 }
+
+final class DropGeometryTests: XCTestCase {
+    private func notched(depth: CGFloat, housing: CGFloat = 200, max: CGFloat = 640) -> NotchGeometry {
+        NotchGeometry(hasNotch: true, restHeight: depth, housingWidth: housing, maxWidth: max)
+    }
+    private let pill = NotchGeometry(hasNotch: false, restHeight: 0, housingWidth: 0, maxWidth: 640)
+
+    // The capsule is as tall as the housing is deep, within 32...40.
+    func testHousingDepthClampsTo32To40() {
+        XCTAssertEqual(DropGeometry.resolve(notched(depth: 37), typeScale: 1).dropHeight, 37)
+        XCTAssertEqual(DropGeometry.resolve(notched(depth: 24), typeScale: 1).dropHeight, 32)
+        XCTAssertEqual(DropGeometry.resolve(notched(depth: 52), typeScale: 1).dropHeight, 40)
+        // Dynamic Type scales the clamped height, not the other way round.
+        XCTAssertEqual(DropGeometry.resolve(notched(depth: 52), typeScale: 1.25).dropHeight, 50)
+    }
+
+    func testPillIs36() {
+        let d = DropGeometry.resolve(pill, typeScale: 1)
+        XCTAssertEqual(d.dropHeight, 36)
+        XCTAssertEqual(d.minWidth, 280)
+        XCTAssertEqual(d.maxWidth, 640)
+    }
+
+    func testChipHeightIsDropMinusTwelve() {
+        for g in [pill, notched(depth: 32), notched(depth: 37), notched(depth: 40)] {
+            let d = DropGeometry.resolve(g, typeScale: 1.1)
+            XCTAssertEqual(d.chipHeight, d.dropHeight - 12, accuracy: 0.0001)
+            XCTAssertEqual(d.chipInsetResolved, 6, accuracy: 0.0001)
+        }
+    }
+
+    // Notched, the capsule never tucks inside the housing's silhouette: one
+    // capsule height of black either side of the camera.
+    func testMinWidthHugsHousing() {
+        XCTAssertEqual(DropGeometry.resolve(notched(depth: 37, housing: 200), typeScale: 1).minWidth, 274)
+        // Never wider than the screen allows.
+        XCTAssertEqual(DropGeometry.resolve(notched(depth: 37, housing: 600, max: 500), typeScale: 1).minWidth, 500)
+    }
+
+    func testHugWidthQuantizesUpTo8AndClamps() {
+        XCTAssertEqual(DropGeometry.hugWidth(natural: 401, min: 280, max: 640), 408)
+        XCTAssertEqual(DropGeometry.hugWidth(natural: 408, min: 280, max: 640), 408)
+        XCTAssertEqual(DropGeometry.hugWidth(natural: 100, min: 280, max: 640), 280)
+        XCTAssertEqual(DropGeometry.hugWidth(natural: 900, min: 280, max: 640), 640)
+        // Rounding up never escapes the cap.
+        XCTAssertEqual(DropGeometry.hugWidth(natural: 900, min: 280, max: 637), 637)
+    }
+
+    func testWindowHeightFormula() {
+        let g = notched(depth: 37)
+        XCTAssertEqual(DropGeometry.windowHeight(g, drop: .resolve(g, typeScale: 1)), 37 + 8 + 37 + 20)
+        XCTAssertEqual(DropGeometry.windowHeight(pill, drop: .resolve(pill, typeScale: 1)), 0 + 8 + 36 + 20)
+        XCTAssertEqual(DropGeometry.windowWidth(pill), 680)
+    }
+}
+
+@MainActor
+final class StepSequencerTests: XCTestCase {
+    /// A scheduler the test drains by hand, in time order.
+    private final class ManualClock {
+        var pending: [(at: TimeInterval, seq: Int, fire: @MainActor () -> Void)] = []
+        private var seq = 0
+        func schedule(_ at: TimeInterval, _ fire: @escaping @MainActor () -> Void) {
+            pending.append((at, seq, fire)); seq += 1
+        }
+        @MainActor func drain() {
+            while !pending.isEmpty {
+                let next = pending.enumerated().min {
+                    ($0.element.at, $0.element.seq) < ($1.element.at, $1.element.seq)
+                }!
+                pending.remove(at: next.offset)
+                next.element.fire()
+            }
+        }
+    }
+
+    func testBeatsFireInOrder() {
+        let clock = ManualClock()
+        let s = StepSequencer(schedule: clock.schedule)
+        var log: [String] = []
+        s.run([
+            .init(at: 0.2, action: { log.append("c") }),
+            .init(at: 0, action: { log.append("a") }),
+            .init(at: 0.2, action: { log.append("d") }),
+            .init(at: 0.1, action: { log.append("b") }),
+        ])
+        XCTAssertTrue(log.isEmpty, "every beat goes through the scheduler, time 0 included")
+        clock.drain()
+        XCTAssertEqual(log, ["a", "b", "c", "d"])
+    }
+
+    func testCancelDropsPendingBeats() {
+        let clock = ManualClock()
+        let s = StepSequencer(schedule: clock.schedule)
+        var log: [String] = []
+        s.run([
+            .init(at: 0, action: { log.append("a"); s.cancel() }),
+            .init(at: 0, action: { log.append("same-turn") }),
+            .init(at: 0.1, action: { log.append("b") }),
+        ])
+        clock.drain()
+        XCTAssertEqual(log, ["a"])
+    }
+
+    // A re-summon mid-arrival: the old film stands down, the new one plays.
+    func testRerunInvalidatesOlderGeneration() {
+        let clock = ManualClock()
+        let s = StepSequencer(schedule: clock.schedule)
+        var log: [String] = []
+        s.run([.init(at: 0, action: { log.append("old0") }),
+               .init(at: 0.2, action: { log.append("old1") })])
+        let first = s.generation
+        s.run([.init(at: 0.1, action: { log.append("new") })])
+        XCTAssertGreaterThan(s.generation, first)
+        clock.drain()
+        XCTAssertEqual(log, ["new"])
+    }
+}
+
+final class DropTimelineTests: XCTestCase {
+    private func ascending(_ beats: [DropTimeline.Beat]) -> Bool {
+        zip(beats, beats.dropFirst()).allSatisfy { $0.at <= $1.at }
+    }
+    private func time(_ step: DropTimeline.Step, in beats: [DropTimeline.Beat]) -> TimeInterval? {
+        beats.first { $0.step == step }?.at
+    }
+
+    func testArrivalBeatsAscendAndContentFollowsSpread() throws {
+        let beats = DropTimeline.arrival(reduceMotion: false)
+        XCTAssertTrue(ascending(beats))
+        XCTAssertEqual(beats.map(\.step), [.bead, .spread, .contentA, .contentB])
+        XCTAssertEqual(beats.map(\.at), [0, 0.07, 0.17, 0.20])
+        let spread = try XCTUnwrap(time(.spread, in: beats))
+        XCTAssertGreaterThan(try XCTUnwrap(time(.contentA, in: beats)), spread)
+        XCTAssertGreaterThan(try XCTUnwrap(time(.contentB, in: beats)), try XCTUnwrap(time(.contentA, in: beats)))
+    }
+
+    func testExitCloseIsLastAndAfterAbsorb() throws {
+        for reason in DismissReason.allCases {
+            let beats = DropTimeline.exit(reason, reduceMotion: false)
+            XCTAssertTrue(ascending(beats), "\(reason)")
+            XCTAssertEqual(beats.last?.step, .close, "\(reason)")
+            XCTAssertEqual(beats.filter { $0.step == .close }.count, 1, "\(reason)")
+            if let absorb = time(.absorb, in: beats) {
+                XCTAssertGreaterThan(try XCTUnwrap(time(.close, in: beats)), absorb)
+            }
+        }
+        XCTAssertEqual(time(.close, in: DropTimeline.exit(.launch, reduceMotion: false)), 0.29)
+        XCTAssertEqual(time(.close, in: DropTimeline.exit(.escape, reduceMotion: false)), 0.26)
+        XCTAssertEqual(time(.close, in: DropTimeline.exit(.focusLoss, reduceMotion: false)), 0.15)
+        XCTAssertNil(time(.absorb, in: DropTimeline.exit(.focusLoss, reduceMotion: false)),
+                     "losing focus fades, it is not absorbed")
+    }
+
+    func testReduceMotionIsACrossfade() {
+        XCTAssertEqual(DropTimeline.arrival(reduceMotion: true), [.init(at: 0, step: .crossfadeIn)])
+        for reason in DismissReason.allCases {
+            XCTAssertEqual(DropTimeline.exit(reason, reduceMotion: true),
+                           [.init(at: 0, step: .fade), .init(at: 0.13, step: .close)])
+        }
+    }
+}

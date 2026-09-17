@@ -760,10 +760,14 @@ struct NotchGeometry: Equatable {
     /// The housing's depth — the transparent gap above the string when the
     /// window is flush with the screen's top edge. Zero when floating.
     var restHeight: CGFloat
-    /// The settled droplet width for this screen.
+    /// The housing's width: the gap between the menu bar's two auxiliary
+    /// areas either side of the camera. Zero when floating (or when AppKit
+    /// reports no auxiliary areas).
+    var housingWidth: CGFloat = 0
+    /// The widest the capsule may settle on this screen.
     var maxWidth: CGFloat
 
-    static let fallback = NotchGeometry(hasNotch: false, restHeight: 0, maxWidth: 640)
+    static let fallback = NotchGeometry(hasNotch: false, restHeight: 0, housingWidth: 0, maxWidth: 640)
 }
 
 /// Bridges the controller's per-summon geometry into the SwiftUI drop.
@@ -812,17 +816,7 @@ struct PaletteView: View {
     @State private var phase = 0          // 0 rest · 1 drip · 2 fallen · 3 spread
     @State private var contentShown = false
     @State private var landBob = false    // one soft bounce as the drop settles
-
-    /// Transparent room around the drop where its shadow falls — sized for
-    /// the full blur diameter (radius 16, y-offset 8), because a shadow that
-    /// clips at the window edge reads as a hairline seam on bright walls.
-    static let shadowMargin: CGFloat = 44
-    /// How far the bead falls from the housing's lip to where it rests —
-    /// enough air that the drop visibly hangs below the housing rather
-    /// than clinging to it.
-    private static let fall: CGFloat = 34
-    /// The bead before it spreads.
-    private static let beadSize: CGFloat = 14
+    @Environment(\.displayScale) private var displayScale
     /// The token strip's viewport, so its content can measure its own offset.
     private static let stripSpace = "tokenStrip"
 
@@ -839,12 +833,17 @@ struct PaletteView: View {
     /// measurement at all, so a half-built layout cannot mislead it.
     static func anchor(for index: Int) -> UnitPoint { index == 0 ? .leading : .center }
 
-    // Dynamic Type. The drop's height derives from these, so they scale
-    // together. Capped at xxLarge — one line cannot absorb accessibility sizes.
-    @ScaledMetric(relativeTo: .body) private var dropH: CGFloat = 38
+    // Dynamic Type. The drop's geometry (`DropGeometry`) scales with
+    // `typeScale`, the type with its own metrics, so they grow together.
+    // Capped at xxLarge — one line cannot absorb accessibility sizes.
+    @ScaledMetric(relativeTo: .body) private var typeScale: CGFloat = 1
     @ScaledMetric(relativeTo: .body) private var fieldSize: CGFloat = 12
     @ScaledMetric(relativeTo: .body) private var metaSize: CGFloat = 11
-    @ScaledMetric(relativeTo: .body) private var chipH: CGFloat = 21
+
+    /// Every size the drop lays out with, for this summon's screen.
+    private var drop: DropGeometry { DropGeometry.resolve(anchor.geometry, typeScale: typeScale) }
+    private var dropH: CGFloat { drop.dropHeight }
+    private var chipH: CGFloat { drop.chipHeight }
 
     /// The model is owned by the controller (created + monitored at launch) so
     /// the very first summon is already warm.
@@ -868,8 +867,9 @@ struct PaletteView: View {
     var body: some View {
         VStack(spacing: 0) {
             // The housing's own depth — the window is flush with the screen
-            // top on notched Macs, and the fall begins where the housing ends.
-            Spacer().frame(height: anchor.geometry.restHeight + Self.fall)
+            // top on notched Macs, and the capsule hangs a gap below where
+            // the housing ends (or below the menu bar on a plain display).
+            Spacer().frame(height: anchor.geometry.restHeight + DropGeometry.gap)
             droplet
                 // Follow-through: the landing carries 4pt past the resting
                 // line and springs back — the splat has weight.
@@ -932,8 +932,9 @@ struct PaletteView: View {
         let drip = phase == 1 && !model.launching
         // The bead elongates while it falls — liquid stretches under its
         // own weight — and rides above the resting line until it lands.
-        let width: CGFloat = spread ? g.maxWidth : (falling ? Self.beadSize - 2 : Self.beadSize)
-        let height: CGFloat = spread ? dropH : (falling ? Self.beadSize + 5 : Self.beadSize)
+        let bead = DropGeometry.beadSize
+        let width: CGFloat = spread ? g.maxWidth : (falling ? bead - 2 : bead)
+        let height: CGFloat = spread ? dropH : (falling ? bead + 5 : bead)
         return ZStack {
             Capsule(style: .continuous).fill(.black)
             content
@@ -944,12 +945,17 @@ struct PaletteView: View {
         }
         .clipShape(Capsule(style: .continuous))
         .frame(width: width, height: height)
-        .offset(y: drip || model.launching ? -Self.fall : 0)
+        // The key line: one device pixel of light on the rim, so the black
+        // capsule holds its edge against a black housing or a dark wall.
+        .overlay(Capsule(style: .continuous)
+            .strokeBorder(Color.white.opacity(spread ? 0.14 : 0), lineWidth: 1 / max(displayScale, 1)))
+        // The fall is the gap: the bead forms at the housing's lower edge
+        // (or the menu bar's), never above it.
+        .offset(y: drip || model.launching ? -DropGeometry.gap : 0)
         .opacity(phase >= 1 ? 1 : 0)
-        // The shadow arrives with the landing: a drop in flight casting a
-        // grounded shadow reads as two objects, so it casts nothing until
-        // it has spread.
-        .shadow(color: .black.opacity(spread ? 0.5 : 0), radius: 16, y: 8)
+        // A contact shadow, close and light, and only once spread: a drop in
+        // flight casting a grounded shadow reads as two objects.
+        .shadow(color: .black.opacity(spread ? 0.22 : 0), radius: 8, y: 2)
         .animation(model.launching && !reduceMotion ? .easeIn(duration: 0.15) : nil, value: model.launching)
     }
 
@@ -974,7 +980,7 @@ struct PaletteView: View {
         // inset. The scroll clip's 3pt protection already supplies the
         // round-end breath — adding more made the left visibly heavier
         // than the top and bottom.
-        .padding(.horizontal, (dropH - chipH) / 2)
+        .padding(.horizontal, drop.chipInsetResolved)
     }
 
     // MARK: - Search region
@@ -1329,10 +1335,10 @@ struct PaletteView: View {
         }
     }
 
-    /// The drop's window height: housing depth + fall + capsule + the
+    /// The drop's window height: housing depth + gap + capsule + the
     /// transparent room the shadow falls into. One storey, always.
     private func pushHeight() {
-        onResize(anchor.geometry.restHeight + Self.fall + dropH + Self.shadowMargin)
+        onResize(DropGeometry.windowHeight(anchor.geometry, drop: drop))
     }
 }
 
@@ -1381,6 +1387,9 @@ private struct ChipButton: View {
     let height: CGFloat
     let action: () -> Void
     @State private var hovering = false
+    /// The eyebrow's own metric, so it scales with Dynamic Type but never
+    /// drops below legibility at the default size.
+    @ScaledMetric(relativeTo: .body) private var eyebrowSize: CGFloat = 8.5
 
     var body: some View {
         Button(action: action) {
@@ -1389,14 +1398,14 @@ private struct ChipButton: View {
             // the way set type does.
             HStack(alignment: .firstTextBaseline, spacing: 5) {
                 Text(tag.uppercased())
-                    .font(.system(size: size * 0.68, weight: .semibold))
+                    .font(.system(size: eyebrowSize, weight: .semibold))
                     .tracking(0.7)
                     // Optical centering: on the shared baseline the small
                     // caps hang low against the value's cap height — a
                     // one-point lift centers the two heights on each other.
                     .baselineOffset(1)
                     .foregroundStyle(danger ? AnyShapeStyle(dangerTint.opacity(0.6))
-                                            : AnyShapeStyle(Color(white: 0.42)))
+                                            : AnyShapeStyle(Color(white: 0.5)))
                 Text(label)
                     .font(.system(size: size, weight: .medium))
                     .foregroundStyle(danger ? AnyShapeStyle(dangerTint)

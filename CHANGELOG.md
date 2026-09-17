@@ -2,6 +2,19 @@
 
 All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepachangelog.com), this project aims for [Semantic Versioning](https://semver.org).
 
+## [0.4.0] - Unreleased
+
+### Changed
+- **The drop sits closer and matches the housing.** The capsule now hangs 8pt
+  below the camera housing instead of 34pt, and on a notched Mac it is exactly as
+  tall as the housing is deep (between 32 and 40 points), so the two read as one
+  shape. Without a notch the pill is 36pt tall and sits 8pt under the menu bar. A
+  faint one-pixel key line holds the capsule's edge against dark walls, and the
+  heavy floating shadow gave way to a light contact shadow. The contract's
+  eyebrows are a touch larger and brighter (8.5pt), so AGENT and MODE are
+  readable at a glance. Every size now comes from one tested geometry, and the
+  window's transparent margin shrank to match the smaller shadow.
+
 ## [0.3.8] - Unreleased
 
 ### Added

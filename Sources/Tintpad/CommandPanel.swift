@@ -265,13 +265,24 @@ final class CommandPanelController: NSObject {
         anchor.geometry = NotchGeometry(
             hasNotch: hasNotch,
             restHeight: hasNotch ? screen.safeAreaInsets.top : 0,
+            housingWidth: hasNotch ? Self.housingWidth(of: screen) : 0,
             maxWidth: min(640, screen.frame.width - 160))
-        let width = anchor.geometry.maxWidth + PaletteView.shadowMargin * 2
+        let width = DropGeometry.windowWidth(anchor.geometry)
         let height = panel.frame.height
         let top = hasNotch ? screen.frame.maxY : screen.visibleFrame.maxY
         panel.setFrame(
             NSRect(x: screen.frame.midX - width / 2, y: top - height,
                    width: width, height: height),
             display: true)
+    }
+
+    /// The camera housing's width: the gap between the menu bar areas either
+    /// side of it. Both areas are nil on a screen without a notch (and could
+    /// be on a future one), so anything missing or inverted reads as zero and
+    /// the capsule falls back to its own minimum.
+    private static func housingWidth(of screen: NSScreen) -> CGFloat {
+        guard let left = screen.auxiliaryTopLeftArea,
+              let right = screen.auxiliaryTopRightArea else { return 0 }
+        return max(0, right.minX - left.maxX)
     }
 }

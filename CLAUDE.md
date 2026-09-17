@@ -84,7 +84,7 @@ in `Resources/Info.plist` then run `./Scripts/release.sh` to cut the next one.
 ## Commands
 ```sh
 swift build              # debug build
-swift test               # 82 unit tests (pure logic, keep green)
+swift test               # 94 unit tests (pure logic, keep green)
 swift run                # run from source (dev; unsigned)
 ./Scripts/package.sh     # assemble + sign .app/DMG in a TMPDIR scratch (signs if SIGN_IDENTITY set)
 ./Scripts/dev-install.sh # build → Developer ID sign → install to /Applications (local dev)
@@ -221,7 +221,12 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   menu bar strip to fuse with the housing; `.floating` sits below it). Notch geometry:
   `screen.safeAreaInsets.top > 0` detects it, the housing's depth IS that inset, and
   the window docks flush with `screen.frame.maxY` (notched) or `visibleFrame.maxY`
-  (floating fallback). **Nothing may render behind the camera** — screenshots composite
+  (floating fallback, the pill hangs 8pt under it). The housing's **width** is
+  `auxiliaryTopRightArea.minX - auxiliaryTopLeftArea.maxX`, and both areas are nil on a
+  screen without a notch, so guard them (zero means no housing). Every size the drop
+  takes comes from `DropGeometry` (gap 8, capsule = housing depth clamped 32 to 40 or 36
+  for the pill, chips 12 shorter, shadow margin 20), never a literal in the view.
+  **Nothing may render behind the camera** — screenshots composite
   pixels the housing physically blocks, so a design can look fine in captures and be
   broken live; the drop hangs strictly below `restHeight`. `screencapture` shows the
   lock screen when the Mac is locked — check captures aren't black before trusting a
