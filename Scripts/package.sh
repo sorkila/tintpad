@@ -60,12 +60,14 @@ if [[ -n "${SIGN_IDENTITY:-}" ]]; then
   find "$APP" -exec xattr -d com.apple.FinderInfo {} \; 2>/dev/null || true
   find "$APP" -exec xattr -d com.apple.ResourceFork {} \; 2>/dev/null || true
   sign() { codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$@"; }
-  # SPM ships flat resource bundles (no Info.plist) which codesign calls
-  # "unsuitable" — give each a minimal Info.plist, then sign them.
+  # Older SPM ships flat resource bundles (no Info.plist) which codesign calls
+  # "unsuitable" — give each a minimal Info.plist, then sign them. SPM 6.4+
+  # emits proper deep bundles (Contents/Info.plist): a root Info.plist there is
+  # "unsealed contents present in the bundle root", so leave those alone.
   for b in "$APP/Contents/MacOS/"*.bundle; do
     [[ -d "$b" ]] || continue
     n="$(basename "$b" .bundle)"
-    if [[ ! -f "$b/Info.plist" ]]; then
+    if [[ ! -f "$b/Info.plist" && ! -f "$b/Contents/Info.plist" ]]; then
       cat > "$b/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

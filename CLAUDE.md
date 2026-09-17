@@ -315,7 +315,7 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
     `ditto --noextattr --norsrc` the SPM bundles in (not `cp -R`) so they don't carry forks.
     `xattr -c` chokes on the un-removable fileprovider xattr, delete FinderInfo/ResourceFork
     **per-file** (`-exec`, not batched `xargs`).
-  - **SPM ships flat resource bundles** (no Info.plist) → codesign calls them "unsuitable", `package.sh` injects a minimal Info.plist and signs them. Sparkle's nested XPC/Updater.app
+  - **SPM before 6.4 ships flat resource bundles** (no Info.plist) → codesign calls them "unsuitable", `package.sh` injects a minimal Info.plist and signs them. SPM 6.4+ emits proper deep bundles (`Contents/Info.plist`), and a root Info.plist injected into one fails signing with "unsealed contents present in the bundle root", so both scripts skip bundles that already have `Contents/Info.plist`. Sparkle's nested XPC/Updater.app
     must be signed **inside-out before the app**. (Sign off a fileprovider volume, CI runners are fine.)
 - **Notarization:** needs a notarytool keychain profile. One-time:
   `xcrun notarytool store-credentials tintpad-notary --apple-id erik@sorkila.com --team-id 78ACS592J2`

@@ -28,7 +28,8 @@ echo "▸ Signing with: $ID"
 for b in Tintpad.app/Contents/MacOS/*.bundle; do
   [ -d "$b" ] || continue
   n="$(basename "$b" .bundle)"
-  [ -f "$b/Info.plist" ] || cat > "$b/Info.plist" <<PLIST
+  # Flat (older SPM) bundles need a root Info.plist, deep (SPM 6.4+) ones must not get one.
+  [ -f "$b/Info.plist" ] || [ -f "$b/Contents/Info.plist" ] || cat > "$b/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
