@@ -15,11 +15,11 @@ enum LaunchGate {
 
     /// - Parameters:
     ///   - inFlight: a launch has been requested and has not returned yet.
-    ///   - launching: the close gesture is playing, or has played and the
-    ///     panel is on its way out. It stays true until the next summon.
+    ///   - dismissing: an exit is playing, or has played and the panel is on
+    ///     its way out. It stays true until the next summon.
     ///   - noteShown: a completed launch left a note in the drop.
-    static func returnDisposition(inFlight: Bool, launching: Bool, noteShown: Bool) -> Disposition {
-        if inFlight || launching { return .ignore }
+    static func returnDisposition(inFlight: Bool, dismissing: Bool, noteShown: Bool) -> Disposition {
+        if inFlight || dismissing { return .ignore }
         if noteShown { return .closeOnly }
         return .launch
     }

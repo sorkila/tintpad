@@ -11,6 +11,25 @@ enum DismissReason: Equatable, CaseIterable {
     case focusLoss
 }
 
+/// Which exit plays when a dismissal is requested. Pure so the precedence can
+/// be tested without a palette.
+enum DismissPolicy {
+    /// - Parameters:
+    ///   - current: the exit already playing, if any.
+    ///   - requested: the exit being asked for.
+    ///   - inFlight: a launch has been requested and has not returned yet.
+    /// - Returns: the exit that should be playing afterwards.
+    ///
+    /// The first request wins, so a click elsewhere never cuts a launch or an
+    /// Esc exit short. A focus loss while a launch is in flight is the launch
+    /// succeeding (the terminal took focus), so it plays the launch exit.
+    static func next(current: DismissReason?, requested: DismissReason, inFlight: Bool) -> DismissReason {
+        if let current { return current }
+        if requested == .focusLoss && inFlight { return .launch }
+        return requested
+    }
+}
+
 /// The drop's beat tables: when each step of the arrival and of every exit
 /// happens, in seconds from the start of the sequence. The numbers live here
 /// and nowhere else, and `StepSequencer` plays them.

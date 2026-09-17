@@ -61,11 +61,18 @@ final class PaletteModel: ObservableObject {
     /// When set, the search field captures a one-off prompt for this repo.
     @Published var promptRepo: Repo?
 
-    /// True from the launch gesture until the next summon's `reset()`: the
-    /// cluster releases as it fades, so a launch *feels* like one. It is never
-    /// cleared on the way out, because clearing it reinflated the capsule
-    /// offscreen. Esc still closes instantly.
-    @Published private(set) var launching = false
+    /// The exit that is playing, from the request until the next summon's
+    /// `reset()` (or a summon mid-exit, `cancelDismissal()`). Never cleared on
+    /// the way out, because clearing it would reinflate the capsule offscreen.
+    /// The view plays the exit and calls `exitDidFinish()` on its close beat,
+    /// and only then does the panel-level `DismissSequencer` run.
+    @Published private(set) var dismissal: DismissReason?
+    var isDismissing: Bool { dismissal != nil }
+    /// Set once the exit's close has been handed to the controller, so the
+    /// view's close beat and the fallback below can't close twice.
+    private var exitClosed = false
+    /// Moves on every request and cancel, so a stale fallback stands down.
+    private var dismissRequestGeneration = 0
 
     /// True from the launch request until the terminal handoff returns. The
     /// handoff is deferred a beat so "Opening …" is painted before it blocks,
@@ -119,27 +126,52 @@ final class PaletteModel: ObservableObject {
         NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
     }
 
-    /// Close after the launch gesture has played — or immediately when motion
-    /// is reduced, because a delay with no animation just reads as lag.
-    private func closeAfterLaunch() {
-        guard !launching else { return }
-        // Set on the reduced path too: it is what `LaunchGate` reads to ignore
-        // a Return that lands while the panel is on its way out.
-        launching = true
-        if reduceMotionActive() { onClose(); return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) { [weak self] in
-            self?.onClose()
+    /// Close after the launch exit has played.
+    private func closeAfterLaunch() { requestDismiss(.launch) }
+
+    /// Ask the drop to leave. The view plays the exit for `reason` (see
+    /// `DropTimeline`) and calls `exitDidFinish()` on its close beat. The
+    /// first request wins (`DismissPolicy`), and the flag it sets is what
+    /// `LaunchGate` reads to ignore a Return while the drop is leaving.
+    func requestDismiss(_ reason: DismissReason) {
+        let next = DismissPolicy.next(current: dismissal, requested: reason, inFlight: launchInFlight)
+        guard next != dismissal else { return }
+        dismissal = next
+        exitClosed = false
+        dismissRequestGeneration += 1
+        // Safety net, not the choreography: if the view never plays the exit
+        // (it isn't rendering), the panel must still close, a beat after the
+        // exit's own close so it can never cut the animation short.
+        let gen = dismissRequestGeneration
+        let closeAt = DropTimeline.exit(next, reduceMotion: reduceMotionActive()).last?.at ?? 0
+        DispatchQueue.main.asyncAfter(deadline: .now() + closeAt + 0.25) { [weak self] in
+            guard let self, dismissRequestGeneration == gen else { return }
+            exitDidFinish()
         }
+    }
+
+    /// The exit's close beat: hand over to the panel-level dismissal.
+    func exitDidFinish() {
+        guard dismissal != nil, !exitClosed else { return }
+        exitClosed = true
+        onClose()
+    }
+
+    /// A summon landed mid-exit: nothing still queued may close the new drop.
+    func cancelDismissal() {
+        dismissRequestGeneration += 1
+        exitClosed = false
+        if dismissal != nil { dismissal = nil }
     }
 
     /// The gate every launch gesture passes first. Returns true when the
     /// gesture may go on to launch.
     private func admitLaunchGesture() -> Bool {
         switch LaunchGate.returnDisposition(
-            inFlight: launchInFlight, launching: launching, noteShown: noteShown) {
+            inFlight: launchInFlight, dismissing: isDismissing, noteShown: noteShown) {
         case .launch: return true
         case .ignore: return false
-        case .closeOnly: onClose(); return false
+        case .closeOnly: requestDismiss(.launch); return false
         }
     }
 
@@ -171,7 +203,7 @@ final class PaletteModel: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak self] in
             guard let self, noteGeneration == noteGen, summonGeneration == summonGen,
                   noteShown else { return }
-            onClose()
+            requestDismiss(.launch)
         }
     }
 
@@ -322,7 +354,7 @@ final class PaletteModel: ObservableObject {
 
     /// Called when the panel is shown to reset transient per-summon state.
     func reset() {
-        launching = false
+        cancelDismissal()
         // A new summon supersedes any launch still deferred from the last
         // one (it checks the generation and stands down), so nothing is in
         // flight here and a stuck flag must never swallow every Return.
@@ -654,7 +686,7 @@ final class PaletteModel: ObservableObject {
         if pendingDangerous != nil || pendingPermission != nil { clearTransient(); return }
         if worktreeRepo != nil { exitWorktreeMode(); return }
         if promptRepo != nil { exitPromptMode(); return }
-        onClose()
+        requestDismiss(.escape)
     }
 
     func handleReturn(modifiers mods: NSEvent.ModifierFlags) {
@@ -671,7 +703,8 @@ final class PaletteModel: ObservableObject {
         if let permission = pendingPermission {
             pendingPermission = nil
             permission.pane.open()
-            onClose()
+            // Leaving for System Settings, which takes focus anyway.
+            requestDismiss(.focusLoss)
             return
         }
         if promptRepo != nil { launchWithTypedPrompt(); return }
@@ -778,14 +811,13 @@ final class NotchAnchor: ObservableObject {
 
 // MARK: - View
 
-/// The palette: a black drop that falls out of the notch.
+/// The palette: a black drop that forms under the notch.
 ///
-/// Summon, and a bead of black drips from the camera housing's lip, falls
-/// free — stretching slightly, the way liquid does — lands a beat below,
-/// and splats sideways into a floating capsule that settles with one soft
-/// bob. The drop holds the repos as words: stark black and white, nothing
-/// else. Launch, and the capsule condenses back into the bead and is pulled
-/// up into the housing.
+/// Summon, and a bead of black swells at the camera housing's lip, then
+/// expands in place into a capsule that hangs 8pt below it, and the words
+/// follow the shape in. The drop holds the repos as words: stark black and
+/// white, nothing else. Launch or Esc, and the capsule shrinks back into the
+/// bead and is absorbed by the housing. A click elsewhere just fades it.
 ///
 /// Rules the layout obeys:
 ///
@@ -798,12 +830,12 @@ final class NotchAnchor: ObservableObject {
 ///    ⏎ does — always present, a contract that hides reads as a bug), red
 ///    chip = it skips permissions, the only color the drop ever allows.
 ///    The query materializes at the left as you type.
-/// 3. **The fall is the brand.** Drip (a bead pops at the lip) → fall
-///    (easeIn, elongating) → splat (one spring with a touch of overshoot,
-///    squash into spread) → settle (a single bob) → tokens surfacing
-///    center-out. Squash and stretch, anticipation, follow-through —
-///    springs, not durations, so any interruption retargets mid-flight.
-///    Reduce Motion replaces the film with a crossfade.
+/// 3. **The blend is the brand.** Bead (swells at the lip) → spread (expands
+///    in place, growing only downward and sideways) → content (the search
+///    and strip, then the contract, rising 4pt out of a 4pt blur). One
+///    generation-counted `StepSequencer` timeline plays the `DropTimeline`
+///    beats, so a re-summon cancels every stale beat and springs retarget
+///    mid-flight. Reduce Motion replaces the film with a crossfade.
 /// 4. **Keyboard first, mouse honest.** ←/→ (or ↑/↓) move through tokens
 ///    while the field is empty, ⏎ launches, ⌘1–⌘9 jump, ⌘0 resumes, ⇥/⇧⇥
 ///    cycle agent/mode — the contract's words are the clickable counterparts.
@@ -813,10 +845,22 @@ struct PaletteView: View {
     let onResize: (CGFloat) -> Void
     @FocusState private var searchFocused: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var phase = 0          // 0 rest · 1 drip · 2 fallen · 3 spread
-    @State private var contentShown = false
-    @State private var landBob = false    // one soft bounce as the drop settles
+    @State private var phase: DropPhase = .hidden
+    /// The search region and token strip.
+    @State private var contentA = false
+    /// The contract.
+    @State private var contentB = false
+    /// The bead's swell, anchored at its top edge.
+    @State private var beadScale: CGFloat = 0
+    /// Exit into the housing: shrunk toward the top edge and gone.
+    @State private var absorbed = false
+    /// Exit by fading (focus loss, Reduce Motion), and the RM arrival's start.
+    @State private var faded = false
+    /// Plays the arrival and the exits. One per view, so a re-summon cancels.
+    @State private var sequencer = StepSequencer()
     @Environment(\.displayScale) private var displayScale
+
+    enum DropPhase { case hidden, bead, spread }
     /// The token strip's viewport, so its content can measure its own offset.
     private static let stripSpace = "tokenStrip"
 
@@ -869,18 +913,28 @@ struct PaletteView: View {
             // The housing's own depth — the window is flush with the screen
             // top on notched Macs, and the capsule hangs a gap below where
             // the housing ends (or below the menu bar on a plain display).
-            Spacer().frame(height: anchor.geometry.restHeight + DropGeometry.gap)
+            // The gap opens with the spread: the bead forms touching the
+            // housing's lower edge and the capsule hangs 8pt below it.
+            Spacer().frame(height: anchor.geometry.restHeight + (phase == .spread ? DropGeometry.gap : 0))
             droplet
-                // Follow-through: the landing carries 4pt past the resting
-                // line and springs back — the splat has weight.
-                .offset(y: landBob ? 0 : -4)
             Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        // Nothing behind the camera, structurally: whatever a spring's
+        // overshoot or a shadow's blur does, no pixel above the housing's
+        // lower edge is drawn. (The pill's rest height is 0, so it clips
+        // nothing there.)
+        .mask(alignment: .top) {
+            VStack(spacing: 0) {
+                Color.clear.frame(height: anchor.geometry.restHeight)
+                Color.black
+            }
+        }
         // The drop is a black world regardless of system theme — fix the
         // hierarchy styles to dark so .secondary/.tertiary read on black.
+        // (Dynamic Type is clamped at the hosting root, see CommandPanel, so
+        // the geometry's own `typeScale` metric is clamped too.)
         .environment(\.colorScheme, .dark)
-        .dynamicTypeSize(...DynamicTypeSize.xxLarge)
         .onAppear { model.startMonitoring(); model.reset(); searchFocused = true; animateIn(); pushHeight() }
         // Typing always lands in the field — no one should ever have to click
         // it first. Exception: when VoiceOver/Full Keyboard Access owns focus
@@ -911,9 +965,13 @@ struct PaletteView: View {
         // drop back at rest instantly, so no frame the window server keeps
         // can hold a capsule or its shadow.
         .onChange(of: model.dismissGeneration) { _, _ in
-            var t = Transaction()
-            t.disablesAnimations = true
-            withTransaction(t) { phase = 0; contentShown = false; landBob = false }
+            sequencer.cancel()
+            snap { rest() }
+        }
+        // An exit was requested: play it, then hand over to the panel.
+        .onChange(of: model.dismissal) { _, reason in
+            guard let reason else { return }
+            play(DropTimeline.exit(reason, reduceMotion: reduceMotion), reason: reason)
         }
         .onReceive(NotificationCenter.default.publisher(for: .tintpadPanelDidShow)) { _ in
             model.reset()
@@ -927,36 +985,29 @@ struct PaletteView: View {
 
     private var droplet: some View {
         let g = anchor.geometry
-        let spread = phase >= 3 && !model.launching
-        let falling = phase == 2 && !model.launching
-        let drip = phase == 1 && !model.launching
-        // The bead elongates while it falls — liquid stretches under its
-        // own weight — and rides above the resting line until it lands.
+        let spread = phase == .spread
         let bead = DropGeometry.beadSize
-        let width: CGFloat = spread ? g.maxWidth : (falling ? bead - 2 : bead)
-        let height: CGFloat = spread ? dropH : (falling ? bead + 5 : bead)
         return ZStack {
             Capsule(style: .continuous).fill(.black)
+            // Laid out at the settled size whatever the capsule's size, so
+            // the words never reflow while the shape grows around them.
             content
-                .opacity(contentShown && !model.launching ? 1 : 0)
-                // Only the exit animates: `launching` stays true until the next summon's
-                // `reset()`, and that flip back must not play into the arrival.
-                .animation(model.launching && !reduceMotion ? .easeIn(duration: 0.08) : nil, value: model.launching)
+                .frame(width: g.maxWidth, height: dropH)
         }
+        .frame(width: spread ? g.maxWidth : bead, height: spread ? dropH : bead)
         .clipShape(Capsule(style: .continuous))
-        .frame(width: width, height: height)
         // The key line: one device pixel of light on the rim, so the black
         // capsule holds its edge against a black housing or a dark wall.
         .overlay(Capsule(style: .continuous)
             .strokeBorder(Color.white.opacity(spread ? 0.14 : 0), lineWidth: 1 / max(displayScale, 1)))
-        // The fall is the gap: the bead forms at the housing's lower edge
-        // (or the menu bar's), never above it.
-        .offset(y: drip || model.launching ? -DropGeometry.gap : 0)
-        .opacity(phase >= 1 ? 1 : 0)
-        // A contact shadow, close and light, and only once spread: a drop in
-        // flight casting a grounded shadow reads as two objects.
+        // Every scale anchors at the top edge, so growth and overshoot only
+        // ever go down, never up behind the camera.
+        .scaleEffect(beadScale, anchor: .top)
+        .scaleEffect(absorbed ? 0.4 : 1, anchor: .top)
+        .opacity(phase == .hidden || absorbed || faded ? 0 : 1)
+        // A contact shadow, close and light, and only once spread: a bead
+        // casting a grounded shadow reads as two objects.
         .shadow(color: .black.opacity(spread ? 0.22 : 0), radius: 8, y: 2)
-        .animation(model.launching && !reduceMotion ? .easeIn(duration: 0.15) : nil, value: model.launching)
     }
 
     private var content: some View {
@@ -965,14 +1016,15 @@ struct PaletteView: View {
         // starts hard at the drop's left padding — an honest rag, no drift.
         HStack(spacing: 0) {
             searchRegion
-                .stagger(0.02, shown: contentShown, reduced: reduceMotion)
+                .reveal(contentA)
             middleRegion
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .reveal(contentA)
                 .transition(.opacity)
             contractRegion
                 .layoutPriority(1)
                 .padding(.leading, 32)   // separation is space, not a divider
-                .stagger(0.05, shown: contentShown, reduced: reduceMotion)
+                .reveal(contentB)
         }
         // The middle-region swap is a crossfade, never a hard cut.
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.16), value: middleToken)
@@ -1083,7 +1135,6 @@ struct PaletteView: View {
     /// entire palette.
     private var tokenStrip: some View {
         let repos = model.filtered
-        let mid = Double(max(repos.count - 1, 0)) / 2
         // Left-anchored, like a line of type: the row begins at the drop's
         // padding and rags right. At rest only the right edge fades, because
         // the left edge is margin, not overflow. Once the row is actually
@@ -1104,14 +1155,8 @@ struct PaletteView: View {
                         token(repos[index], index: index, selected: index == model.selection)
                             .id(index)
                             .onTapGesture { model.activate(at: index) }
-                            // Tokens surface like objects floating up as the
-                            // liquid stills — center-out, a beat apart.
-                            .stagger(0.04 + abs(Double(index) - mid) * 0.022,
-                                     shown: contentShown, reduced: reduceMotion)
                     }
-                    if repos.isEmpty {
-                        emptyState.stagger(0.04, shown: contentShown, reduced: reduceMotion)
-                    }
+                    if repos.isEmpty { emptyState }
                 }
                 .padding(.leading, 3)
                 // The measurement rides with the content: its minX in the
@@ -1159,8 +1204,12 @@ struct PaletteView: View {
             .onChange(of: model.query) { _, _ in proxy.scrollTo(0, anchor: .leading) }
             // Same staleness across summons: the view is reused, so a strip left
             // scrolled by the last visit must return to its margin on arrival.
-            .onChange(of: contentShown) { _, shown in
-                if shown {
+            .onChange(of: contentA) { _, shown in
+                guard shown else { return }
+                // Unanimated: the reveal's transaction must not slide the row.
+                var t = Transaction()
+                t.disablesAnimations = true
+                withTransaction(t) {
                     proxy.scrollTo(model.selection, anchor: Self.anchor(for: model.selection))
                 }
             }
@@ -1193,7 +1242,6 @@ struct PaletteView: View {
                                             : Color(white: 0.96))
             }
         }
-        .scaleEffect(selected && model.launching ? 0.94 : 1.0)
         .animation(reduceMotion ? nil : .spring(response: 0.26, dampingFraction: 0.8),
                    value: selected)
         .contentShape(Rectangle())
@@ -1297,41 +1345,83 @@ struct PaletteView: View {
 
     // MARK: - The drop
 
-    /// The choreography, four beats — the classic principles (anticipation,
-    /// squash and stretch, follow-through), springs throughout so any
-    /// interruption retargets mid-flight:
+    /// The choreography (`DropTimeline`, values in seconds):
     ///
-    ///   1. **Drip** — a bead pops at the housing's lip (response 0.22,
-    ///      damping 0.55: a squishy overshoot). Anticipation: the drop
-    ///      forms before it falls.
-    ///   2. **Fall** — 130ms easeIn, accelerating like a thing with weight,
-    ///      the bead elongating as it goes. Stretch.
-    ///   3. **Splat** — the spread spring carries a touch of overshoot
-    ///      (response 0.4, damping 0.72): width blooms past and settles.
-    ///      The whole capsule simultaneously carries 4pt past the resting
-    ///      line and springs back (damping 0.58). Squash + follow-through.
-    ///   4. **Surface** — tokens float up center-out, 22ms apart, as the
-    ///      liquid stills.
+    ///   - **bead** @0: a 12pt bead swells at the housing's lip (spring 0.16,
+    ///     bounce 0.2), its top edge on the housing's lower edge.
+    ///   - **spread** @0.07: it expands in place into the capsule and the gap
+    ///     opens to 8pt (spring 0.34, bounce 0.12).
+    ///   - **contentA** @0.17: the search region and token strip arrive
+    ///     (opacity, a 4pt rise, blur 4 to 0, smooth 0.22).
+    ///   - **contentB** @0.20: the contract, the same way.
     ///
-    /// Launch runs the film backwards: the capsule condenses to the bead
-    /// and is pulled up into the housing. Reduce Motion replaces all of it
-    /// with a crossfade.
+    /// Exits run it backwards: content out, shrink to the bead, absorbed into
+    /// the housing, then close. A focus loss only fades. Reduce Motion
+    /// crossfades both ways. Every beat is cancellable by a re-summon.
     private func animateIn() {
-        if reduceMotion { phase = 3; contentShown = true; landBob = true; return }
-        phase = 0
-        contentShown = false
-        landBob = false
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
-            withAnimation(.spring(response: 0.22, dampingFraction: 0.55)) { phase = 1 }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-                withAnimation(.easeIn(duration: 0.13)) { phase = 2 }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.13) {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.72)) { phase = 3 }
-                    withAnimation(.spring(response: 0.45, dampingFraction: 0.58)) { landBob = true }
-                    // Content elements carry their own stagger delays.
-                    contentShown = true
-                }
+        sequencer.cancel()
+        snap {
+            rest()
+            if reduceMotion {
+                // The crossfade starts from the settled drop, fully faded.
+                phase = .spread; beadScale = 1; contentA = true; contentB = true; faded = true
             }
+        }
+        play(DropTimeline.arrival(reduceMotion: reduceMotion), reason: nil)
+    }
+
+    /// The drop at rest: nothing drawn.
+    private func rest() {
+        phase = .hidden
+        contentA = false
+        contentB = false
+        beadScale = 0
+        absorbed = false
+        faded = false
+    }
+
+    /// Commit state with no animation, whatever transaction is around.
+    private func snap(_ body: () -> Void) {
+        var t = Transaction()
+        t.disablesAnimations = true
+        withTransaction(t, body)
+    }
+
+    private func play(_ beats: [DropTimeline.Beat], reason: DismissReason?) {
+        sequencer.run(beats.map { beat in
+            StepSequencer.Beat(at: beat.at) { apply(beat.step, reason: reason) }
+        })
+    }
+
+    private func apply(_ step: DropTimeline.Step, reason: DismissReason?) {
+        switch step {
+        case .bead:
+            snap { phase = .bead }
+            withAnimation(.spring(duration: 0.16, bounce: 0.2)) { beadScale = 1 }
+        case .spread:
+            withAnimation(.spring(duration: 0.34, bounce: 0.12)) { phase = .spread }
+        case .contentA:
+            withAnimation(.smooth(duration: 0.22)) { contentA = true }
+        case .contentB:
+            withAnimation(.smooth(duration: 0.22)) { contentB = true }
+        case .crossfadeIn:
+            withAnimation(.easeInOut(duration: 0.12)) { faded = false }
+        case .contentOut:
+            withAnimation(.easeIn(duration: 0.08)) { contentA = false; contentB = false }
+        case .shrink:
+            // An exit before the bead ever formed has nothing to shrink, and
+            // must not conjure a bead just to absorb it.
+            guard phase != .hidden else { return }
+            withAnimation(.smooth(duration: reason == .launch ? 0.24 : 0.20)) {
+                phase = .bead; beadScale = 1
+            }
+        case .absorb:
+            guard phase != .hidden else { return }
+            withAnimation(.easeIn(duration: 0.08)) { absorbed = true }
+        case .fade:
+            withAnimation(.easeOut(duration: reduceMotion ? 0.12 : 0.14)) { faded = true }
+        case .close:
+            model.exitDidFinish()
         }
     }
 
@@ -1350,28 +1440,23 @@ private struct StripScrolledKey: PreferenceKey {
     static func reduce(value: inout Bool, nextValue: () -> Bool) { value = nextValue() }
 }
 
-/// Staggered arrival for drop content: fade + a 6pt rise, delayed per
-/// element so the liquid hands off to the content center-out.
-private struct Stagger: ViewModifier {
-    let delay: Double
+/// Content arriving in the drop: fade in, rise 4pt, sharpen out of a 4pt
+/// blur. No animation of its own, the timeline's `withAnimation` carries it,
+/// so a cancelled beat leaves nothing half-scheduled behind.
+private struct Reveal: ViewModifier {
     let shown: Bool
-    let reduced: Bool
 
     func body(content: Content) -> some View {
         content
             .opacity(shown ? 1 : 0)
-            .offset(y: shown || reduced ? 0 : 6)
-            .animation(reduced ? nil : .spring(response: 0.32, dampingFraction: 0.85).delay(delay),
-                       value: shown)
+            .offset(y: shown ? 0 : 4)
+            .blur(radius: shown ? 0 : 4)
     }
 }
 
 private extension View {
-    func stagger(_ delay: Double, shown: Bool, reduced: Bool) -> some View {
-        modifier(Stagger(delay: delay, shown: shown, reduced: reduced))
-    }
+    func reveal(_ shown: Bool) -> some View { modifier(Reveal(shown: shown)) }
 }
-
 
 /// An instrument field that acts: a micro-label eyebrow and its value in a
 /// capsule, the way hardware labels its controls. Hover lifts the fill and

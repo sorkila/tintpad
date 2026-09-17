@@ -14,6 +14,21 @@ All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepac
   eyebrows are a touch larger and brighter (8.5pt), so AGENT and MODE are
   readable at a glance. Every size now comes from one tested geometry, and the
   window's transparent margin shrank to match the smaller shadow.
+- **The drop forms in place, and leaves the way it came.** A 12pt bead swells at
+  the housing's lip, expands in place into the capsule at 70ms, and the words
+  follow the shape at 170ms and 200ms, rising out of a soft blur, so the drop is
+  readable in about 0.4 seconds. Return and Esc shrink the capsule back into the
+  bead and the housing absorbs it (Esc a touch quicker), and a click elsewhere
+  just fades it. Reduce Motion gets a short crossfade both ways. The old fall and
+  bob were three nested timers that could not be interrupted, so pressing the
+  hotkey during an arrival could stack two animations. Now every step belongs to
+  one cancellable timeline, a summon during an exit brings the drop straight
+  back, and the panel is never removed before its exit has played.
+
+### Fixed
+- **Larger text sizes no longer grow the drop past its cap.** Dynamic Type was
+  clamped inside the drop, where its own size metrics could not see the clamp,
+  so the capsule and its window could outgrow the extra-extra-large limit.
 
 ## [0.3.8] - Unreleased
 

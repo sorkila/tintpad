@@ -56,9 +56,9 @@ final class CommandPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 
-    /// Esc closes.
+    /// Esc closes, through the drop's own exit.
     override func cancelOperation(_ sender: Any?) {
-        controller?.hide()
+        controller?.model.requestDismiss(.escape)
     }
 
     weak var controller: CommandPanelController?
@@ -93,10 +93,15 @@ final class CommandPanelController: NSObject {
     /// Install the key monitor at launch so the very first summon is responsive.
     func warm() { model.startMonitoring() }
 
-    /// A panel mid-dismissal is still ordered in (blanked, alpha 0), but to
-    /// the user it is gone, so the hotkey summons it back instead of hiding it.
+    /// A panel mid-dismissal (its exit playing, or blanked at alpha 0) is on
+    /// its way out, so to the user it is gone and the hotkey summons it back
+    /// instead of hiding it. Hiding plays the Esc exit.
     func toggle() {
-        if panel?.isVisible == true && !dismissal.isDismissing { hide() } else { show() }
+        if panel?.isVisible == true && !dismissal.isDismissing && !model.isDismissing {
+            model.requestDismiss(.escape)
+        } else {
+            show()
+        }
     }
 
     /// Screenshot harness (`TINTPAD_SHOWCASE=1`): summon the palette at launch
@@ -109,14 +114,18 @@ final class CommandPanelController: NSObject {
 
     /// Never dismiss synchronously here: `resignKey` runs inside AppKit's
     /// deactivation pass, and ordering out (or hiding the app) from inside it
-    /// is exactly how a frame gets stranded. The hide runs a turn later, and
-    /// stands down if a summon (or another dismissal) moved the generation.
+    /// is exactly how a frame gets stranded. The request runs a turn later,
+    /// and stands down if a summon (or another dismissal) moved the
+    /// generation. The drop then plays its focus-loss fade (or the launch
+    /// exit, when a launch in flight is what took focus) before the panel's
+    /// own dismissal runs.
     func panelResignedKey() {
         guard !suppressAutoHide, !Self.isShowcase, !Self.isDemo else { return }
         let generation = dismissal.generation
         DispatchQueue.main.async { [weak self] in
-            guard let self, self.dismissal.generation == generation else { return }
-            self.hide()
+            guard let self, self.dismissal.generation == generation,
+                  self.panel?.isVisible == true else { return }
+            self.model.requestDismiss(.focusLoss)
         }
     }
 
@@ -144,6 +153,9 @@ final class CommandPanelController: NSObject {
         // First, so a pending dismissal is cancelled and alpha is restored
         // before the panel is docked and brought front.
         perform(dismissal.handle(.summon))
+        // And the drop's exit, if one is playing: its close beat must never
+        // land in the new drop (the view's sequencer restarts on the post).
+        model.cancelDismissal()
         dock(panel)
         // Activate so the search field becomes first responder and accepts
         // typing; focus returns to the prior app via NSApp.hide on close.
@@ -169,6 +181,9 @@ final class CommandPanelController: NSObject {
         }
     }
 
+    /// The panel-level dismissal, run once the drop's exit has played
+    /// (`PaletteModel.exitDidFinish`). Everything user-facing asks the model
+    /// (`requestDismiss`) instead, so the exit is never skipped.
     func hide() {
         guard let panel, panel.isVisible else { return }
         perform(dismissal.handle(.dismiss))
@@ -218,7 +233,10 @@ final class CommandPanelController: NSObject {
         let root = PaletteView(model: model, anchor: anchor) { [weak self] height in
             self?.resize(toContentHeight: height)
         }
-        let hosting = NSHostingView(rootView: root)
+        // Dynamic Type is clamped here, at the root, not inside the view: a
+        // view's own @ScaledMetric reads its parent's environment, and the
+        // drop's geometry (and so the window height) derives from one.
+        let hosting = NSHostingView(rootView: root.dynamicTypeSize(...DynamicTypeSize.xxLarge))
         hosting.frame = panel.contentView?.bounds ?? rect
         hosting.autoresizingMask = [.width, .height]
         panel.contentView = hosting

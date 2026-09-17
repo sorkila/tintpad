@@ -84,7 +84,7 @@ in `Resources/Info.plist` then run `./Scripts/release.sh` to cut the next one.
 ## Commands
 ```sh
 swift build              # debug build
-swift test               # 94 unit tests (pure logic, keep green)
+swift test               # 98 unit tests (pure logic, keep green)
 swift run                # run from source (dev; unsigned)
 ./Scripts/package.sh     # assemble + sign .app/DMG in a TMPDIR scratch (signs if SIGN_IDENTITY set)
 ./Scripts/dev-install.sh # build → Developer ID sign → install to /Applications (local dev)
@@ -133,9 +133,10 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   `optical` correction because icons in a set must match in **ink, not bounding box**
   (Claude's airy radial needs to be drawn larger and held brighter than Codex's dense blob).
 - **Palette design rules** (`PaletteView`, documented on the type). The palette is
-  **the drop**: a pure-black capsule that falls out of the notch (a bead drips from the
-  housing's lip, falls 22pt, splats into the capsule, settles with one bob — springs
-  throughout, Reduce Motion gets a crossfade). Displays without a notch get the same
+  **the drop**: a pure-black capsule that forms under the notch (a 12pt bead swells at
+  the lip, expands in place into a capsule 8pt below, content follows the shape, both
+  exits shrink back into the bead and are absorbed, a focus loss fades, Reduce Motion
+  crossfades). Displays without a notch get the same
   drop as a floating pill below the menu bar. **Black and white only**: repo names in
   gray, the selected repo a white chip with black ink, the caret white, forced dark
   world whatever the Mac's theme (`environment(\.colorScheme, .dark)` + darkAqua on the
@@ -215,8 +216,18 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   (`panelResignedKey` defers `hide()` a turn, it runs inside AppKit's deactivation
   pass), and **a summon cancels a pending dismissal** (the generation moves, a queued
   blank commit stands down, and `toggle()` summons a panel that is mid-dismissal
-  instead of hiding it). `closeAfterLaunch` no longer clears `launching` on the way
-  out, that reinflated the capsule offscreen, `reset()` clears it on the next summon.
+  instead of hiding it). `PaletteModel.dismissal` is never cleared on the way out, that
+  reinflated the capsule offscreen, `reset()` clears it on the next summon.
+- **Arrival and exit are one generation-counted `StepSequencer` timeline**, never nested
+  `asyncAfter`, so a re-summon cancels stale beats. The beat times live only in
+  `DropTimeline`. Everything user-facing asks `PaletteModel.requestDismiss(_:)` (Esc,
+  Return, focus loss, the hotkey toggle), the view plays the exit and calls
+  `exitDidFinish()` on its close beat, and only then does `hide()` run the
+  `DismissSequencer`, so the panel is never ordered out mid-exit. A summon mid-exit
+  calls `cancelDismissal()` before the view restarts its sequencer. The drop is masked
+  below `restHeight` and every `scaleEffect` anchors `.top`, so no overshoot can draw
+  behind the camera. Dynamic Type is clamped at the `NSHostingView` root, because a
+  view's own `@ScaledMetric` ignores a `.dynamicTypeSize` set inside its body.
 - **The drop and the notch:** the panel is `level = .statusBar` (it must draw over the
   menu bar strip to fuse with the housing; `.floating` sits below it). Notch geometry:
   `screen.safeAreaInsets.top > 0` detects it, the housing's depth IS that inset, and

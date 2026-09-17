@@ -668,28 +668,28 @@ final class ContractPreviewTests: XCTestCase {
 /// a Warp note must never start a second launch.
 final class LaunchGateTests: XCTestCase {
     func testReturnIgnoredWhileInFlight() {
-        XCTAssertEqual(LaunchGate.returnDisposition(inFlight: true, launching: false, noteShown: false),
+        XCTAssertEqual(LaunchGate.returnDisposition(inFlight: true, dismissing: false, noteShown: false),
                        .ignore)
     }
 
-    func testReturnIgnoredDuringCloseGesture() {
-        XCTAssertEqual(LaunchGate.returnDisposition(inFlight: false, launching: true, noteShown: false),
+    func testReturnIgnoredWhileDismissing() {
+        XCTAssertEqual(LaunchGate.returnDisposition(inFlight: false, dismissing: true, noteShown: false),
                        .ignore)
     }
 
     func testReturnClosesOnNoteWithoutLaunching() {
-        XCTAssertEqual(LaunchGate.returnDisposition(inFlight: false, launching: false, noteShown: true),
+        XCTAssertEqual(LaunchGate.returnDisposition(inFlight: false, dismissing: false, noteShown: true),
                        .closeOnly)
     }
 
     // A launch underway outranks a stale note: nothing closes under it.
     func testInFlightOutranksNote() {
-        XCTAssertEqual(LaunchGate.returnDisposition(inFlight: true, launching: false, noteShown: true),
+        XCTAssertEqual(LaunchGate.returnDisposition(inFlight: true, dismissing: false, noteShown: true),
                        .ignore)
     }
 
     func testReturnLaunchesAtRest() {
-        XCTAssertEqual(LaunchGate.returnDisposition(inFlight: false, launching: false, noteShown: false),
+        XCTAssertEqual(LaunchGate.returnDisposition(inFlight: false, dismissing: false, noteShown: false),
                        .launch)
     }
 }
@@ -1021,11 +1021,47 @@ final class DropTimelineTests: XCTestCase {
                      "losing focus fades, it is not absorbed")
     }
 
+    // Esc is the launch film, a touch quicker: the capsule shrinks before it
+    // is absorbed, and the panel closes sooner than after a launch.
+    func testEscapeShrinksBeforeAbsorbAndClosesSoonerThanLaunch() throws {
+        let escape = DropTimeline.exit(.escape, reduceMotion: false)
+        let launch = DropTimeline.exit(.launch, reduceMotion: false)
+        for beats in [escape, launch] {
+            XCTAssertLessThan(try XCTUnwrap(time(.shrink, in: beats)), try XCTUnwrap(time(.absorb, in: beats)))
+            XCTAssertLessThanOrEqual(try XCTUnwrap(time(.contentOut, in: beats)), try XCTUnwrap(time(.shrink, in: beats)))
+        }
+        XCTAssertLessThan(try XCTUnwrap(time(.close, in: escape)), try XCTUnwrap(time(.close, in: launch)))
+        XCTAssertLessThan(try XCTUnwrap(time(.absorb, in: escape)), try XCTUnwrap(time(.absorb, in: launch)))
+    }
+
     func testReduceMotionIsACrossfade() {
         XCTAssertEqual(DropTimeline.arrival(reduceMotion: true), [.init(at: 0, step: .crossfadeIn)])
         for reason in DismissReason.allCases {
             XCTAssertEqual(DropTimeline.exit(reason, reduceMotion: true),
                            [.init(at: 0, step: .fade), .init(at: 0.13, step: .close)])
+        }
+    }
+}
+
+/// Which exit plays. The first request wins, and a focus loss while a launch
+/// is in flight is the terminal taking focus, so it plays the launch exit.
+final class DismissPolicyTests: XCTestCase {
+    func testFirstDismissWins() {
+        XCTAssertEqual(DismissPolicy.next(current: nil, requested: .escape, inFlight: false), .escape)
+        XCTAssertEqual(DismissPolicy.next(current: .escape, requested: .launch, inFlight: false), .escape)
+        XCTAssertEqual(DismissPolicy.next(current: .focusLoss, requested: .escape, inFlight: false), .focusLoss)
+    }
+
+    func testFocusLossDuringLaunchBecomesLaunchExit() {
+        XCTAssertEqual(DismissPolicy.next(current: nil, requested: .focusLoss, inFlight: true), .launch)
+        XCTAssertEqual(DismissPolicy.next(current: nil, requested: .focusLoss, inFlight: false), .focusLoss)
+    }
+
+    func testFocusLossNeverOverridesLaunchOrEscape() {
+        for current in [DismissReason.launch, .escape] {
+            for inFlight in [false, true] {
+                XCTAssertEqual(DismissPolicy.next(current: current, requested: .focusLoss, inFlight: inFlight), current)
+            }
         }
     }
 }
