@@ -10,6 +10,9 @@ Hands off to *your* terminal, it isn't one. Accessory app (`LSUIElement`), local
 no accounts. **Free & open source (MIT), nothing to unlock.** Buy me a coffee link only.
 
 ## Status (shipped)
+**v0.4.1 is live** (2026-09-17): the new Icon Composer icon (glass capsule above a navy
+pad, one export feeds `Scripts/make-icon.swift`), the Supporter tip removed (free with
+nothing to unlock, Buy me a coffee only), and the strip's left fade made honest.
 **v0.4.0 is live** (2026-09-17): the polish
 round, planned and reviewed with Fable, built package by package with Opus. The drop hangs
 8pt under the housing at housing depth with a key line (`DropGeometry`), arrives and exits
