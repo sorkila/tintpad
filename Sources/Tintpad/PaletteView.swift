@@ -17,6 +17,10 @@ private struct LaunchContext {
     let generation: Int
     let summonGeneration: Int
     let repo: Repo?
+    /// The launch as identities, held if it fails on a missing grant so the
+    /// summon after the grant can offer it back. Nil when the launch has no
+    /// agent (the editor).
+    let held: HeldLaunch?
     /// The app named in "Opening …", nil for a launch with no line.
     let target: String?
     /// Re-runs the launch from its error line, through the danger gate. Nil
@@ -48,6 +52,39 @@ private struct FailedLaunch {
 struct PendingPermission {
     let summary: String
     let pane: PrivacyPane
+    /// Permission failures on `pane` this app session, this one included.
+    /// The second and later say the stale-grant remedy instead.
+    let failures: Int
+    /// The launch that failed, held once Return opens System Settings so
+    /// the next summon can offer it back. Nil when it has nothing to retry.
+    let retry: PendingRetry?
+
+    var line: String { PermissionEscalation.line(pane: pane, summary: summary, failures: failures) }
+
+    /// VoiceOver's version: both lines already say what Return does.
+    var announcement: String { "\(line)." }
+}
+
+/// A terminal launch by identity, never by value: the repo, agent and mode
+/// are looked up again when it runs, so an edited command or a deleted mode
+/// is never replayed from a stale copy.
+struct HeldLaunch {
+    let repoID: UUID
+    let agentID: UUID
+    let modeID: UUID
+    let prompt: String?
+    let worktreePath: String?
+}
+
+/// A launch that failed on a missing grant, kept across summons from the
+/// moment Return opens System Settings. Never fired without a Return, and
+/// only through `LaunchGate` and the danger gate. Forgotten when used,
+/// cancelled, superseded by any other launch, too old, or when its repo,
+/// agent or mode is gone.
+struct PendingRetry {
+    let launch: HeldLaunch
+    let pane: PrivacyPane
+    var armedAt = Date()
 }
 
 /// Keyboard policy decisions that depend on assistive-tech state, kept pure so
@@ -190,6 +227,16 @@ final class PaletteModel: ObservableObject {
 
     fileprivate var pendingDangerous: PendingLaunch?
     @Published private(set) var pendingPermission: PendingPermission?
+    /// Permission failures per pane since the app started, never reset: a
+    /// grant that fails again after it was given is the stale-grant trap,
+    /// which is exactly what the escalated line explains.
+    private var permissionFailures: [PrivacyPane: Int] = [:]
+    /// The launch held for after the grant, see `PendingRetry`. Survives
+    /// `reset()`, which is where it is offered.
+    private var pendingRetry: PendingRetry?
+    /// The offer line while a summon is offering `pendingRetry`. Return runs
+    /// it, Esc forgets it.
+    @Published private(set) var resumeOffer: String?
 
     /// Whether the panel is on screen. Set by the controller: Settings orders
     /// the panel out without a dismissal, so `isDismissing` alone can't tell.
@@ -255,18 +302,21 @@ final class PaletteModel: ObservableObject {
     /// (synchronously for a preflight error, later for the handoff itself).
     /// After `stillOpeningAfter` seconds without an answer, the line admits
     /// the launch is slow.
-    private func beginLaunch(opening target: String?, repo: Repo?,
+    private func beginLaunch(opening target: String?, repo: Repo?, held: HeldLaunch? = nil,
                              retry: (() -> Void)?,
                              failureLine: ((Error) -> String)? = nil,
                              _ start: (@escaping LaunchService.Completion) -> Void) {
         launchGeneration += 1
         let gen = launchGeneration
         launchContext = LaunchContext(generation: gen, summonGeneration: summonGeneration,
-                                      repo: repo, target: target, retry: retry,
+                                      repo: repo, held: held, target: target, retry: retry,
                                       failureLine: failureLine)
-        // The user has moved on from any older failure.
+        // The user has moved on from any older failure. A held permission
+        // retry goes too: this launch is either it, or something newer.
         deferredFailure = nil
         failedLaunch = nil
+        pendingRetry = nil
+        resumeOffer = nil
         launchInFlight = true
         launchRepo = repo
         launchBeats.cancel()
@@ -297,10 +347,18 @@ final class PaletteModel: ObservableObject {
         }
         let succeeded: Bool
         if case .success = result { succeeded = true } else { succeeded = false }
+        // A launch that went through means the grants it needed hold, so a
+        // later refusal is a first failure again, not an escalation.
+        if succeeded { permissionFailures.removeAll() }
+        // Counted when the failure answers, wherever it is said (or if it is
+        // never said, a held failure can expire): it happened this session.
+        if case .failure(TerminalLaunchError.permissionNeeded(_, _, let pane)) = result {
+            permissionFailures[pane, default: 0] += 1
+        }
         let disposition = LaunchAnswerPolicy.disposition(
             succeeded: succeeded, ownDrop: ownDrop,
             dropPresent: isPresented() && !isDismissing,
-            dropBusy: pendingDangerous != nil || pendingPermission != nil
+            dropBusy: pendingDangerous != nil || pendingPermission != nil || resumeOffer != nil
                 || worktreeRepo != nil || promptRepo != nil)
         switch (disposition, result) {
         case (.land, .success(let outcome)):
@@ -533,6 +591,10 @@ final class PaletteModel: ObservableObject {
         status = nil
         pendingDangerous = nil
         pendingPermission = nil
+        // Must stay ahead of `query = ""` below: its didSet runs
+        // clearTransient, which forgets the held retry whenever an offer is
+        // still showing.
+        resumeOffer = nil
         agentOverrideID = nil
         modeOverrideID = nil
         worktreeRepo = nil
@@ -555,6 +617,42 @@ final class PaletteModel: ObservableObject {
                 report(failure.error, context: failure.context)
             }
         }
+        offerPendingRetry()
+    }
+
+    /// A launch held since Return opened System Settings: offer it back if
+    /// the grant can have landed. Only Accessibility is checked, and only
+    /// here, on summon. Nothing fires without a Return. A newer failure the
+    /// summon just reported takes the line, the retry keeps holding.
+    private func offerPendingRetry() {
+        guard let retry = pendingRetry else { return }
+        let resolved = resolve(retry.launch)
+        let trusted: Bool? = retry.pane == .accessibility ? AXIsProcessTrusted() : nil
+        switch PermissionEscalation.resume(pane: retry.pane, trusted: trusted,
+                                           age: Date().timeIntervalSince(retry.armedAt),
+                                           subjectPresent: resolved != nil) {
+        case .drop:
+            pendingRetry = nil
+        case .hold:
+            break
+        case .offer:
+            guard status == nil, pendingPermission == nil, let (repo, agent, _) = resolved else { return }
+            // The strip behind the offer lands on the repo, so Esc leaves the
+            // user where the launch was. Named as the store has them now.
+            select(filtered.firstIndex { $0.id == repo.id } ?? 0, animated: false)
+            launchRepo = repo
+            resumeOffer = PermissionEscalation.grantedLine(
+                pane: retry.pane, repo: repo.name, agent: agent.name)
+        }
+    }
+
+    /// A held launch's repo, agent and mode as the store has them now, or nil
+    /// when any of them is gone.
+    private func resolve(_ held: HeldLaunch) -> (Repo, Agent, RunMode)? {
+        guard let repo = store.repos.first(where: { $0.id == held.repoID }),
+              let agent = store.agent(held.agentID),
+              let mode = agent.modes.first(where: { $0.id == held.modeID }) else { return nil }
+        return (repo, agent, mode)
     }
 
     func handle(_ event: NSEvent) -> Bool {
@@ -604,6 +702,8 @@ final class PaletteModel: ObservableObject {
         if mods.contains(.command), chars == "," { openSettings(); return true }
         if mods.contains(.command), chars == "r" {
             let n = store.runAutoDiscovery()
+            // The scan result replaces a resume offer, which declines it.
+            if resumeOffer != nil { clearTransient() }
             launchRepo = nil
             status = "Scanned, \(n) new repo\(n == 1 ? "" : "s")"
             return true
@@ -623,7 +723,7 @@ final class PaletteModel: ObservableObject {
         // ⌘n while a dangerous confirm (or permission prompt) is pending
         // cancels it — the jump must never fire a YOLO that was armed for a
         // different repo, nor bounce the user into System Settings.
-        if pendingDangerous != nil || pendingPermission != nil { clearTransient() }
+        if pendingDangerous != nil || pendingPermission != nil || resumeOffer != nil { clearTransient() }
         guard filtered.indices.contains(index) else { return false }
         select(index)
         agentOverrideID = nil
@@ -651,7 +751,13 @@ final class PaletteModel: ObservableObject {
             // A retry replays "the last session" as it is at retry time, the
             // same as pressing ⌘0 again.
             let retry: (() -> Void)? = canResume ? { [weak self] in _ = self?.resumeLastSession() } : nil
-            beginLaunch(opening: opening, repo: repo, retry: retry) { [store] completion in
+            // Held after a permission failure as this session's concrete
+            // launch, so the offer runs what it names even if another session
+            // has become the last one since.
+            let held = canResume ? HeldLaunch(repoID: session.repoID, agentID: session.agentID,
+                                              modeID: session.modeID, prompt: session.prompt,
+                                              worktreePath: nil) : nil
+            beginLaunch(opening: opening, repo: repo, held: held, retry: retry) { [store] completion in
                 LaunchService.resumeLast(store: store, completion: completion)
             }
         }
@@ -725,6 +831,9 @@ final class PaletteModel: ObservableObject {
 
     func clearTransient() {
         status = nil; pendingDangerous = nil; pendingPermission = nil; launchRepo = nil
+        // Moving, typing or cycling away from a resume offer declines it. A
+        // retry that is only holding (no offer showing) is left alone.
+        if resumeOffer != nil { resumeOffer = nil; pendingRetry = nil }
     }
 
     /// Routes a launch error: permission failures arm the ⏎-opens-Settings
@@ -734,7 +843,10 @@ final class PaletteModel: ObservableObject {
         launchRepo = context.repo
         if case TerminalLaunchError.permissionNeeded(let summary, _, let pane) = error {
             status = nil   // the "Opening …" line has had its turn
-            pendingPermission = PendingPermission(summary: summary, pane: pane)
+            let retry = context.held.map { PendingRetry(launch: $0, pane: pane) }
+            pendingPermission = PendingPermission(
+                summary: summary, pane: pane,
+                failures: max(permissionFailures[pane] ?? 0, 1), retry: retry)
             return
         }
         if error is LaunchService.ResumeError {
@@ -780,7 +892,7 @@ final class PaletteModel: ObservableObject {
     /// or about nothing ("Scanned, 3 new repos"), never the selection.
     var subjectRepo: Repo? {
         DropSubject.pick(pending: pendingDangerous?.repo, worktree: worktreeRepo, prompt: promptRepo,
-                         statusShown: status != nil || pendingPermission != nil,
+                         statusShown: status != nil || pendingPermission != nil || resumeOffer != nil,
                          launch: launchRepo, selected: selectedRepo)
     }
 
@@ -905,7 +1017,10 @@ final class PaletteModel: ObservableObject {
     // MARK: - Actions
 
     func handleEscape() {
-        if pendingDangerous != nil || pendingPermission != nil { clearTransient(); return }
+        // clearTransient forgets a showing resume offer along with its retry.
+        if pendingDangerous != nil || pendingPermission != nil || resumeOffer != nil {
+            clearTransient(); return
+        }
         if worktreeRepo != nil { exitWorktreeMode(); return }
         if promptRepo != nil { exitPromptMode(); return }
         requestDismiss(.escape)
@@ -931,9 +1046,28 @@ final class PaletteModel: ObservableObject {
         // System Settings takes focus, which hides the palette on its own.
         if let permission = pendingPermission {
             pendingPermission = nil
+            // Held for the summon after the grant, which offers it back.
+            if let retry = permission.retry {
+                pendingRetry = retry
+                pendingRetry?.armedAt = Date()
+            }
             permission.pane.open()
             // Leaving for System Settings, which takes focus anyway.
             requestDismiss(.focusLoss)
+            return
+        }
+        // A summon offered the launch held since System Settings: Return
+        // runs it, through the danger gate, if its repo and agent survive.
+        if resumeOffer != nil, let retry = pendingRetry {
+            resumeOffer = nil
+            pendingRetry = nil
+            launchRepo = nil
+            guard let (repo, agent, mode) = resolve(retry.launch) else { return }
+            let held = retry.launch
+            fireOrConfirm(repo: repo, agent: agent, mode: mode) { [weak self] in
+                self?.launch(repo: repo, agent: agent, mode: mode,
+                             prompt: held.prompt, worktreePath: held.worktreePath)
+            }
             return
         }
         if promptRepo != nil { launchWithTypedPrompt(); return }
@@ -974,7 +1108,7 @@ final class PaletteModel: ObservableObject {
     /// click must never fire a YOLO that was armed for a different repo.
     func activate(at index: Int) {
         guard admitLaunchGesture() else { return }
-        if pendingDangerous != nil || pendingPermission != nil { clearTransient() }
+        if pendingDangerous != nil || pendingPermission != nil || resumeOffer != nil { clearTransient() }
         guard filtered.indices.contains(index) else { return }
         select(index)
         handleReturn(modifiers: NSEvent.modifierFlags)
@@ -1013,7 +1147,9 @@ final class PaletteModel: ObservableObject {
                              prompt: prompt, worktreePath: worktreePath)
             }
         }
-        beginLaunch(opening: LaunchService.terminalName(store: store), repo: repo,
+        let held = HeldLaunch(repoID: repo.id, agentID: agent.id, modeID: mode.id,
+                              prompt: prompt, worktreePath: worktreePath)
+        beginLaunch(opening: LaunchService.terminalName(store: store), repo: repo, held: held,
                     retry: retry) { [store] completion in
             LaunchService.launchAgent(repo: repo, agent: agent, mode: mode, prompt: prompt,
                                       store: store, worktreePath: worktreePath,
@@ -1160,6 +1296,7 @@ struct PaletteView: View {
     private var middleToken: Int {
         if model.isPendingDangerous { return 1 }
         if model.pendingPermission != nil { return 5 }
+        if model.resumeOffer != nil { return 6 }
         if model.status != nil { return 2 }
         if model.worktreeRepo != nil { return 3 }
         if model.promptRepo != nil { return 4 }
@@ -1227,11 +1364,12 @@ struct PaletteView: View {
                 ).post()
             }
         }
-        .onChange(of: model.pendingPermission?.summary) { _, summary in
-            if let summary {
-                AccessibilityNotification.Announcement(
-                    "\(summary). Press return to open System Settings, or escape to dismiss."
-                ).post()
+        .onChange(of: model.pendingPermission?.announcement) { _, announcement in
+            if let announcement { AccessibilityNotification.Announcement(announcement).post() }
+        }
+        .onChange(of: model.resumeOffer) { _, offer in
+            if let offer {
+                AccessibilityNotification.Announcement("\(offer), or press escape to cancel.").post()
             }
         }
         // The panel is being dismissed and is already transparent: put the
@@ -1397,8 +1535,10 @@ struct PaletteView: View {
             middleLine("\(model.pendingDangerousDescription ?? ""), Return confirms, Esc cancels",
                        color: dangerTint)
         } else if let permission = model.pendingPermission {
-            middleLine("\(permission.summary), Return opens System Settings, Esc cancels",
-                       color: dangerTint)
+            middleLine(permission.line, color: dangerTint)
+        } else if let offer = model.resumeOffer {
+            // White: the grant is done, the launch waits on Return.
+            middleLine(offer, color: Color(white: 0.9))
         } else if let status = model.status {
             // Gray means waiting ("Opening …"), red means failure, white
             // means done (a launch note).

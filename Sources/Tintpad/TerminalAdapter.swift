@@ -456,7 +456,7 @@ enum AppleScriptRunner {
         if raw.contains("(-1743)") || raw.contains("(-1744)") {
             return .permissionNeeded(
                 summary: "Tintpad isn't allowed to control your terminal",
-                remedy: "Allow it in System Settings → Privacy & Security → Automation, then try again. If Tintpad is already allowed, the grant has gone stale, remove it and add it back.",
+                remedy: "Allow it in System Settings → Privacy & Security → Automation, then try again. If Tintpad is already allowed, the grant has gone stale, switch it off and on again.",
                 pane: .automation)
         }
         if raw.contains("(1002)") || raw.contains("(-1719)")

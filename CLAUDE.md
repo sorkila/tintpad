@@ -84,7 +84,7 @@ in `Resources/Info.plist` then run `./Scripts/release.sh` to cut the next one.
 ## Commands
 ```sh
 swift build              # debug build
-swift test               # 140 unit tests (pure logic, keep green)
+swift test               # 148 unit tests (pure logic, keep green)
 swift run                # run from source (dev; unsigned)
 ./Scripts/package.sh     # assemble + sign .app/DMG in a TMPDIR scratch (signs if SIGN_IDENTITY set)
 ./Scripts/dev-install.sh # build → Developer ID sign → install to /Applications (local dev)
@@ -254,7 +254,7 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   screen without a notch, so guard them (zero means no housing). Every size the drop
   takes comes from `DropGeometry` (gap 8, capsule = housing depth clamped 32 to 40 or 36
   for the pill, chips 12 shorter, shadow margin 20), never a literal in the view.
-  **Nothing may render behind the camera** — screenshots composite
+  **Nothing may render behind the camera**, screenshots composite
   pixels the housing physically blocks, so a design can look fine in captures and be
   broken live; the drop hangs strictly below `restHeight`. `screencapture` shows the
   lock screen when the Mac is locked — check captures aren't black before trusting a
@@ -290,6 +290,10 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   that child to Tintpad as the responsible process, so existing grants carry over and no new
   "osascript" entry is needed. The stale-grant rule still applies to Tintpad's own signature.
   `AppleScriptRunner.classify` maps -1743/-1744 to Automation and 1002/-1719 to Accessibility.
+  `PermissionEscalation` escalates the drop's line on the second failure per pane per app session
+  (the stale-grant remove-and-re-add remedy), and Return on a permission line holds the launch
+  (`PendingRetry`, by repo/agent/mode identity, re-resolved on Return) for the next summon, which offers it back (Accessibility only once
+  `AXIsProcessTrusted()` is true, checked on summon, Automation unchecked) and never fires it without a Return.
 - **Ghostty cold start:** `activate` on a not-running Ghostty *launches* it, and Ghostty
   opens its own initial window, so an unconditional ⌘N doubles the windows (one blank at
   home, one correct). `GhosttyAdapter` branches on `NSRunningApplication` (finished-launching

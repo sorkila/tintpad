@@ -1455,3 +1455,75 @@ final class LaunchAnswerPolicyTests: XCTestCase {
         XCTAssertFalse(LaunchAnswerPolicy.surfacesDeferred(age: LaunchAnswerPolicy.deferredLifetime + 1))
     }
 }
+
+/// The permission lines and the post-grant resume rules (WP11).
+final class PermissionEscalationTests: XCTestCase {
+    private let summary = "Typing into your terminal needs Accessibility"
+
+    func testFirstFailureIsTheSummary() {
+        XCTAssertEqual(PermissionEscalation.line(pane: .accessibility, summary: summary, failures: 1),
+                       "\(summary), Return opens System Settings, Esc cancels")
+        // A count that never got recorded still reads as a first failure.
+        XCTAssertEqual(PermissionEscalation.line(pane: .accessibility, summary: summary, failures: 0),
+                       PermissionEscalation.line(pane: .accessibility, summary: summary, failures: 1))
+    }
+
+    func testSecondFailureEscalates() {
+        XCTAssertEqual(PermissionEscalation.line(pane: .accessibility, summary: summary, failures: 2),
+                       "Still no Accessibility, if Tintpad is listed, remove it and add it back, Return opens the pane")
+        XCTAssertEqual(PermissionEscalation.line(pane: .automation, summary: "x", failures: 5),
+                       "Still no Automation access, if Tintpad is listed, switch it off and on, Return opens the pane")
+    }
+
+    func testGrantedLineNamesRepoAndAgent() {
+        XCTAssertEqual(PermissionEscalation.grantedLine(pane: .accessibility, repo: "tintpad", agent: "Claude Code"),
+                       "Accessibility granted, Return launches tintpad with Claude Code")
+        // Automation can't be checked, so it never claims a grant.
+        XCTAssertEqual(PermissionEscalation.grantedLine(pane: .automation, repo: "tintpad", agent: "Claude Code"),
+                       "Return retries the launch in tintpad with Claude Code")
+    }
+
+    func testNounPerPane() {
+        XCTAssertEqual(PermissionEscalation.noun(.accessibility), "Accessibility")
+        XCTAssertEqual(PermissionEscalation.noun(.automation), "Automation access")
+    }
+
+    func testCopyHasNoEmDashesOrSemicolons() {
+        let lines = [
+            PermissionEscalation.line(pane: .automation, summary: "s", failures: 2),
+            PermissionEscalation.grantedLine(pane: .accessibility, repo: "r", agent: "a"),
+            PermissionEscalation.grantedLine(pane: .automation, repo: "r", agent: "a"),
+        ]
+        for line in lines {
+            XCTAssertFalse(line.contains("—"), line)
+            XCTAssertFalse(line.contains(";"), line)
+        }
+    }
+
+    func testAccessibilityOffersOnlyOnceTrusted() {
+        XCTAssertEqual(PermissionEscalation.resume(pane: .accessibility, trusted: true, age: 5, subjectPresent: true),
+                       .offer)
+        XCTAssertEqual(PermissionEscalation.resume(pane: .accessibility, trusted: false, age: 5, subjectPresent: true),
+                       .hold)
+        XCTAssertEqual(PermissionEscalation.resume(pane: .accessibility, trusted: nil, age: 5, subjectPresent: true),
+                       .hold)
+    }
+
+    func testAutomationOffersWithoutACheck() {
+        XCTAssertEqual(PermissionEscalation.resume(pane: .automation, trusted: nil, age: 5, subjectPresent: true),
+                       .offer)
+    }
+
+    func testRemovedSubjectOrOldRetryIsDropped() {
+        XCTAssertEqual(PermissionEscalation.resume(pane: .automation, trusted: nil, age: 5, subjectPresent: false),
+                       .drop)
+        XCTAssertEqual(PermissionEscalation.resume(pane: .accessibility, trusted: true, age: 5, subjectPresent: false),
+                       .drop)
+        let old = PermissionEscalation.retryLifetime + 1
+        XCTAssertEqual(PermissionEscalation.resume(pane: .accessibility, trusted: false, age: old, subjectPresent: true),
+                       .drop)
+        XCTAssertEqual(PermissionEscalation.resume(pane: .automation, trusted: nil,
+                                                   age: PermissionEscalation.retryLifetime, subjectPresent: true),
+                       .offer)
+    }
+}

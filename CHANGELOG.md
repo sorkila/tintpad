@@ -17,20 +17,12 @@ All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepac
 - **Search is fuzzy, and shows what it found.** "tp" finds tintpad, "dl" finds
   demand-ledger, and "cafe" finds Café. Results rank by how well they match
   first (exact name, prefix, word starts, a fragment, letters in order, then
-  the path) and
-  by frecency inside each tier, so typing "tint" puts tint ahead of a
-  mytintfork you open daily. The matched letters read white and semibold on the
+  the path) and by frecency inside each tier, so typing "tint" puts tint ahead
+  of a mytintfork you open daily. The matched letters read white and semibold on the
   gray tokens. On the white chip they stay full black and bold while the rest
   of the name steps back, never a color.
 
 ### Changed
-- **No launch freezes the drop any more.** AppleScript handoffs (Ghostty, iTerm2,
-  Terminal) used to run on the main thread, up to about 8.5 seconds on a cold
-  Ghostty, and a frozen drop couldn't answer macOS when the terminal took focus,
-  which is how 0.3.8's stranded shadow began. Every launch now runs off the main
-  thread through `osascript`, so Esc works while a terminal opens, and a terminal
-  taking focus plays the launch exit. Existing Automation and Accessibility grants
-  carry over, macOS counts the helper as Tintpad.
 - **A slow launch says so.** After four seconds the line changes from "Opening
   Ghostty…" to "Still opening Ghostty…".
 - **Errors say what Return does.** A failed launch reads "Couldn't open Ghostty
@@ -40,9 +32,33 @@ All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepac
   that is up shows it, or the next summon within half a minute does. Launches
   run one at a time, so two can never type into the same window, and a double
   press on Resume last session (menu, hotkey or Recents) opens it once. Onboarding's Test launch says "Opening…" while it waits.
+- **A permission failure that repeats says how to fix it.** The second time a
+  launch fails on the same missing grant in a session, the drop stops repeating
+  the summary and reads "Still no Accessibility, if Tintpad is listed, remove it
+  and add it back, Return opens the pane", since a listed Tintpad that is still
+  refused is a stale grant. Automation lists apps as switches, so its line says
+  to switch Tintpad off and on instead. A launch that goes through starts the
+  count over.
+- **A launch stopped by a permission waits for you.** After Return opens System
+  Settings, the next summon lands on the same repo and offers the launch back:
+  "Accessibility granted, Return launches tintpad with Claude Code" once the
+  grant is in, or "Return retries the launch in tintpad with Claude Code" for
+  Automation, which Tintpad can't check. It never launches on its own. Esc,
+  moving on, or any other launch forgets it, as does removing the repo, agent or
+  mode, or ten minutes passing. It runs the repo, agent and mode as they are
+  when you press Return, through the confirm when the mode skips permissions.
 - **A search that finds nothing says what to try.** The line reads "No match
   for “zzq”, ⌘R rescans your folders", since a repo cloned since the last scan
   is the usual reason.
+
+### Fixed
+- **No launch freezes the drop any more.** AppleScript handoffs (Ghostty, iTerm2,
+  Terminal) used to run on the main thread, up to about 8.5 seconds on a cold
+  Ghostty, and a frozen drop couldn't answer macOS when the terminal took focus,
+  which is how 0.3.8's stranded shadow began. Every launch now runs off the main
+  thread through `osascript`, so Esc works while a terminal opens, and a terminal
+  taking focus plays the launch exit. Existing Automation and Accessibility grants
+  carry over, macOS counts the helper as Tintpad.
 
 ## [0.4.0] - Unreleased
 
