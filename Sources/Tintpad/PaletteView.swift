@@ -61,9 +61,18 @@ final class PaletteModel: ObservableObject {
     /// When set, the search field captures a one-off prompt for this repo.
     @Published var promptRepo: Repo?
 
-    /// True for the ~160ms launch gesture: the cluster releases downward as
-    /// it fades, so a launch *feels* like one. Esc still closes instantly.
+    /// True from the launch gesture until the next summon's `reset()`: the
+    /// cluster releases as it fades, so a launch *feels* like one. It is never
+    /// cleared on the way out, because clearing it reinflated the capsule
+    /// offscreen. Esc still closes instantly.
     @Published private(set) var launching = false
+
+    /// Moves each time the controller blanks the panel for dismissal, so the
+    /// view can snap the drop back to rest with no animation.
+    @Published private(set) var dismissGeneration = 0
+
+    /// The controller's `.blank` effect, see `DismissSequencer`.
+    func noteDismissal() { dismissGeneration += 1 }
 
     fileprivate var pendingDangerous: PendingLaunch?
     @Published private(set) var pendingPermission: PendingPermission?
@@ -80,7 +89,6 @@ final class PaletteModel: ObservableObject {
         if reduceMotionActive() { onClose(); return }
         launching = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) { [weak self] in
-            self?.launching = false
             self?.onClose()
         }
     }
@@ -720,6 +728,14 @@ struct PaletteView: View {
                 ).post()
             }
         }
+        // The panel is being dismissed and is already transparent: put the
+        // drop back at rest instantly, so no frame the window server keeps
+        // can hold a capsule or its shadow.
+        .onChange(of: model.dismissGeneration) { _, _ in
+            var t = Transaction()
+            t.disablesAnimations = true
+            withTransaction(t) { phase = 0; contentShown = false; landBob = false }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .tintpadPanelDidShow)) { _ in
             model.reset()
             searchFocused = true
@@ -743,7 +759,9 @@ struct PaletteView: View {
             Capsule(style: .continuous).fill(.black)
             content
                 .opacity(contentShown && !model.launching ? 1 : 0)
-                .animation(reduceMotion ? nil : .easeIn(duration: 0.08), value: model.launching)
+                // Only the exit animates: `launching` stays true until the next summon's
+                // `reset()`, and that flip back must not play into the arrival.
+                .animation(model.launching && !reduceMotion ? .easeIn(duration: 0.08) : nil, value: model.launching)
         }
         .clipShape(Capsule(style: .continuous))
         .frame(width: width, height: height)
@@ -753,7 +771,7 @@ struct PaletteView: View {
         // grounded shadow reads as two objects, so it casts nothing until
         // it has spread.
         .shadow(color: .black.opacity(spread ? 0.5 : 0), radius: 16, y: 8)
-        .animation(reduceMotion ? nil : .easeIn(duration: 0.15), value: model.launching)
+        .animation(model.launching && !reduceMotion ? .easeIn(duration: 0.15) : nil, value: model.launching)
     }
 
     private var content: some View {

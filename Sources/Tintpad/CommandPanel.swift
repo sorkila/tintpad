@@ -44,12 +44,11 @@ final class CommandPanel: NSPanel {
         // No AppKit window animation. `.utilityWindow` fades the window in and
         // out, which is a second animation running over the drop's own scripted
         // one — and the fade-out makes `orderOut` asynchronous: the window is
-        // still on screen, mid-fade, when `hide()` returns. Hiding the app in
-        // that window (or a summon landing on top of it) can leave the last
-        // composited frame behind, and since the capsule is black-on-black
-        // against the housing, the part you actually see stranded on the
-        // desktop is its shadow. `.none` removes the window in the same
-        // transaction, so there is no frame left to strand.
+        // still on screen, mid-fade, when `hide()` returns. `.none` alone did
+        // not end the stranded shadow, though (0.3.7 shipped it and the shadow
+        // still stuck): the full fix is the order of operations in
+        // `DismissSequencer` (blank, order out a turn later, hide the app a
+        // turn after that, never from inside `resignKey`).
         animationBehavior = .none
     }
 
@@ -79,6 +78,8 @@ final class CommandPanelController: NSObject {
     private var panel: CommandPanel?
     /// While true, losing key focus won't hide the app (we're opening Settings).
     private var suppressAutoHide = false
+    /// The dismissal's source of truth. The controller only executes effects.
+    private var dismissal = DismissSequencer()
 
     /// Owned here so it's alive + monitoring before the first summon.
     private(set) lazy var model = PaletteModel(
@@ -92,8 +93,10 @@ final class CommandPanelController: NSObject {
     /// Install the key monitor at launch so the very first summon is responsive.
     func warm() { model.startMonitoring() }
 
+    /// A panel mid-dismissal is still ordered in (blanked, alpha 0), but to
+    /// the user it is gone, so the hotkey summons it back instead of hiding it.
     func toggle() {
-        if panel?.isVisible == true { hide() } else { show() }
+        if panel?.isVisible == true && !dismissal.isDismissing { hide() } else { show() }
     }
 
     /// Screenshot harness (`TINTPAD_SHOWCASE=1`): summon the palette at launch
@@ -104,16 +107,28 @@ final class CommandPanelController: NSObject {
     /// keep-alive and rect dump, but the summon is driven by AppDelegate.
     static var isDemo: Bool { ProcessInfo.processInfo.environment["TINTPAD_DEMO"] == "1" }
 
+    /// Never dismiss synchronously here: `resignKey` runs inside AppKit's
+    /// deactivation pass, and ordering out (or hiding the app) from inside it
+    /// is exactly how a frame gets stranded. The hide runs a turn later, and
+    /// stands down if a summon (or another dismissal) moved the generation.
     func panelResignedKey() {
         guard !suppressAutoHide, !Self.isShowcase, !Self.isDemo else { return }
-        hide()
+        let generation = dismissal.generation
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.dismissal.generation == generation else { return }
+            self.hide()
+        }
     }
 
     /// Open the Settings window without the panel's focus-loss handler hiding
     /// the whole app.
     func openSettings() {
         suppressAutoHide = true
+        // No app hide follows, so a direct order-out can't race it, but blank
+        // first anyway and tell the sequencer, so the next summon restores it.
+        panel?.alphaValue = 0
         panel?.orderOut(nil)
+        _ = dismissal.handle(.orderedOut)
         SettingsWindowController.shared.show()
         // Re-enable auto-hide after the transition settles.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { self.suppressAutoHide = false }
@@ -126,6 +141,9 @@ final class CommandPanelController: NSObject {
         // housing, not the appearance setting. Dark fixes AppKit's field
         // editor + focus ring colors to match.
         panel.appearance = NSAppearance(named: .darkAqua)
+        // First, so a pending dismissal is cancelled and alpha is restored
+        // before the panel is docked and brought front.
+        perform(dismissal.handle(.summon))
         dock(panel)
         // Activate so the search field becomes first responder and accepts
         // typing; focus returns to the prior app via NSApp.hide on close.
@@ -153,21 +171,41 @@ final class CommandPanelController: NSObject {
 
     func hide() {
         guard let panel, panel.isVisible else { return }
-        panel.orderOut(nil)
-        // Returning focus to the app that was frontmost before the summon —
-        // `show` activates us so the field can take typing, so this does real
-        // work on every dismissal.
-        //
-        // It is deferred one runloop turn so the order-out is committed to the
-        // window server first. Hiding the app in the same turn asks AppKit to
-        // hide a window it still believes is on screen, and the frame it
-        // captures can be left composited behind us — a black capsule against
-        // the black housing is invisible, so what you see stranded on the
-        // desktop is its shadow. If a summon lands in between (the hotkey
-        // pressed twice), the panel is visible again and the app stays.
-        DispatchQueue.main.async { [weak panel] in
-            guard panel?.isVisible != true else { return }
-            NSApp.hide(nil)
+        perform(dismissal.handle(.dismiss))
+    }
+
+    /// Execute the sequencer's effects, in order.
+    private func perform(_ effects: [DismissSequencer.Effect]) {
+        for effect in effects {
+            switch effect {
+            case .blank:
+                // Fully transparent before anything leaves the screen, so any
+                // frame the window server keeps is empty. The view snaps the
+                // drop to rest too, without animation (belt and braces).
+                panel?.alphaValue = 0
+                model.noteDismissal()
+                let generation = dismissal.generation
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    self.perform(self.dismissal.handle(.blankCommitted(generation: generation)))
+                }
+            case .orderOut:
+                panel?.orderOut(nil)
+            case .hideAppNextTurn:
+                // Returning focus to the app that was frontmost before the
+                // summon — `show` activates us so the field can take typing,
+                // so this does real work on every dismissal. Deferred one more
+                // turn so the order-out has reached the window server, and
+                // skipped if a summon landed in between (the hotkey pressed
+                // twice), or the app would hide under the drop.
+                DispatchQueue.main.async { [weak panel = self.panel] in
+                    guard panel?.isVisible != true else { return }
+                    NSApp.hide(nil)
+                }
+            case .restoreAndOrderIn:
+                // `show` itself docks and orders the panel front.
+                panel?.alphaValue = 1
+            }
         }
     }
 

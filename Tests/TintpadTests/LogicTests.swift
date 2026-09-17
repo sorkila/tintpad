@@ -629,3 +629,94 @@ final class SettingsDecodeTests: XCTestCase {
         XCTAssertEqual(again.appearance, .light)
     }
 }
+
+final class DismissSequencerTests: XCTestCase {
+    private func shown() -> DismissSequencer {
+        var s = DismissSequencer()
+        _ = s.handle(.summon)
+        return s
+    }
+
+    // Nothing leaves the screen until the panel is transparent: the only thing
+    // a dismissal does in its own turn is blank.
+    func testDismissBlanksBeforeOrderOut() {
+        var s = shown()
+        XCTAssertEqual(s.handle(.dismiss), [.blank])
+        XCTAssertTrue(s.isDismissing)
+        XCTAssertEqual(s.handle(.blankCommitted(generation: s.generation)), [.orderOut, .hideAppNextTurn])
+        XCTAssertEqual(s.state, .hidden)
+        XCTAssertFalse(s.isDismissing)
+    }
+
+    func testHideAppFollowsOrderOut() throws {
+        var s = shown()
+        _ = s.handle(.dismiss)
+        let effects = s.handle(.blankCommitted(generation: s.generation))
+        let orderOut = try XCTUnwrap(effects.firstIndex(of: .orderOut))
+        let hideApp = try XCTUnwrap(effects.firstIndex(of: .hideAppNextTurn))
+        XCTAssertLessThan(orderOut, hideApp, "the app hides only after the panel is gone")
+    }
+
+    func testStaleBlankCommitIsIgnored() {
+        var s = shown()
+        _ = s.handle(.dismiss)
+        let first = s.generation
+        _ = s.handle(.summon)
+        _ = s.handle(.dismiss)
+        XCTAssertEqual(s.handle(.blankCommitted(generation: first)), [],
+                       "a commit queued for an earlier dismissal must not order out this one")
+        XCTAssertTrue(s.isDismissing)
+        XCTAssertEqual(s.handle(.blankCommitted(generation: s.generation)), [.orderOut, .hideAppNextTurn])
+    }
+
+    // The hotkey pressed twice fast: the second press lands while the first
+    // dismissal is still blanking, and must bring the drop back, not leave it hidden.
+    func testSummonDuringBlankCancelsPendingOrderOut() {
+        var s = shown()
+        _ = s.handle(.dismiss)
+        let pending = s.generation
+        XCTAssertEqual(s.handle(.summon), [.restoreAndOrderIn])
+        XCTAssertEqual(s.state, .visible)
+        XCTAssertEqual(s.handle(.blankCommitted(generation: pending)), [])
+        XCTAssertEqual(s.state, .visible)
+    }
+
+    func testDoubleDismissIsIdempotent() {
+        var s = shown()
+        _ = s.handle(.dismiss)
+        let generation = s.generation
+        XCTAssertEqual(s.handle(.dismiss), [])
+        XCTAssertEqual(s.generation, generation, "a second dismiss must not orphan the first commit")
+        _ = s.handle(.blankCommitted(generation: generation))
+        XCTAssertEqual(s.handle(.dismiss), [], "dismissing a hidden panel does nothing")
+    }
+
+    // No effects, but the generation moves, so a focus-loss hide deferred a
+    // turn stands down when show() runs on an already-visible panel.
+    func testSummonWhileVisibleBumpsGeneration() {
+        var s = shown()
+        let before = s.generation
+        XCTAssertEqual(s.handle(.summon), [])
+        XCTAssertEqual(s.state, .visible)
+        XCTAssertGreaterThan(s.generation, before)
+    }
+
+    func testOrderOutDuringBlankCancelsPendingHide() {
+        var s = shown()
+        _ = s.handle(.dismiss)
+        let pending = s.generation
+        XCTAssertEqual(s.handle(.orderedOut), [])
+        XCTAssertEqual(s.state, .hidden)
+        XCTAssertEqual(s.handle(.blankCommitted(generation: pending)), [],
+                       "the queued order-out and app hide must not run")
+    }
+
+    // Opening Settings orders the panel out directly. The next summon must still
+    // restore it, or the drop comes back invisible at alpha 0.
+    func testOrderOutOutsideTheSequenceStillRestoresOnSummon() {
+        var s = shown()
+        XCTAssertEqual(s.handle(.orderedOut), [])
+        XCTAssertEqual(s.state, .hidden)
+        XCTAssertEqual(s.handle(.summon), [.restoreAndOrderIn])
+    }
+}

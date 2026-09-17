@@ -2,6 +2,22 @@
 
 All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepachangelog.com), this project aims for [Semantic Versioning](https://semver.org).
 
+## [0.3.8] - Unreleased
+
+### Fixed
+- **The drop's shadow really no longer lingers after it is dismissed.** Removing
+  the window's fade in 0.3.7 was not enough, the shadow could still be left on
+  the desktop. Three things kept a frame alive. The panel was ordered out while
+  it still held a drawn capsule, the dismissal on a click elsewhere ran inside
+  AppKit's own deactivation pass, and a launch reinflated the capsule offscreen
+  just before closing. Dismissal is now one sequence. The panel turns fully
+  transparent and the drop snaps back to rest, it is ordered out on the next
+  runloop turn, and focus returns to the previous app on the turn after that, so
+  any frame the window server keeps is empty. A click elsewhere starts that
+  sequence a turn later, outside the deactivation pass, and summoning the drop
+  while it is being dismissed cancels the dismissal, so pressing the hotkey twice
+  fast brings it back instead of leaving it hidden.
+
 ## [0.3.7] - 2026-08-30
 
 ### Fixed

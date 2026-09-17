@@ -84,7 +84,7 @@ in `Resources/Info.plist` then run `./Scripts/release.sh` to cut the next one.
 ## Commands
 ```sh
 swift build              # debug build
-swift test               # 58 unit tests (pure logic, keep green)
+swift test               # 66 unit tests (pure logic, keep green)
 swift run                # run from source (dev; unsigned)
 ./Scripts/package.sh     # assemble + sign .app/DMG in a TMPDIR scratch (signs if SIGN_IDENTITY set)
 ./Scripts/dev-install.sh # build → Developer ID sign → install to /Applications (local dev)
@@ -203,7 +203,17 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   was visible, and the captured frame could stay composited on the desktop. A black
   capsule against the black housing is invisible, so what you saw stranded was the
   drop's **shadow** (the 0.3.7 fix). Keep `animationBehavior = .none` and keep the
-  `NSApp.hide` deferred a turn behind the order-out.
+  `NSApp.hide` deferred a turn behind the order-out. **That alone did not end it**
+  (the shadow still stuck after 0.3.7), so 0.3.8 adds three rules, and
+  `DismissSequencer` (pure, tested) is the source of truth for all of them:
+  **blank before order-out** (alpha 0 and the drop snapped to rest without animation,
+  then order out one turn later, then hide the app one turn after that, so any frame
+  the window server keeps is empty), **never dismiss from inside `resignKey`**
+  (`panelResignedKey` defers `hide()` a turn, it runs inside AppKit's deactivation
+  pass), and **a summon cancels a pending dismissal** (the generation moves, a queued
+  blank commit stands down, and `toggle()` summons a panel that is mid-dismissal
+  instead of hiding it). `closeAfterLaunch` no longer clears `launching` on the way
+  out, that reinflated the capsule offscreen, `reset()` clears it on the next summon.
 - **The drop and the notch:** the panel is `level = .statusBar` (it must draw over the
   menu bar strip to fuse with the housing; `.floating` sits below it). Notch geometry:
   `screen.safeAreaInsets.top > 0` detects it, the housing's depth IS that inset, and
