@@ -10,7 +10,7 @@ Hands off to *your* terminal, it isn't one. Accessory app (`LSUIElement`), local
 no accounts. **Free & open source (MIT) + optional Supporter tip.**
 
 ## Status (shipped)
-**v0.4.0** (2026-09-17, cut and pushed, release pending notarization run): the polish
+**v0.4.0 is live** (2026-09-17): the polish
 round, planned and reviewed with Fable, built package by package with Opus. The drop hangs
 8pt under the housing at housing depth with a key line (`DropGeometry`), arrives and exits
 on one interruptible `StepSequencer` timeline (`DropTimeline`), hugs its content, and slides
