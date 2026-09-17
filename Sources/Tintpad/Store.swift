@@ -7,11 +7,19 @@ import SwiftUI
 final class AppStore: ObservableObject {
     static let shared = AppStore()
 
-    @Published var repos: [Repo] = []
+    @Published var repos: [Repo] = [] { didSet { searchRevision &+= 1 } }
     @Published var agents: [Agent] = []
     @Published var prompts: [PromptTemplate] = []
     @Published var sessions: [Session] = []
-    @Published var settings: Settings = .defaults()
+    @Published var settings: Settings = .defaults() {
+        didSet {
+            if settings.frecencyHalfLifeDays != oldValue.frecencyHalfLifeDays { searchRevision &+= 1 }
+        }
+    }
+    /// Bumped whenever anything `orderedRepos()` reads changes (any repo
+    /// mutation, the half-life), so the palette's search cache can validate
+    /// with one integer compare instead of comparing every repo.
+    private(set) var searchRevision = 0
 
     private let fileURL: URL
     private var isLoading = false

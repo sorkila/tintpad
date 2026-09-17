@@ -14,6 +14,19 @@ All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepac
 - **Palette keys in the menu bar.** A new menu under "Summon palette" lists every
   key the palette answers to, row for row with the README's Keys table, which
   now also carries a Settings row (⌘,).
+- **Search is fuzzy, and shows what it found.** "tp" finds tintpad, "dl" finds
+  demand-ledger, and "cafe" finds Café. Results rank by how well they match
+  first (exact name, prefix, word starts, a fragment, letters in order, then
+  the path) and
+  by frecency inside each tier, so typing "tint" puts tint ahead of a
+  mytintfork you open daily. The matched letters read white and semibold on the
+  gray tokens. On the white chip they stay full black and bold while the rest
+  of the name steps back, never a color.
+
+### Changed
+- **A search that finds nothing says what to try.** The line reads "No match
+  for “zzq”, ⌘R rescans your folders", since a repo cloned since the last scan
+  is the usual reason.
 
 ## [0.4.0] - Unreleased
 

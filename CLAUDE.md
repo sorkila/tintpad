@@ -84,7 +84,7 @@ in `Resources/Info.plist` then run `./Scripts/release.sh` to cut the next one.
 ## Commands
 ```sh
 swift build              # debug build
-swift test               # 115 unit tests (pure logic, keep green)
+swift test               # 124 unit tests (pure logic, keep green)
 swift run                # run from source (dev; unsigned)
 ./Scripts/package.sh     # assemble + sign .app/DMG in a TMPDIR scratch (signs if SIGN_IDENTITY set)
 ./Scripts/dev-install.sh # build → Developer ID sign → install to /Applications (local dev)
@@ -106,7 +106,8 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
 - **ProcessRunner.swift**, the one way subprocesses run (timeout, drained pipes,
   SIGTERM→SIGKILL). **GitStatus.swift**, bounded dirty check. **RepoTint.swift**, per-repo
   hue + short name. **SingleInstance.swift**, flock guard.
-- **ShellEnvironment.swift**, login-shell PATH resolution. **Frecency.swift**, ranking.
+- **ShellEnvironment.swift**, login-shell PATH resolution. **Frecency.swift**, ranking. **FuzzyMatch.swift**,
+  search tiers (exact → prefix → word boundary → infix → subsequence → path), ranked by (tier, frecency index).
 - **SettingsView.swift** (+ per-pane views), **OnboardingView.swift**, **LicenseManager.swift**, **Tokens.swift**.
 
 ## Conventions

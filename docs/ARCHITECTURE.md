@@ -8,6 +8,7 @@ Native Swift/SwiftUI menu-bar (accessory) app. SPM executable, no external app f
 
 ## Services
 - `Frecency.swift`, `fre`-style continuous half-life decay ranking.
+- `FuzzyMatch.swift`, how a query finds a repo. `FuzzyMatch.match` returns a tier (exact, prefix, word boundary, infix of three letters or more, subsequence, path) plus the matched character offsets in the name, case- and diacritic-insensitive. `RepoSearch.rank` orders hits by (tier, frecency index), a strict weak ordering, so an exact name outranks a frequent fork and the list never reshuffles. The palette draws the offsets as match ink, and caches the ranking against `AppStore.searchRevision` (bumped on any repo or half-life change).
 - `GitInfo.swift`, parses `.git/HEAD` + `.git/config` directly (no subprocess).
 - `CommandTemplate.swift`, variable substitution + login-shell binary resolution. **All interpolated values are sanitized (control chars stripped) and single-quoted**, the injection surface, unit-tested.
 - `RepoDiscovery.swift`, scans root folders 1–2 levels deep for `.git`.

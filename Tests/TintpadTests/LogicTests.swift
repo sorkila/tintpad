@@ -1234,3 +1234,86 @@ final class PaletteKeysTests: XCTestCase {
         ])
     }
 }
+
+final class FuzzyMatchTests: XCTestCase {
+    private func repo(_ name: String, path: String? = nil) -> Repo {
+        Repo(path: path ?? "/Users/me/Developer/\(name)", name: name)
+    }
+
+    func testSubsequenceFindsTintpadForTp() {
+        let m = FuzzyMatch.match("tp", name: "tintpad", path: "/Developer/tintpad")
+        XCTAssertEqual(m?.tier, .subsequence)
+        XCTAssertEqual(m?.offsets, [0, 4])
+    }
+
+    func testExactBeatsPrefixBeatsSubsequenceRegardlessOfFrecency() {
+        // Frecency order puts the weakest match first.
+        let ordered = [repo("mytintfork"), repo("tintpad"), repo("tint")]
+        let ranked = RepoSearch.rank("tint", in: ordered)
+        XCTAssertEqual(ranked.map(\.repo.name), ["tint", "tintpad", "mytintfork"])
+        XCTAssertEqual(ranked.map(\.match.tier), [.exact, .prefix, .infix])
+    }
+
+    func testWordBoundaryDlMatchesDemandLedger() {
+        let m = FuzzyMatch.match("dl", name: "demand-ledger", path: "/x/demand-ledger")
+        XCTAssertEqual(m?.tier, .wordBoundary)
+        XCTAssertEqual(m?.offsets, [0, 7])
+        // Runs longer than one letter, a run needing backtracking, and camelCase.
+        XCTAssertEqual(FuzzyMatch.match("led", name: "demand-ledger", path: "/x")?.offsets, [7, 8, 9])
+        XCTAssertEqual(FuzzyMatch.match("dle", name: "demand-ledger", path: "/x")?.offsets, [0, 7, 8])
+        XCTAssertEqual(FuzzyMatch.match("tf", name: "myTintFork", path: "/x")?.tier, .wordBoundary)
+    }
+
+    func testCaseInsensitiveAndDiacritics() {
+        let m = FuzzyMatch.match("CAFE", name: "Café", path: "/x/Café")
+        XCTAssertEqual(m?.tier, .exact)
+        XCTAssertEqual(m?.offsets, [0, 1, 2, 3])
+        XCTAssertEqual(FuzzyMatch.match("  tint ", name: "Tintpad", path: "/x")?.tier, .prefix)
+        XCTAssertEqual(FuzzyMatch.match("sume", name: "Résumé", path: "/x")?.offsets, [2, 3, 4, 5])
+        XCTAssertEqual(FuzzyMatch.match("rés", name: "resume", path: "/x")?.tier, .prefix)
+    }
+
+    func testInfixFragmentInksItsOwnRun() {
+        // d-e-m-a-n-d(5) -(6) l(7) e(8) d(9) g(10) e(11) r(12)
+        let m = FuzzyMatch.match("dger", name: "demand-ledger", path: "/x")
+        XCTAssertEqual(m?.tier, .infix)
+        XCTAssertEqual(m?.offsets, [9, 10, 11, 12])
+        // A run beats the same letters scattered, whatever frecency says.
+        let ordered = [repo("prawnd"), repo("tintpad")]
+        let ranked = RepoSearch.rank("pad", in: ordered)
+        XCTAssertEqual(ranked.map(\.repo.name), ["tintpad", "prawnd"])
+        XCTAssertEqual(ranked.map(\.match.tier), [.infix, .subsequence])
+        XCTAssertEqual(ranked.first?.match.offsets, [4, 5, 6])
+    }
+
+    func testWordStartsAtDigitsAndSymbols() {
+        XCTAssertEqual(FuzzyMatch.match("plan", name: "v2Plan", path: "/x")?.tier, .wordBoundary)
+        XCTAssertEqual(FuzzyMatch.match("plan", name: "v2Plan", path: "/x")?.offsets, [2, 3, 4, 5])
+        XCTAssertEqual(FuzzyMatch.match("2p", name: "v2Plan", path: "/x")?.tier, .wordBoundary)
+        XCTAssertEqual(FuzzyMatch.match("notes", name: "🚀notes", path: "/x")?.tier, .wordBoundary)
+        XCTAssertEqual(FuzzyMatch.match("ab", name: "x@alpha+beta", path: "/x")?.offsets, [2, 8])
+    }
+
+    func testNoMatchIsNil() {
+        XCTAssertNil(FuzzyMatch.match("zzq", name: "tintpad", path: "/Users/me/tintpad"))
+        XCTAssertNil(FuzzyMatch.match("pt", name: "tintpad", path: "/x/tintpad"))
+        XCTAssertNil(FuzzyMatch.match("   ", name: "tintpad", path: "/x/tintpad"))
+        XCTAssertTrue(RepoSearch.rank("zzq", in: [repo("tintpad")]).isEmpty)
+    }
+
+    func testPathFallbackIsLowestTier() {
+        let ordered = [repo("website", path: "/Users/me/sorkila/website"), repo("sorkila-notes")]
+        let ranked = RepoSearch.rank("sorkila", in: ordered)
+        XCTAssertEqual(ranked.map(\.repo.name), ["sorkila-notes", "website"])
+        XCTAssertEqual(ranked.last?.match, FuzzyMatch.Match(tier: .path, offsets: []))
+    }
+
+    func testFrecencyOrderKeptInsideATier() {
+        let ordered = [repo("tint-c"), repo("tint-a"), repo("tint-b"), repo("x-tint")]
+        let ranked = RepoSearch.rank("tint", in: ordered)
+        XCTAssertEqual(ranked.map(\.repo.name), ["tint-c", "tint-a", "tint-b", "x-tint"])
+        // A blank query keeps every repo, in order, with nothing to ink.
+        XCTAssertEqual(RepoSearch.rank("", in: ordered).map(\.repo.name), ordered.map(\.name))
+        XCTAssertTrue(RepoSearch.rank("", in: ordered).allSatisfy { $0.match.offsets.isEmpty })
+    }
+}

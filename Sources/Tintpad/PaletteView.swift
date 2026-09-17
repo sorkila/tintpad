@@ -268,11 +268,32 @@ final class PaletteModel: ObservableObject {
 
     func monogram(for agent: Agent?) -> String { store.monogram(for: agent) }
 
-    var filtered: [Repo] {
-        let ordered = store.orderedRepos()
-        guard !query.isEmpty else { return ordered }
-        let q = query.lowercased()
-        return ordered.filter { $0.name.lowercased().contains(q) || $0.path.lowercased().contains(q) }
+    var filtered: [Repo] { ranked().repos }
+
+    /// How the query found this repo, for the token's match ink. Nil when
+    /// the field is empty or the repo isn't in the current results.
+    func match(for repo: Repo) -> FuzzyMatch.Match? {
+        guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        return ranked().matches[repo.id]
+    }
+
+    /// `filtered` is read many times per render (selection, agent, mode,
+    /// every token), so the ranking is kept until the query or the store's
+    /// `searchRevision` changes (every repo mutation bumps it, so it never
+    /// goes stale under ⌘1–9 or the selection). Time passing alone doesn't
+    /// reorder repos in practice, decay scales every score by the same factor. Not
+    /// @Published: it is derived state, never a cause.
+    private var rankCache: (query: String, revision: Int, repos: [Repo], matches: [UUID: FuzzyMatch.Match])?
+
+    private func ranked() -> (repos: [Repo], matches: [UUID: FuzzyMatch.Match]) {
+        let revision = store.searchRevision
+        if let c = rankCache, c.query == query, c.revision == revision { return (c.repos, c.matches) }
+        let results = RepoSearch.rank(query, in: store.orderedRepos())
+        let repos = results.map(\.repo)
+        var matches: [UUID: FuzzyMatch.Match] = [:]
+        for r in results { matches[r.repo.id] = r.match }
+        rankCache = (query, revision, repos, matches)
+        return (repos, matches)
     }
 
     var selectedRepo: Repo? {
@@ -1422,13 +1443,37 @@ struct PaletteView: View {
     /// the measuring copy never carries a digit, so a held ⌘ reflows the
     /// strip (the same object, briefly annotated) but never moves the hug.
     private func tokenText(_ repo: Repo, index: Int, selected: Bool, role: TokenRole) -> Text {
-        let name = Text(repo.name)
+        let name = Text(matchInk(repo, selected: selected, role: role))
         guard role == .strip, model.commandHeld, index < 9 else { return name }
         // The name and its digit are one Text, see `.contentTransition` at the call site.
         return name + Text(" \(index + 1)")
             .font(.system(size: digitSize, weight: .medium))
             .foregroundStyle(selected ? Color.black.opacity(0.5) : Color(white: 0.58))
             .baselineOffset(4)
+    }
+
+    /// The name with the letters the query found drawn in match ink: white
+    /// and semibold on gray. On the white chip, where ink can't get any
+    /// whiter, the rest of the name steps back to black 0.55 and the matched
+    /// letters stay full black, bold. Weight and value, never color. The measuring copy
+    /// renders the same runs at the heavier (selected) weight, so the hug is
+    /// an upper bound whichever token holds the chip, exactly as the medium
+    /// base weight already is.
+    private func matchInk(_ repo: Repo, selected: Bool, role: TokenRole) -> AttributedString {
+        var text = AttributedString(repo.name)
+        guard let offsets = model.match(for: repo)?.offsets, !offsets.isEmpty else { return text }
+        let heavy = selected || role == .measuring
+        if selected { text.foregroundColor = Color.black.opacity(0.55) }
+        var ink = AttributeContainer()
+        ink.font = .system(size: fieldSize, weight: heavy ? .bold : .semibold)
+        ink.foregroundColor = selected ? Color.black : Color.white
+        let characters = Array(text.characters.indices)
+        for offset in offsets where characters.indices.contains(offset) {
+            let start = characters[offset]
+            let end = text.characters.index(after: start)
+            text[start..<end].mergeAttributes(ink)
+        }
+        return text
     }
 
     /// The chip's fill. Supporters may spend one drop of color here: the
@@ -1516,7 +1561,7 @@ struct PaletteView: View {
     private var emptyState: some View {
         Text(model.allRepos.isEmpty
              ? "No repos yet, ⌘R scans your folders, or add roots in Settings"
-             : "No match for “\(model.query)”")
+             : "No match for “\(model.query)”, ⌘R rescans your folders")
             .font(.system(size: fieldSize))
             .foregroundStyle(.secondary)
             .lineLimit(1)
