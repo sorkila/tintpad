@@ -1228,6 +1228,8 @@ struct PaletteView: View {
     @State private var contentB = false
     /// The bead's swell, anchored at its top edge.
     @State private var beadScale: CGFloat = 0
+    /// The smallest scale the droplet is ever drawn at (see `droplet`).
+    static let minScale: CGFloat = 0.001
     /// Exit into the housing: shrunk toward the top edge and gone.
     @State private var absorbed = false
     /// Exit by fading (focus loss, Reduce Motion), and the RM arrival's start.
@@ -1418,7 +1420,12 @@ struct PaletteView: View {
             .strokeBorder(Color.white.opacity(spread ? 0.14 : 0), lineWidth: 1 / max(displayScale, 1)))
         // Every scale anchors at the top edge, so growth and overshoot only
         // ever go down, never up behind the camera.
-        .scaleEffect(beadScale, anchor: .top)
+        //
+        // Never scale to exactly 0: the content hosts an AppKit scroll view,
+        // and attaching it under a singular transform trips an AppKit
+        // assertion (NSCGSizeApplyInverseAffineTransform) and aborts the app
+        // on summon. A thousandth of a point is invisible and invertible.
+        .scaleEffect(max(beadScale, Self.minScale), anchor: .top)
         .scaleEffect(absorbed ? 0.4 : 1, anchor: .top)
         .opacity(phase == .hidden || absorbed || faded ? 0 : 1)
         // A contact shadow, close and light, and only once spread: a bead

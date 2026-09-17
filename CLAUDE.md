@@ -274,6 +274,11 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   shows (an empty field back on the strip re-hugs). The strip's viewport follows the hug, and the hug animates only after the
   content has arrived and never while a launch is starting or the drop is leaving, so
   the arrival's re-scroll always resolves against a still viewport.
+- **Never scale the drop to exactly 0.** The droplet's content hosts an AppKit-backed
+  `ScrollView`, and SwiftUI attaching it under a singular transform (`scaleEffect(0)`)
+  trips an AppKit assertion (`NSCGSizeApplyInverseAffineTransform`) and aborts the app on
+  summon. The bead rests at `PaletteView.minScale` (0.001), invisible and invertible.
+  Unit tests can't see this, only a live summon does.
 - **Frecency comparator must be transitive**, no epsilon "≈ tie" band, it breaks strict
   weak ordering and makes `sort()` reshuffle the list every render.
 - **New-SDK symbols need a compiler gate, not just `#available`.** Liquid Glass APIs
