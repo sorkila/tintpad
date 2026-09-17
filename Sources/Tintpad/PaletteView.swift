@@ -33,6 +33,24 @@ enum KeyPolicy {
     }
 }
 
+/// Which repo a middle-region line wears as its subject token. Generic so the
+/// precedence is tested without building repos.
+///
+/// A pending confirm names its launch, a capture mode (worktree, prompt) its
+/// repo. Outside those, a status or permission line belongs to the launch
+/// that raised it, or to nothing (a scan result, "No session to resume yet"),
+/// and must never borrow the selection's chip.
+enum DropSubject {
+    static func pick<R>(pending: R?, worktree: R?, prompt: R?, statusShown: Bool,
+                        launch: R?, selected: R?) -> R? {
+        if let pending { return pending }
+        if let worktree { return worktree }
+        if let prompt { return prompt }
+        if statusShown { return launch }
+        return launch ?? selected
+    }
+}
+
 /// Holds the palette's mutable state and behavior. Lives as an `ObservableObject`
 /// so a scoped `NSEvent` key monitor can drive navigation/actions reliably —
 /// `.onKeyPress` on a `TextField` swallows arrow keys, so we don't rely on it.
@@ -42,7 +60,9 @@ final class PaletteModel: ObservableObject {
     // they were made on — so a query change clears them along with transients.
     @Published var query = "" {
         didSet {
-            selection = 0
+            // Unanimated: the row just changed under the chip, a slide from a
+            // token that no longer exists would be noise.
+            select(0, animated: false)
             agentOverrideID = nil
             modeOverrideID = nil
             clearTransient()
@@ -50,6 +70,13 @@ final class PaletteModel: ObservableObject {
         }
     }
     @Published var selection = 0
+    /// The repo the last launch attempt was for, so its status line (Opening,
+    /// an error, a note) keeps the right subject token even when that repo
+    /// is not the selected one (⌘0 resumes a session from any repo).
+    @Published private(set) var launchRepo: Repo?
+    /// The drop's content at its natural (unconstrained) width, measured by
+    /// a hidden copy in the view. The view hugs the capsule to it.
+    @Published private(set) var naturalContentWidth: CGFloat = 0
     /// True while the token strip holds a scroll offset, which is the only
     /// time its left edge is hiding tokens rather than being the margin.
     @Published private(set) var stripScrolled = false
@@ -74,9 +101,11 @@ final class PaletteModel: ObservableObject {
     /// Moves on every request and cancel, so a stale fallback stands down.
     private var dismissRequestGeneration = 0
 
-    /// True from the launch request until the terminal handoff returns. The
-    /// handoff is deferred a beat so "Opening …" is painted before it blocks,
-    /// and a Return queued in that beat must not launch a second time.
+    /// True from the launch request until the handoff begins (cleared just
+    /// before the deferred body runs). The handoff is deferred a beat so
+    /// "Opening …" is painted before it blocks, and a Return queued in that
+    /// beat must not launch a second time. A synchronous handoff holds the
+    /// main thread, so no second Return can be read while it runs.
     @Published private(set) var launchInFlight = false
 
     /// The note a finished launch left (Warp), kept while the drop stays open
@@ -178,8 +207,10 @@ final class PaletteModel: ObservableObject {
     /// Say where the launch is going, then run it a beat later. 50ms is three
     /// display refreshes, enough for the line to be painted before a
     /// synchronous AppleScript handoff holds the main thread.
-    private func launchAfterPaint(opening name: String?, _ body: @escaping () -> Void) {
+    private func launchAfterPaint(opening name: String?, repo: Repo?,
+                                  _ body: @escaping () -> Void) {
         launchInFlight = true
+        launchRepo = repo
         if let name { status = "Opening \(name)…" }
         let gen = summonGeneration
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
@@ -361,6 +392,7 @@ final class PaletteModel: ObservableObject {
         summonGeneration += 1
         launchInFlight = false
         launchNote = nil
+        launchRepo = nil
         stripScrolled = false
         // Seed from the physical keys: the hotkey chord (⌥⌘Space by default)
         // is still down on every summon, and no flagsChanged arrives until it
@@ -437,6 +469,7 @@ final class PaletteModel: ObservableObject {
         if mods.contains(.command), chars == "," { openSettings(); return true }
         if mods.contains(.command), chars == "r" {
             let n = store.runAutoDiscovery()
+            launchRepo = nil
             status = "Scanned, \(n) new repo\(n == 1 ? "" : "s")"
             return true
         }
@@ -457,7 +490,7 @@ final class PaletteModel: ObservableObject {
         // different repo, nor bounce the user into System Settings.
         if pendingDangerous != nil || pendingPermission != nil { clearTransient() }
         guard filtered.indices.contains(index) else { return false }
-        selection = index
+        select(index)
         agentOverrideID = nil
         modeOverrideID = nil
         handleReturn(modifiers: [])
@@ -479,11 +512,13 @@ final class PaletteModel: ObservableObject {
             guard let self else { return }
             let opening = LaunchService.canResumeLast(store: store)
                 ? LaunchService.terminalName(store: store) : nil
-            launchAfterPaint(opening: opening) { [weak self] in
+            let repo = store.repos.first { $0.id == session.repoID }
+            launchAfterPaint(opening: opening, repo: repo) { [weak self] in
                 guard let self else { return }
                 switch LaunchService.resumeLast(store: store) {
                 case .launched: closeAfterLaunch()
                 case .unavailable:
+                    launchRepo = nil
                     status = "⚠ That session can't be resumed, its repo, agent, or mode is gone"
                 case .failed(let error):
                     report(error)
@@ -505,7 +540,7 @@ final class PaletteModel: ObservableObject {
     func move(_ delta: Int) {
         let count = filtered.count
         guard count > 0 else { return }
-        selection = (selection + delta + count) % count
+        select((selection + delta + count) % count)
         // Agent/mode overrides belong to the row you were on — reset on move.
         agentOverrideID = nil
         modeOverrideID = nil
@@ -514,7 +549,11 @@ final class PaletteModel: ObservableObject {
     }
 
     func cyclePrompt() {
-        guard !store.prompts.isEmpty else { status = "No saved prompts, add some in Settings"; return }
+        guard !store.prompts.isEmpty else {
+            launchRepo = nil
+            status = "No saved prompts, add some in Settings"
+            return
+        }
         let ids: [UUID?] = [nil] + store.prompts.map { Optional($0.id) }
         let idx = ids.firstIndex(of: selectedPromptID) ?? 0
         selectedPromptID = ids[(idx + 1) % ids.count]
@@ -543,7 +582,9 @@ final class PaletteModel: ObservableObject {
         onOpenSettings()
     }
 
-    func clearTransient() { status = nil; pendingDangerous = nil; pendingPermission = nil }
+    func clearTransient() {
+        status = nil; pendingDangerous = nil; pendingPermission = nil; launchRepo = nil
+    }
 
     /// Routes a launch error: permission failures arm the ⏎-opens-Settings
     /// state, everything else lands in the status line as before.
@@ -560,6 +601,33 @@ final class PaletteModel: ObservableObject {
     /// the strip doesn't redraw itself on every frame of a drag.
     func setStripScrolled(_ scrolled: Bool) {
         if stripScrolled != scrolled { stripScrolled = scrolled }
+    }
+
+    /// Guarded against sub-point jitter, so layout noise never re-hugs.
+    func setNaturalContentWidth(_ width: CGFloat) {
+        if abs(naturalContentWidth - width) > 0.5 { naturalContentWidth = width }
+    }
+
+    /// Move the selection. The one white chip slides to its new token
+    /// (`matchedGeometryEffect`), which needs the change to happen inside an
+    /// animation transaction at the mutation site, never a stack-wide
+    /// `.animation(value: selection)` (see CLAUDE.md, palette keyboard nav).
+    func select(_ index: Int, animated: Bool = true) {
+        guard selection != index else { return }
+        withAnimation(animated && !reduceMotionActive() ? .snappy(duration: 0.24) : nil) {
+            selection = index
+        }
+    }
+
+    /// The repo a middle-region line is about, shown as a white token to its
+    /// left so the drop never loses its subject: the confirm's repo, the
+    /// capture mode's repo, the last launch's repo, or the selection. A
+    /// status or permission line outside a capture mode is about the launch
+    /// or about nothing ("Scanned, 3 new repos"), never the selection.
+    var subjectRepo: Repo? {
+        DropSubject.pick(pending: pendingDangerous?.repo, worktree: worktreeRepo, prompt: promptRepo,
+                         statusShown: status != nil || pendingPermission != nil,
+                         launch: launchRepo, selected: selectedRepo)
     }
 
     /// The mode that a plain ⏎ will use right now (no modifiers) — drives the chip.
@@ -586,12 +654,15 @@ final class PaletteModel: ObservableObject {
     }
 
     /// The contract chips for the selected repo as they read with the
-    /// modifiers held right now (see `ContractPreview`).
-    func contractChips(agent: Agent, repo: Repo) -> [ContractPreview.Chip] {
+    /// modifiers held right now (see `ContractPreview`), or with `held` when
+    /// given. The hug measures with `.none`: a held modifier reshapes the
+    /// chips (the strip gives way), never the drop.
+    func contractChips(agent: Agent, repo: Repo,
+                       held: ContractPreview.Held? = nil) -> [ContractPreview.Chip] {
         ContractPreview.chips(
             agent: agent, restingMode: displayMode(agent: agent, repo: repo),
             prompt: selectedPrompt, editorName: heldEditorName,
-            held: ContractPreview.Held(flags: heldModifiers, commandHeldLong: commandHeld))
+            held: held ?? ContractPreview.Held(flags: heldModifiers, commandHeldLong: commandHeld))
     }
 
 
@@ -640,7 +711,8 @@ final class PaletteModel: ObservableObject {
                         guard summonGeneration == gen else { return }   // flag: see launchAfterPaint
                         // `launchAfterPaint` keeps the flight flag up across
                         // the hop, so there is no gap for a second Return.
-                        launchAfterPaint(opening: LaunchService.terminalName(store: store)) { [weak self] in
+                        launchAfterPaint(opening: LaunchService.terminalName(store: store),
+                                         repo: repo) { [weak self] in
                             guard let self else { return }
                             do {
                                 finishLaunch(try LaunchService.launchAgent(
@@ -747,11 +819,12 @@ final class PaletteModel: ObservableObject {
         guard admitLaunchGesture() else { return }
         if pendingDangerous != nil || pendingPermission != nil { clearTransient() }
         guard filtered.indices.contains(index) else { return }
-        selection = index
+        select(index)
         handleReturn(modifiers: NSEvent.modifierFlags)
     }
 
     private func dispatch(repo: Repo, agent: Agent, mode: RunMode) {
+        launchRepo = repo
         do {
             _ = try DispatchService.shared.dispatch(
                 repo: repo, agent: agent, mode: mode, prompt: selectedPrompt?.text, store: store)
@@ -761,7 +834,7 @@ final class PaletteModel: ObservableObject {
 
     private func openInEditor(repo: Repo) {
         let editor = EditorRegistry.preferred(settings: store.settings)
-        launchAfterPaint(opening: editor?.name) { [weak self] in
+        launchAfterPaint(opening: editor?.name, repo: repo) { [weak self] in
             guard let self else { return }
             do { try LaunchService.openInEditor(repo: repo, store: store); closeAfterLaunch() }
             catch { status = "⚠ No editor detected, set one in Settings" }
@@ -772,7 +845,7 @@ final class PaletteModel: ObservableObject {
         // Resolved now, not in the deferred body: a prompt cycled in the beat
         // before the handoff must not change what launches.
         let prompt = prompt ?? selectedPrompt?.text
-        launchAfterPaint(opening: LaunchService.terminalName(store: store)) { [weak self] in
+        launchAfterPaint(opening: LaunchService.terminalName(store: store), repo: repo) { [weak self] in
             guard let self else { return }
             do {
                 finishLaunch(try LaunchService.launchAgent(
@@ -826,7 +899,7 @@ final class NotchAnchor: ObservableObject {
 /// 2. **Black and white, fully mute.** The capsule is pure black in every
 ///    theme, the ink is white and gray, the caret included. At rest the
 ///    drop speaks one object language: every element is a capsule of one
-///    height. White chip = where you are, gray chips = the contract (what
+///    height. White chip = where you are (one chip, it slides), gray chips = the contract (what
 ///    ⏎ does — always present, a contract that hides reads as a bug), red
 ///    chip = it skips permissions, the only color the drop ever allows.
 ///    The query materializes at the left as you type.
@@ -858,9 +931,25 @@ struct PaletteView: View {
     @State private var faded = false
     /// Plays the arrival and the exits. One per view, so a re-summon cancels.
     @State private var sequencer = StepSequencer()
+    /// Content is leaving: it fades and blurs but does not sink (the 4pt
+    /// rise belongs to arrival only).
+    @State private var exiting = false
+    /// The capsule's hugged width (see `rehug`). Seeded on every summon.
+    @State private var hugWidth: CGFloat = 0
+    /// The one white chip that slides between tokens.
+    @Namespace private var selectionNS
     @Environment(\.displayScale) private var displayScale
 
     enum DropPhase { case hidden, bead, spread }
+    /// Tokens keep one padding whether selected or not, so an arrow press
+    /// moves the chip and never reflows the row.
+    private static let tokenPadding: CGFloat = 9
+    private static let tokenSpacing: CGFloat = 2
+    /// The strip's right-edge fade, also reserved in the hugged width so a
+    /// row that fits never fades its last token.
+    private static let stripFade: CGFloat = 16
+    /// Separation between the middle region and the contract.
+    private static let contractGap: CGFloat = 32
     /// The token strip's viewport, so its content can measure its own offset.
     private static let stripSpace = "tokenStrip"
 
@@ -920,6 +1009,21 @@ struct PaletteView: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        // The hug: a hidden copy of the content, at its natural width, says
+        // how wide the capsule wants to be. It never carries the selection's
+        // matchedGeometryEffect (two sources would break the slide).
+        .background(alignment: .topLeading) { measuringContent }
+        .onPreferenceChange(ContentWidthKey.self) { [model] width in
+            // @Sendable callback, hop to the actor that owns the state.
+            Task { @MainActor in model.setNaturalContentWidth(width) }
+        }
+        .onChange(of: model.naturalContentWidth) { _, _ in rehug(animated: true) }
+        // An emptied field releases the ratchet even when the content's
+        // natural width happens not to change.
+        .onChange(of: model.query.isEmpty) { _, _ in rehug(animated: true) }
+        .onChange(of: model.launchInFlight) { _, _ in rehug(animated: true) }
+        .onChange(of: middleToken) { _, _ in rehug(animated: true) }
+        .onChange(of: drop) { _, _ in rehug(animated: false) }
         // Nothing behind the camera, structurally: whatever a spring's
         // overshoot or a shadow's blur does, no pixel above the housing's
         // lower edge is drawn. (The pill's rest height is 0, so it clips
@@ -984,17 +1088,22 @@ struct PaletteView: View {
     // MARK: - The droplet
 
     private var droplet: some View {
-        let g = anchor.geometry
         let spread = phase == .spread
         let bead = DropGeometry.beadSize
+        let width = capsuleWidth
         return ZStack {
             Capsule(style: .continuous).fill(.black)
-            // Laid out at the settled size whatever the capsule's size, so
-            // the words never reflow while the shape grows around them.
+            // Laid out at the settled (hugged) size whatever the capsule's
+            // size, so the words never reflow while the shape grows around
+            // them. The strip's viewport follows the hug rather than staying
+            // at maxWidth: a wider viewport would be centre-clipped by a
+            // narrower capsule and lose its leading tokens. It is still
+            // static through arrival, because `rehug` only animates once the
+            // content has arrived.
             content
-                .frame(width: g.maxWidth, height: dropH)
+                .frame(width: width, height: dropH)
         }
-        .frame(width: spread ? g.maxWidth : bead, height: spread ? dropH : bead)
+        .frame(width: spread ? width : bead, height: spread ? dropH : bead)
         .clipShape(Capsule(style: .continuous))
         // The key line: one device pixel of light on the rim, so the black
         // capsule holds its edge against a black housing or a dark wall.
@@ -1016,15 +1125,15 @@ struct PaletteView: View {
         // starts hard at the drop's left padding — an honest rag, no drift.
         HStack(spacing: 0) {
             searchRegion
-                .reveal(contentA)
-            middleRegion
+                .reveal(contentA, rise: !exiting)
+            middleRegion()
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .reveal(contentA)
+                .reveal(contentA, rise: !exiting)
                 .transition(.opacity)
-            contractRegion
+            contractRegion()
                 .layoutPriority(1)
-                .padding(.leading, 32)   // separation is space, not a divider
-                .reveal(contentB)
+                .padding(.leading, Self.contractGap)   // separation is space, not a divider
+                .reveal(contentB, rise: !exiting)
         }
         // The middle-region swap is a crossfade, never a hard cut.
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.16), value: middleToken)
@@ -1043,7 +1152,7 @@ struct PaletteView: View {
     /// capturing, not filtering. The caret is white: the drop is monochrome
     /// down to the last pixel.
     private var searchRegion: some View {
-        let resting = model.query.isEmpty && !capturing
+        let resting = searchResting
         return HStack(spacing: 8) {
             if !promptPrefix.isEmpty {
                 Text(promptPrefix)
@@ -1066,14 +1175,17 @@ struct PaletteView: View {
                     .monospacedDigit()
             }
         }
-        .frame(width: capturing ? 280 : (resting ? 0 : 150), alignment: .leading)
-        .padding(.trailing, resting ? 0 : 12)
+        .frame(width: searchRegionWidth, alignment: .leading)
+        .padding(.trailing, searchRegionTrailing)
         .opacity(resting ? 0 : 1)
         .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.85),
                    value: resting)
     }
 
     private var capturing: Bool { model.worktreeRepo != nil || model.promptRepo != nil }
+    private var searchResting: Bool { model.query.isEmpty && !capturing }
+    private var searchRegionWidth: CGFloat { capturing ? 280 : (searchResting ? 0 : 150) }
+    private var searchRegionTrailing: CGFloat { searchResting ? 0 : 12 }
 
     private var promptPrefix: String {
         if model.worktreeRepo != nil { return "Worktree" }
@@ -1090,8 +1202,28 @@ struct PaletteView: View {
     // MARK: - Middle region
 
     /// The drop becomes the question: confirm, status, worktree, and prompt
-    /// all speak here, in place of the tokens. One storey, always.
-    @ViewBuilder private var middleRegion: some View {
+    /// all speak here, in place of the tokens. One storey, always, and never
+    /// without its subject: the repo the line is about stays on the left as
+    /// a white token. `measuring` builds the hidden copy the hug reads.
+    @ViewBuilder private func middleRegion(measuring: Bool = false) -> some View {
+        if middleToken == 0 {
+            if measuring { stripMeasure } else { tokenStrip }
+        } else {
+            HStack(spacing: 8) {
+                if let repo = model.subjectRepo {
+                    token(repo, index: model.selection, selected: true,
+                          role: measuring ? .measuring : .subject)
+                        .fixedSize()
+                        .opacity(model.launchInFlight ? 0.7 : 1)
+                        // The line names what matters, the token is its picture.
+                        .accessibilityHidden(true)
+                }
+                middleLine
+            }
+        }
+    }
+
+    @ViewBuilder private var middleLine: some View {
         if model.isPendingDangerous {
             middleLine("\(model.pendingDangerousDescription ?? ""), Return confirms, Esc cancels",
                        color: dangerTint)
@@ -1108,8 +1240,6 @@ struct PaletteView: View {
             middleLine(worktreeExplainer)
         } else if model.promptRepo != nil {
             middleLine("Handed to \(model.promptRepo.flatMap { model.activeAgent(for: $0) }?.name ?? "the agent") as its first message, Return launches, Esc goes back")
-        } else {
-            tokenStrip
         }
     }
 
@@ -1147,7 +1277,7 @@ struct PaletteView: View {
                 // curve needs protected points inside the clip or its left
                 // edge shears. This padding lives inside the scroll content,
                 // so the rag still reads flush with the computed margin.
-                HStack(spacing: 6) {
+                HStack(spacing: Self.tokenSpacing) {
                     // Index identity throughout (id: \.self == .id(index) == selection),
                     // so a selection change updates the token in place instead of
                     // being mis-diffed as a remove/insert.
@@ -1181,18 +1311,20 @@ struct PaletteView: View {
                 HStack(spacing: 0) {
                     LinearGradient(colors: [.clear, .black],
                                    startPoint: .leading, endPoint: .trailing)
-                        .frame(width: model.stripScrolled ? 16 : 0)
+                        .frame(width: model.stripScrolled ? Self.stripFade : 0)
                     Color.black
                     LinearGradient(colors: [.black, .clear],
                                    startPoint: .leading, endPoint: .trailing)
-                        .frame(width: 16)
+                        .frame(width: Self.stripFade)
                 }
                 .animation(reduceMotion ? nil : .easeOut(duration: 0.12),
                            value: model.stripScrolled)
             )
             .onChange(of: model.selection) { _, new in
+                // The same curve as the chip's slide (`PaletteModel.select`),
+                // so the strip and the chip move together.
                 let scroll = { proxy.scrollTo(new, anchor: Self.anchor(for: new)) }
-                reduceMotion ? scroll() : withAnimation(.easeOut(duration: 0.14), scroll)
+                reduceMotion ? scroll() : withAnimation(.snappy(duration: 0.24), scroll)
             }
             // Typing reshapes the row (fewer tokens) but leaves the ScrollView
             // holding its old offset, clamped to the shorter content — and a
@@ -1216,40 +1348,126 @@ struct PaletteView: View {
         }
     }
 
+    /// Where a token is drawn: in the strip (its chip is the sliding one),
+    /// as a middle line's subject (a plain chip), or in the hidden measuring
+    /// copy (no chip at all, and always at the selected weight so moving the
+    /// selection never changes the measured width).
+    private enum TokenRole { case strip, subject, measuring }
+
     /// One repo as a token: its name in gray, and when you arrive, a white
-    /// chip with black ink — stark reverse video, no hue anywhere. The chip
+    /// chip with black ink, stark reverse video, no hue anywhere. The chip
     /// alone is selection; danger speaks once, as the red mode word in the
     /// contract (and again at the confirm gate), never as a ring here.
-    private func token(_ repo: Repo, index: Int, selected: Bool) -> some View {
+    ///
+    /// There is one chip, and it slides: the fill carries a
+    /// `matchedGeometryEffect`, animated by the transaction the selection
+    /// changed in (`PaletteModel.select`). The padding is constant, so the
+    /// neighbours never shift under it.
+    private func token(_ repo: Repo, index: Int, selected: Bool,
+                       role: TokenRole = .strip) -> some View {
+        let label = role == .measuring ? repo.name : tokenAccessibilityText(repo, index: index)
+        // No pin glyph: pinned repos already speak by standing first in the
+        // row (VoiceOver still says "pinned", the mark was decoration).
+        return Text(repo.name)
+            .font(.system(size: fieldSize,
+                          weight: selected || role == .measuring ? .medium : .regular))
+            .foregroundStyle(selected ? Color.black : Color(white: 0.58))
+            .lineLimit(1)
+            .padding(.horizontal, Self.tokenPadding)
+            .frame(height: chipH)
+            .background {
+                if selected && role != .measuring {
+                    selectionChip(for: repo, slides: role == .strip)
+                }
+            }
+            .contentShape(Rectangle())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(label)
+            .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+            .accessibilityAction(named: "Switch agent") { model.cycleAgent() }
+            .accessibilityAction(named: "Switch mode") { model.cycleMode() }
+    }
+
+    /// The chip's fill. Supporters may spend one drop of color here: the
+    /// chip in the repo's own bleached hue. Everyone else, pure white.
+    @ViewBuilder private func selectionChip(for repo: Repo, slides: Bool) -> some View {
+        let chip = Capsule(style: .continuous)
+            .fill(model.tintedChips ? RepoTint.chip(for: repo.name) : Color(white: 0.96))
+        if slides {
+            chip.matchedGeometryEffect(id: "selection", in: selectionNS)
+        } else {
+            chip
+        }
+    }
+
+    private func tokenAccessibilityText(_ repo: Repo, index: Int) -> String {
         let agent = model.activeAgent(for: repo)
         let mode = agent.map { model.previewMode(agent: $0, repo: repo) }
-        // No pin glyph: pinned repos already speak by standing first in the
-        // row (VoiceOver still says "pinned" — the mark was decoration).
-        return HStack(spacing: 4) {
-            Text(repo.name)
-                .font(.system(size: fieldSize, weight: selected ? .semibold : .regular))
-                .foregroundStyle(selected ? Color.black : Color(white: 0.58))
-                .lineLimit(1)
-        }
-        .padding(.horizontal, selected ? 9 : 5)
-        .frame(height: chipH)
-        .background {
-            if selected {
-                // Supporters may spend one drop of color here: the chip in
-                // the repo's own bleached hue. Everyone else, pure white.
-                Capsule(style: .continuous)
-                    .fill(model.tintedChips ? RepoTint.chip(for: repo.name)
-                                            : Color(white: 0.96))
+        return accessibilityText(repo: repo, agent: agent, mode: mode, index: index)
+    }
+
+    /// The strip as the hug measures it: every token at its natural width,
+    /// the clip's 3pt protection, and room for the right-edge fade.
+    private var stripMeasure: some View {
+        let repos = model.filtered
+        return HStack(spacing: Self.tokenSpacing) {
+            ForEach(repos.indices, id: \.self) { index in
+                token(repos[index], index: index, selected: false, role: .measuring)
             }
+            if repos.isEmpty { emptyState }
         }
-        .animation(reduceMotion ? nil : .spring(response: 0.26, dampingFraction: 0.8),
-                   value: selected)
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilityText(repo: repo, agent: agent, mode: mode, index: index))
-        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
-        .accessibilityAction(named: "Switch agent") { model.cycleAgent() }
-        .accessibilityAction(named: "Switch mode") { model.cycleMode() }
+        .padding(.leading, 3)
+        .padding(.trailing, Self.stripFade)
+    }
+
+    // MARK: - The hug
+
+    /// The content at its natural width, laid out like `content` but never
+    /// drawn, never hit, never read by VoiceOver. The search field is stood
+    /// in for by its width alone (a second `TextField` would fight for focus).
+    private var measuringContent: some View {
+        HStack(spacing: 0) {
+            Color.clear.frame(width: searchRegionWidth + searchRegionTrailing, height: 1)
+            middleRegion(measuring: true)
+            contractRegion(measuring: true)
+                .padding(.leading, Self.contractGap)
+        }
+        .fixedSize()
+        .background(GeometryReader { g in
+            Color.clear.preference(key: ContentWidthKey.self, value: g.size.width)
+        })
+        .hidden()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    /// The capsule's width, held inside this screen's range whatever the
+    /// last summon left behind.
+    private var capsuleWidth: CGFloat { min(max(hugWidth, drop.minWidth), drop.maxWidth) }
+
+    /// Hug the capsule to its content: clamp to [min, max], round up to 8pt
+    /// (`DropGeometry.hugWidth`), and while the field holds text only ever
+    /// grow (`DropGeometry.ratchet`). Frozen while a launch is starting (a
+    /// resize animation would stall behind the synchronous handoff) and
+    /// while the drop is leaving. Animates only once the content has
+    /// arrived, so the strip's viewport is static through the arrival's
+    /// re-scroll (the 0.3.2 shear fix depends on that).
+    private func rehug(animated: Bool, fresh: Bool = false) {
+        guard fresh || (!model.isDismissing && !model.launchInFlight) else { return }
+        let proposed = DropGeometry.hugWidth(
+            natural: model.naturalContentWidth + 2 * drop.chipInsetResolved,
+            min: drop.minWidth, max: drop.maxWidth)
+        let next = fresh ? proposed
+            : DropGeometry.ratchet(previous: capsuleWidth, proposed: proposed,
+                                   // Held in a middle line too (confirm, ⌃W, ⌘L),
+                                   // so the gate doesn't make the capsule breathe.
+                                   queryEmpty: model.query.isEmpty && middleToken == 0)
+        guard next != hugWidth else { return }
+        if animated && !reduceMotion && phase == .spread && contentA {
+            withAnimation(.smooth(duration: 0.2)) { hugWidth = next }
+        } else {
+            snap { hugWidth = next }
+        }
     }
 
     private var emptyState: some View {
@@ -1290,15 +1508,26 @@ struct PaletteView: View {
     /// Live: the chips read what ⏎ would do with the modifiers held right
     /// now (`ContractPreview`), so ⌥ turns MODE red before Return lands, ⌃
     /// appends RUN, and a held ⌘ appends OPEN IN.
-    @ViewBuilder private var contractRegion: some View {
+    @ViewBuilder private func contractRegion(measuring: Bool = false) -> some View {
         if middleToken == 0, let repo = model.selectedRepo,
            let agent = model.activeAgent(for: repo) {
-            let chips = model.contractChips(agent: agent, repo: repo)
-            HStack(spacing: 6) {
-                ForEach(chips) { contractChip($0, agent: agent, repo: repo) }
+            if measuring {
+                // Resting chips, plain faces: no button, no tooltip, no hover,
+                // so the hidden copy can never surface anything.
+                HStack(spacing: 6) {
+                    ForEach(model.contractChips(agent: agent, repo: repo, held: ContractPreview.Held.none)) { c in
+                        ChipFace(tag: c.tag, label: c.label, danger: c.danger, hovering: false,
+                                 size: metaSize, height: chipH)
+                    }
+                }
+            } else {
+                let chips = model.contractChips(agent: agent, repo: repo)
+                HStack(spacing: 6) {
+                    ForEach(chips) { contractChip($0, agent: agent, repo: repo) }
+                }
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.12), value: chips)
+                .transition(.opacity)
             }
-            .animation(reduceMotion ? nil : .easeInOut(duration: 0.12), value: chips)
-            .transition(.opacity)
         }
     }
 
@@ -1367,6 +1596,9 @@ struct PaletteView: View {
                 phase = .spread; beadScale = 1; contentA = true; contentB = true; faded = true
             }
         }
+        // Seeded from the last measurement against this screen's range. The
+        // measurement itself may not change (and so not refire) this summon.
+        rehug(animated: false, fresh: true)
         play(DropTimeline.arrival(reduceMotion: reduceMotion), reason: nil)
     }
 
@@ -1378,6 +1610,7 @@ struct PaletteView: View {
         beadScale = 0
         absorbed = false
         faded = false
+        exiting = false
     }
 
     /// Commit state with no animation, whatever transaction is around.
@@ -1407,6 +1640,8 @@ struct PaletteView: View {
         case .crossfadeIn:
             withAnimation(.easeInOut(duration: 0.12)) { faded = false }
         case .contentOut:
+            // Exiting content fades and blurs in place, it does not sink.
+            snap { exiting = true }
             withAnimation(.easeIn(duration: 0.08)) { contentA = false; contentB = false }
         case .shrink:
             // An exit before the bead ever formed has nothing to shrink, and
@@ -1440,22 +1675,32 @@ private struct StripScrolledKey: PreferenceKey {
     static func reduce(value: inout Bool, nextValue: () -> Bool) { value = nextValue() }
 }
 
+/// The natural width of the drop's content, from the hidden measuring copy.
+private struct ContentWidthKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
 /// Content arriving in the drop: fade in, rise 4pt, sharpen out of a 4pt
-/// blur. No animation of its own, the timeline's `withAnimation` carries it,
-/// so a cancelled beat leaves nothing half-scheduled behind.
+/// blur. Leaving, it only fades and blurs (`rise` false). No animation of its
+/// own, the timeline's `withAnimation` carries it, so a cancelled beat leaves
+/// nothing half-scheduled behind.
 private struct Reveal: ViewModifier {
     let shown: Bool
+    let rise: Bool
 
     func body(content: Content) -> some View {
         content
             .opacity(shown ? 1 : 0)
-            .offset(y: shown ? 0 : 4)
+            .offset(y: shown || !rise ? 0 : 4)
             .blur(radius: shown ? 0 : 4)
     }
 }
 
 private extension View {
-    func reveal(_ shown: Bool) -> some View { modifier(Reveal(shown: shown)) }
+    func reveal(_ shown: Bool, rise: Bool = true) -> some View {
+        modifier(Reveal(shown: shown, rise: rise))
+    }
 }
 
 /// An instrument field that acts: a micro-label eyebrow and its value in a
@@ -1472,54 +1717,70 @@ private struct ChipButton: View {
     let height: CGFloat
     let action: () -> Void
     @State private var hovering = false
-    /// The eyebrow's own metric, so it scales with Dynamic Type but never
-    /// drops below legibility at the default size.
-    @ScaledMetric(relativeTo: .body) private var eyebrowSize: CGFloat = 8.5
 
     var body: some View {
         Button(action: action) {
-            // Baseline-aligned, not box-centered: the eyebrow and the value
-            // are one line of type at two sizes, so they share a baseline
-            // the way set type does.
-            HStack(alignment: .firstTextBaseline, spacing: 5) {
-                Text(tag.uppercased())
-                    .font(.system(size: eyebrowSize, weight: .semibold))
-                    .tracking(0.7)
-                    // Optical centering: on the shared baseline the small
-                    // caps hang low against the value's cap height — a
-                    // one-point lift centers the two heights on each other.
-                    .baselineOffset(1)
-                    .foregroundStyle(danger ? AnyShapeStyle(dangerTint.opacity(0.6))
-                                            : AnyShapeStyle(Color(white: 0.5)))
-                Text(label)
-                    .font(.system(size: size, weight: .medium))
-                    .foregroundStyle(danger ? AnyShapeStyle(dangerTint)
-                                            : hovering ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
-            }
-            .lineLimit(1)
-            // A contract never truncates — the token strip scrolls, so it
-            // absorbs every point of compression; the chips state their
-            // words in full or the contract is meaningless.
-            .fixedSize()
-            .padding(.horizontal, 11)
-            .frame(height: height)
-            // Etched, not filled: on pure black a fill reads as a smudge, a
-            // hairline reads as an instrument. Danger alone keeps a breath
-            // of fill under its red ink so the warning has a temperature.
-            .background {
-                if danger {
-                    Capsule(style: .continuous).fill(dangerTint.opacity(hovering ? 0.14 : 0.09))
-                }
-            }
-            .overlay(Capsule(style: .continuous)
-                .strokeBorder(danger ? dangerTint.opacity(hovering ? 0.75 : 0.55)
-                                     : Color.white.opacity(hovering ? 0.34 : 0.17),
-                              lineWidth: 1))
-            .contentShape(Capsule(style: .continuous))
+            ChipFace(tag: tag, label: label, danger: danger, hovering: hovering,
+                     size: size, height: height)
         }
         .buttonStyle(.plain)
         .help(help)
         .accessibilityLabel("\(tag): \(label). \(help)")
         .onHover { hovering = $0 }
+    }
+}
+
+/// A chip's face: the eyebrow and value in their capsule, with no behaviour.
+/// `ChipButton` wraps it in a button, the hug's hidden copy draws it bare.
+private struct ChipFace: View {
+    let tag: String
+    let label: String
+    let danger: Bool
+    let hovering: Bool
+    let size: CGFloat
+    let height: CGFloat
+    /// The eyebrow's own metric, so it scales with Dynamic Type but never
+    /// drops below legibility at the default size.
+    @ScaledMetric(relativeTo: .body) private var eyebrowSize: CGFloat = 8.5
+
+    var body: some View {
+        // Baseline-aligned, not box-centered: the eyebrow and the value
+        // are one line of type at two sizes, so they share a baseline
+        // the way set type does.
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
+            Text(tag.uppercased())
+                .font(.system(size: eyebrowSize, weight: .semibold))
+                .tracking(0.7)
+                // Optical centering: on the shared baseline the small
+                // caps hang low against the value's cap height — a
+                // one-point lift centers the two heights on each other.
+                .baselineOffset(1)
+                .foregroundStyle(danger ? AnyShapeStyle(dangerTint.opacity(0.6))
+                                        : AnyShapeStyle(Color(white: 0.5)))
+            Text(label)
+                .font(.system(size: size, weight: .medium))
+                .foregroundStyle(danger ? AnyShapeStyle(dangerTint)
+                                        : hovering ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+        }
+        .lineLimit(1)
+        // A contract never truncates — the token strip scrolls, so it
+        // absorbs every point of compression; the chips state their
+        // words in full or the contract is meaningless.
+        .fixedSize()
+        .padding(.horizontal, 11)
+        .frame(height: height)
+        // Etched, not filled: on pure black a fill reads as a smudge, a
+        // hairline reads as an instrument. Danger alone keeps a breath
+        // of fill under its red ink so the warning has a temperature.
+        .background {
+            if danger {
+                Capsule(style: .continuous).fill(dangerTint.opacity(hovering ? 0.14 : 0.09))
+            }
+        }
+        .overlay(Capsule(style: .continuous)
+            .strokeBorder(danger ? dangerTint.opacity(hovering ? 0.75 : 0.55)
+                                 : Color.white.opacity(hovering ? 0.34 : 0.17),
+                          lineWidth: 1))
+        .contentShape(Capsule(style: .continuous))
     }
 }

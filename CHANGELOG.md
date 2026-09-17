@@ -24,6 +24,22 @@ All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepac
   hotkey during an arrival could stack two animations. Now every step belongs to
   one cancellable timeline, a summon during an exit brings the drop straight
   back, and the panel is never removed before its exit has played.
+- **One white chip slides between repos, and the row holds still.** The selected
+  repo used to grow its own padding, so every arrow press nudged its neighbours.
+  Tokens now keep one padding and one spacing, and a single chip slides to the
+  next repo with the strip scrolling on the same curve. The selected name is set
+  in medium rather than semibold. Leaving, the words fade and blur in place
+  instead of sinking.
+- **The capsule hugs its content.** A short list gives a short drop, never
+  narrower than the housing plus a capsule height either side (280pt on a display
+  without a notch) and never wider than before, in 8pt steps so a keystroke does
+  not nudge it. While you type, or while a confirm or capture line shows, it only
+  grows, so it never pulls in under the caret or breathes at the gate, and an
+  empty field back on the repos lets it settle. Holding a modifier changes the
+  chips, never the capsule.
+- **Every line in the drop keeps its subject.** The confirm, Opening, error, note,
+  worktree and prompt lines now show the repo they are about as a white chip to
+  their left, including a session resumed with ⌘0 from a different repo.
 
 ### Fixed
 - **Larger text sizes no longer grow the drop past its cap.** Dynamic Type was

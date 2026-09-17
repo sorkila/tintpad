@@ -84,7 +84,7 @@ in `Resources/Info.plist` then run `./Scripts/release.sh` to cut the next one.
 ## Commands
 ```sh
 swift build              # debug build
-swift test               # 98 unit tests (pure logic, keep green)
+swift test               # 103 unit tests (pure logic, keep green)
 swift run                # run from source (dev; unsigned)
 ./Scripts/package.sh     # assemble + sign .app/DMG in a TMPDIR scratch (signs if SIGN_IDENTITY set)
 ./Scripts/dev-install.sh # build → Developer ID sign → install to /Applications (local dev)
@@ -138,7 +138,11 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   exits shrink back into the bead and are absorbed, a focus loss fades, Reduce Motion
   crossfades). Displays without a notch get the same
   drop as a floating pill below the menu bar. **Black and white only**: repo names in
-  gray, the selected repo a white chip with black ink, the caret white, forced dark
+  gray, the selected repo a white chip with black ink (one chip that slides, a
+  `matchedGeometryEffect` animated at the mutation site by `PaletteModel.select`,
+  constant token padding, so the row never reflows on an arrow press), every middle
+  line (confirm, status, worktree, prompt) keeps its repo as a subject token on the
+  left, the caret white, forced dark
   world whatever the Mac's theme (`environment(\.colorScheme, .dark)` + darkAqua on the
   panel and Settings windows). **There is no theme setting**: Light and System selected
   nothing a user could see, so the picker is gone and `AppAppearance.applyProductTheme()`
@@ -246,7 +250,16 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   pads 3pt inside the scroll content or its curve shears. A capsule's round end eats
   its corners, so optical margin = geometric margin + compensation. Contract chips are
   `fixedSize` — the scrolling token strip absorbs all compression, a truncated mode
-  name ("Skip permissio…") is a safety bug, not a layout bug.
+  name ("Skip permissio…") is a safety bug, not a layout bug. **The capsule hugs its
+  content**: a hidden `fixedSize` copy measures the natural width (it must never carry
+  the selection's `matchedGeometryEffect`, two sources break the slide, and it measures
+  every token at the selected weight and the contract at rest, `ContractPreview.Held.none`, so
+  neither an arrow press nor a held modifier changes the width),
+  `DropGeometry.hugWidth` clamps to [min, max] and rounds up to 8pt, and
+  `DropGeometry.ratchet` lets it only grow while the field holds text or a middle line
+  shows (an empty field back on the strip re-hugs). The strip's viewport follows the hug, and the hug animates only after the
+  content has arrived and never while a launch is starting or the drop is leaving, so
+  the arrival's re-scroll always resolves against a still viewport.
 - **Frecency comparator must be transitive**, no epsilon "≈ tie" band, it breaks strict
   weak ordering and makes `sort()` reshuffle the list every render.
 - **New-SDK symbols need a compiler gate, not just `#available`.** Liquid Glass APIs

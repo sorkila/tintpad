@@ -63,6 +63,14 @@ struct DropGeometry: Equatable {
         return Swift.min((clamped / 8).rounded(.up) * 8, upper)
     }
 
+    /// The width rule while the field holds text: the capsule may grow but
+    /// never shrink, so a narrowing filter doesn't pull the drop in under
+    /// the caret on every keystroke. An empty field re-hugs, so deleting
+    /// back to nothing (or leaving a capture mode) settles to the content.
+    static func ratchet(previous: CGFloat, proposed: CGFloat, queryEmpty: Bool) -> CGFloat {
+        queryEmpty ? proposed : Swift.max(previous, proposed)
+    }
+
     /// The window's height: housing depth + gap + capsule + shadow room.
     static func windowHeight(_ notch: NotchGeometry, drop: DropGeometry) -> CGFloat {
         notch.restHeight + gap + drop.dropHeight + shadowMargin

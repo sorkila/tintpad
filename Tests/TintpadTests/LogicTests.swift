@@ -567,6 +567,15 @@ final class ContractPreviewTests: XCTestCase {
                               editorName: editor, held: held)
     }
 
+    // The hug measures the resting contract, so a held modifier can reshape
+    // the chips but never the drop's width.
+    func testHugBaselineIgnoresHeldModifiers() {
+        let resting = chips(.none).map(\.label)
+        XCTAssertEqual(resting, ["Codex", "Default"])
+        XCTAssertNotEqual(chips(ContractPreview.Held(option: true, commandHeldLong: true)).map(\.label), resting)
+        XCTAssertEqual(ContractPreview.Held.none, ContractPreview.Held())
+    }
+
     func testAtRestTheContractIsAgentThenMode() {
         let c = chips(.none)
         XCTAssertEqual(c.map(\.kind), [.agent, .mode])
@@ -920,6 +929,48 @@ final class DropGeometryTests: XCTestCase {
         XCTAssertEqual(DropGeometry.windowHeight(g, drop: .resolve(g, typeScale: 1)), 37 + 8 + 37 + 20)
         XCTAssertEqual(DropGeometry.windowHeight(pill, drop: .resolve(pill, typeScale: 1)), 0 + 8 + 36 + 20)
         XCTAssertEqual(DropGeometry.windowWidth(pill), 680)
+    }
+
+    // Typing narrows the row, but the capsule must not pull in under the
+    // caret on every keystroke: with text in the field it only grows.
+    func testHugRatchetNeverShrinksWhileTyping() {
+        XCTAssertEqual(DropGeometry.ratchet(previous: 480, proposed: 400, queryEmpty: false), 480)
+        XCTAssertEqual(DropGeometry.ratchet(previous: 480, proposed: 560, queryEmpty: false), 560)
+        XCTAssertEqual(DropGeometry.ratchet(previous: 480, proposed: 480, queryEmpty: false), 480)
+    }
+
+    // An empty field (deleted back to nothing, or a fresh summon) re-hugs.
+    func testHugReleasesWhenQueryEmpties() {
+        XCTAssertEqual(DropGeometry.ratchet(previous: 560, proposed: 400, queryEmpty: true), 400)
+        XCTAssertEqual(DropGeometry.ratchet(previous: 400, proposed: 560, queryEmpty: true), 560)
+        // A whole typing session: grow, hold, release.
+        var w: CGFloat = 400
+        for proposed: CGFloat in [456, 320, 288] {
+            w = DropGeometry.ratchet(previous: w, proposed: proposed, queryEmpty: false)
+        }
+        XCTAssertEqual(w, 456)
+        XCTAssertEqual(DropGeometry.ratchet(previous: w, proposed: 400, queryEmpty: true), 400)
+    }
+}
+
+final class DropSubjectTests: XCTestCase {
+    // Capture modes and a pending confirm name their own repo, whatever else shows.
+    func testConfirmAndCaptureModesNameTheirRepo() {
+        XCTAssertEqual(DropSubject.pick(pending: "a", worktree: "w", prompt: "p", statusShown: true,
+                                        launch: "l", selected: "s"), "a")
+        XCTAssertEqual(DropSubject.pick(pending: nil, worktree: "w", prompt: nil, statusShown: true,
+                                        launch: nil, selected: "s"), "w")
+        XCTAssertEqual(DropSubject.pick(pending: nil, worktree: nil, prompt: "p", statusShown: false,
+                                        launch: nil, selected: "s"), "p")
+    }
+
+    // "Scanned, 3 new repos" is about no repo, and must not borrow the selection.
+    func testRepoLessStatusHasNoSubject() {
+        XCTAssertNil(DropSubject.pick(pending: nil, worktree: nil, prompt: nil, statusShown: true,
+                                      launch: nil as String?, selected: "s"))
+        // A launch's own line (Opening, an error, a note) wears the launch's repo.
+        XCTAssertEqual(DropSubject.pick(pending: nil, worktree: nil, prompt: nil, statusShown: true,
+                                        launch: "l", selected: "s"), "l")
     }
 }
 
