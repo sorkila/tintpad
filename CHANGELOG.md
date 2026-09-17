@@ -24,6 +24,22 @@ All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepac
   of the name steps back, never a color.
 
 ### Changed
+- **No launch freezes the drop any more.** AppleScript handoffs (Ghostty, iTerm2,
+  Terminal) used to run on the main thread, up to about 8.5 seconds on a cold
+  Ghostty, and a frozen drop couldn't answer macOS when the terminal took focus,
+  which is how 0.3.8's stranded shadow began. Every launch now runs off the main
+  thread through `osascript`, so Esc works while a terminal opens, and a terminal
+  taking focus plays the launch exit. Existing Automation and Accessibility grants
+  carry over, macOS counts the helper as Tintpad.
+- **A slow launch says so.** After four seconds the line changes from "Opening
+  Ghostty…" to "Still opening Ghostty…".
+- **Errors say what Return does.** A failed launch reads "Couldn't open Ghostty
+  (Ghostty lost focus), Return retries, Esc closes", and Return relaunches exactly
+  what failed, through the confirm again when the mode skips permissions. A launch
+  that fails after you have pressed Esc or clicked away is not lost, the drop
+  that is up shows it, or the next summon within half a minute does. Launches
+  run one at a time, so two can never type into the same window, and a double
+  press on Resume last session (menu, hotkey or Recents) opens it once. Onboarding's Test launch says "Opening…" while it waits.
 - **A search that finds nothing says what to try.** The line reads "No match
   for “zzq”, ⌘R rescans your folders", since a repo cloned since the last scan
   is the usual reason.

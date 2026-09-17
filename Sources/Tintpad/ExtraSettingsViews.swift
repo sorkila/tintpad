@@ -119,14 +119,10 @@ struct RecentsSettingsView: View {
     }
 
     private func resume(_ s: Session) {
-        guard let repo = store.repos.first(where: { $0.id == s.repoID }),
-              let agent = store.agent(s.agentID),
-              let mode = agent.modes.first(where: { $0.id == s.modeID }) else {
-            NSSound.beep()   // the session can't be reconstructed anymore
-            return
+        // Beeps when the session can't be reconstructed or the launch fails,
+        // stays quiet on a double press while it is already opening.
+        LaunchService.resume(s, store: store) { result in
+            if case .failure(let error) = result, !LaunchService.isInFlight(error) { NSSound.beep() }
         }
-        do { try LaunchService.launchAgent(repo: repo, agent: agent, mode: mode,
-                                           prompt: s.prompt, store: store) }
-        catch { NSSound.beep() }
     }
 }

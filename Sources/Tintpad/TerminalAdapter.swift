@@ -3,7 +3,7 @@ import ApplicationServices
 import Foundation
 
 /// A launch request: open a terminal at `workingDirectory` and run `command`.
-struct TerminalLaunch {
+struct TerminalLaunch: Sendable {
     /// Absolute, canonicalized repo path.
     let workingDirectory: String
     /// The full command to run (binary already resolved to an absolute path).
@@ -15,8 +15,17 @@ struct TerminalLaunch {
 
 /// Result of a launch. `note` carries user-facing info (e.g. Warp's clipboard
 /// fallback) without being an error.
-struct LaunchOutcome {
+struct LaunchOutcome: Sendable {
     var note: String?
+}
+
+/// What an adapter's main-actor preflight hands back: the launch already done
+/// (quick AppKit calls, like Warp's pasteboard), or the blocking rest of it,
+/// which `LaunchService` runs on a GCD queue so no handoff holds the main
+/// thread (an AppleScript handoff once did, for up to ~8.5s on a cold Ghostty).
+enum TerminalHandoff: Sendable {
+    case done(LaunchOutcome)
+    case blocking(@Sendable () throws -> LaunchOutcome)
 }
 
 /// The System Settings pane a permission failure resolves in. Carried on the
@@ -62,12 +71,18 @@ enum TerminalLaunchError: Error, CustomStringConvertible, LocalizedError {
 
 /// One implementation per terminal app. Detection is bundle-id based; launch
 /// uses whichever mechanism is most reliable for that terminal.
+///
+/// A launch has two halves. `prepare` runs on the main actor and reads the
+/// AppKit state the launch depends on (installed, TCC trust, whether the app
+/// is already running), throwing the actionable errors at once. The
+/// `TerminalHandoff` it returns carries the blocking half (subprocesses,
+/// `osascript`), which must not touch AppKit. Call through
+/// `LaunchService.handOff`, never directly.
 protocol TerminalAdapter: Sendable {
     var displayName: String { get }
     var bundleID: String { get }
     var isInstalled: Bool { get }
-    @discardableResult
-    func launch(_ launch: TerminalLaunch) throws -> LaunchOutcome
+    @MainActor func prepare(_ launch: TerminalLaunch) throws -> TerminalHandoff
 }
 
 extension TerminalAdapter {
@@ -139,7 +154,7 @@ struct GhosttyAdapter: TerminalAdapter {
     let displayName = "Ghostty"
     let bundleID = "com.mitchellh.ghostty"
 
-    func launch(_ launch: TerminalLaunch) throws -> LaunchOutcome {
+    @MainActor func prepare(_ launch: TerminalLaunch) throws -> TerminalHandoff {
         guard isInstalled else { throw TerminalLaunchError.notInstalled }
         // Ghostty handoff types the command via System Events, which needs
         // Accessibility. Without it the keystrokes silently no-op — so fail loudly
@@ -152,13 +167,16 @@ struct GhosttyAdapter: TerminalAdapter {
         }
         let cmd = "cd \(shellQuote(launch.workingDirectory)) && \(launch.command)"
         // `isFinishedLaunching` counts: an instance still mid-launch is about to
-        // open its initial window, exactly like the not-running case.
+        // open its initial window, exactly like the not-running case. Read
+        // here, on main, before the script leaves for `osascript`.
         let wasRunning = NSRunningApplication
             .runningApplications(withBundleIdentifier: bundleID)
             .contains(where: \.isFinishedLaunching)
-        try AppleScriptRunner.run(
-            Self.handoffScript(command: cmd, openInTab: launch.openInTab, wasRunning: wasRunning))
-        return LaunchOutcome()
+        let script = Self.handoffScript(command: cmd, openInTab: launch.openInTab, wasRunning: wasRunning)
+        return .blocking {
+            try AppleScriptRunner.run(script)
+            return LaunchOutcome()
+        }
     }
 
     /// The System Events script for each entry state. Pure so the branch is
@@ -183,8 +201,9 @@ struct GhosttyAdapter: TerminalAdapter {
             \(type)
             """
         }
-        // Cold start: bounded polls (~5s + ~3s worst case — NSAppleScript runs
-        // on the main actor, so a hung launch must fail, not sit forever).
+        // Cold start: bounded polls (~5s + ~3s worst case). The script runs
+        // off main through `osascript`, and `AppleScriptRunner` bounds the
+        // whole run too, so a hung launch fails rather than sitting forever.
         return """
         tell application "Ghostty" to activate
         tell application "System Events"
@@ -211,11 +230,14 @@ struct KittyAdapter: TerminalAdapter {
     let displayName = "kitty"
     let bundleID = "net.kovidgoyal.kitty"
 
-    func launch(_ launch: TerminalLaunch) throws -> LaunchOutcome {
+    @MainActor func prepare(_ launch: TerminalLaunch) throws -> TerminalHandoff {
         guard isInstalled else { throw TerminalLaunchError.notInstalled }
-        try openApp(bundleID: bundleID, args:
-            ["--directory", launch.workingDirectory] + shellProgram(launch))
-        return LaunchOutcome()
+        let bundleID = bundleID
+        let args = ["--directory", launch.workingDirectory] + shellProgram(launch)
+        return .blocking {
+            try openApp(bundleID: bundleID, args: args)
+            return LaunchOutcome()
+        }
     }
 }
 
@@ -226,11 +248,14 @@ struct AlacrittyAdapter: TerminalAdapter {
     let displayName = "Alacritty"
     let bundleID = "org.alacritty"
 
-    func launch(_ launch: TerminalLaunch) throws -> LaunchOutcome {
+    @MainActor func prepare(_ launch: TerminalLaunch) throws -> TerminalHandoff {
         guard isInstalled else { throw TerminalLaunchError.notInstalled }
-        try openApp(bundleID: bundleID, args:
-            ["--working-directory", launch.workingDirectory, "-e"] + shellProgram(launch))
-        return LaunchOutcome()
+        let bundleID = bundleID
+        let args = ["--working-directory", launch.workingDirectory, "-e"] + shellProgram(launch)
+        return .blocking {
+            try openApp(bundleID: bundleID, args: args)
+            return LaunchOutcome()
+        }
     }
 }
 
@@ -242,28 +267,30 @@ struct WezTermAdapter: TerminalAdapter {
     let displayName = "WezTerm"
     let bundleID = "com.github.wez.wezterm"
 
-    func launch(_ launch: TerminalLaunch) throws -> LaunchOutcome {
+    @MainActor func prepare(_ launch: TerminalLaunch) throws -> TerminalHandoff {
         guard let app = appURL else { throw TerminalLaunchError.notInstalled }
         let bundled = app.appendingPathComponent("Contents/MacOS/wezterm").path
         let bin = FileManager.default.isExecutableFile(atPath: bundled)
             ? bundled
             : (ShellEnvironment.resolveBinary("wezterm") ?? bundled)
         let prog = shellProgram(launch)
-        // Tab: spawn into the running GUI via the mux. Falls back to a new window
-        // if WezTerm isn't already running (`cli spawn` needs a live gui server).
-        if launch.openInTab,
-           (try? run(bin, ["cli", "spawn", "--cwd", launch.workingDirectory, "--"] + prog)) != nil {
+        return .blocking {
+            // Tab: spawn into the running GUI via the mux. Falls back to a new window
+            // if WezTerm isn't already running (`cli spawn` needs a live gui server).
+            if launch.openInTab,
+               (try? run(bin, ["cli", "spawn", "--cwd", launch.workingDirectory, "--"] + prog)) != nil {
+                return LaunchOutcome()
+            }
+            // With no GUI running, `wezterm start` IS the terminal process —
+            // waiting for its exit would wait for the window to close.
+            do {
+                try ProcessRunner.spawnDetached(bin, arguments: ["start", "--cwd", launch.workingDirectory, "--"] + prog,
+                                                environment: ShellEnvironment.processEnvironment)
+            } catch {
+                throw TerminalLaunchError.launchFailed("\(bin): \(error.localizedDescription)")
+            }
             return LaunchOutcome()
         }
-        // With no GUI running, `wezterm start` IS the terminal process —
-        // waiting for its exit would wait for the window to close.
-        do {
-            try ProcessRunner.spawnDetached(bin, arguments: ["start", "--cwd", launch.workingDirectory, "--"] + prog,
-                                            environment: ShellEnvironment.processEnvironment)
-        } catch {
-            throw TerminalLaunchError.launchFailed("\(bin): \(error.localizedDescription)")
-        }
-        return LaunchOutcome()
     }
 }
 
@@ -275,7 +302,7 @@ struct ITerm2Adapter: TerminalAdapter {
     let displayName = "iTerm2"
     let bundleID = "com.googlecode.iterm2"
 
-    func launch(_ launch: TerminalLaunch) throws -> LaunchOutcome {
+    @MainActor func prepare(_ launch: TerminalLaunch) throws -> TerminalHandoff {
         guard isInstalled else { throw TerminalLaunchError.notInstalled }
         let cmd = "cd \(shellQuote(launch.workingDirectory)) && \(launch.command)"
         // New tab in the current window (falling back to a new window if none),
@@ -296,8 +323,10 @@ struct ITerm2Adapter: TerminalAdapter {
             activate
         end tell
         """
-        try AppleScriptRunner.run(script)
-        return LaunchOutcome()
+        return .blocking {
+            try AppleScriptRunner.run(script)
+            return LaunchOutcome()
+        }
     }
 }
 
@@ -307,7 +336,7 @@ struct AppleTerminalAdapter: TerminalAdapter {
     let displayName = "Terminal"
     let bundleID = "com.apple.Terminal"
 
-    func launch(_ launch: TerminalLaunch) throws -> LaunchOutcome {
+    @MainActor func prepare(_ launch: TerminalLaunch) throws -> TerminalHandoff {
         // The tab path types ⌘T via System Events, which needs Accessibility —
         // fail with the actionable message, not a raw AppleScript error.
         if launch.openInTab, !AXIsProcessTrusted() {
@@ -334,8 +363,10 @@ struct AppleTerminalAdapter: TerminalAdapter {
             activate
         end tell
         """
-        try AppleScriptRunner.run(script)
-        return LaunchOutcome()
+        return .blocking {
+            try AppleScriptRunner.run(script)
+            return LaunchOutcome()
+        }
     }
 }
 
@@ -347,7 +378,9 @@ struct WarpAdapter: TerminalAdapter {
     let displayName = "Warp"
     let bundleID = "dev.warp.Warp-Stable"
 
-    func launch(_ launch: TerminalLaunch) throws -> LaunchOutcome {
+    /// The pasteboard and `NSWorkspace.open` are AppKit and quick, so they
+    /// run here on main. Only the `open` fallback is blocking.
+    @MainActor func prepare(_ launch: TerminalLaunch) throws -> TerminalHandoff {
         guard isInstalled else { throw TerminalLaunchError.notInstalled }
         let full = "cd \(shellQuote(launch.workingDirectory)) && \(launch.command)"
         let pb = NSPasteboard.general
@@ -361,11 +394,15 @@ struct WarpAdapter: TerminalAdapter {
         comps.host = "action"
         comps.path = "/new_window"
         comps.queryItems = [URLQueryItem(name: "path", value: launch.workingDirectory)]
+        let note = LaunchOutcome(note: "Command copied, paste it in Warp")
         if let url = comps.url, NSWorkspace.shared.open(url) {
-            return LaunchOutcome(note: "Command copied, paste it in Warp")
+            return .done(note)
         }
-        try run("/usr/bin/open", ["-nb", bundleID])
-        return LaunchOutcome(note: "Command copied, paste it in Warp")
+        let bundleID = bundleID
+        return .blocking {
+            try run("/usr/bin/open", ["-nb", bundleID])
+            return note
+        }
     }
 }
 
@@ -381,25 +418,65 @@ func appleScriptEscape(_ s: String) -> String {
      .replacingOccurrences(of: "\n", with: " ")
 }
 
+/// Runs AppleScript through `osascript` under `ProcessRunner`, never in
+/// process: in-process AppleScript must run on the main thread and blocks it for as
+/// long as the script takes, which froze the drop mid-launch and left it
+/// unable to answer AppKit's own deactivation (the stranded-shadow bug).
+///
+/// The script goes in on stdin, so a command (and any prompt in it) never
+/// shows in a process listing. The child gets the same scrubbed environment
+/// as every spawn (`ShellEnvironment.processEnvironment`), and TCC attributes
+/// it to Tintpad as the responsible process, so existing Automation and
+/// Accessibility grants carry over.
 enum AppleScriptRunner {
-    static func run(_ source: String) throws {
-        var error: NSDictionary?
-        guard let script = NSAppleScript(source: source) else {
-            throw TerminalLaunchError.launchFailed("could not compile AppleScript")
+    /// Longer than the cold Ghostty script's own ~8.5s of polls, and long
+    /// enough for a first-run Automation consent prompt, which holds the
+    /// Apple event (and so `osascript`) until the user answers it.
+    static let timeout: TimeInterval = 60
+
+    nonisolated static func run(_ source: String) throws {
+        let result = try ProcessRunner.run(
+            "/usr/bin/osascript", arguments: ["-"],
+            environment: ShellEnvironment.processEnvironment,
+            input: Data(source.utf8), timeout: timeout)
+        if let error = classify(status: result.status, stderr: result.stderr) { throw error }
+    }
+
+    /// Pure: turn `osascript`'s exit status and stderr into the launch error
+    /// the drop can act on. Nil on success.
+    ///
+    /// osascript reports `<range>: execution error: <message> (<number>)`.
+    /// -1743 (not authorized) and -1744 (consent would be needed) are
+    /// Automation. 1002 ("not allowed to send keystrokes") and -1719 ("not
+    /// allowed assistive access") are Accessibility, the System Events
+    /// keystroke path. Anything else is a plain failure carrying the message.
+    nonisolated static func classify(status: Int32, stderr: String) -> TerminalLaunchError? {
+        guard status != 0 else { return nil }
+        let raw = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+        if raw.contains("(-1743)") || raw.contains("(-1744)") {
+            return .permissionNeeded(
+                summary: "Tintpad isn't allowed to control your terminal",
+                remedy: "Allow it in System Settings → Privacy & Security → Automation, then try again. If Tintpad is already allowed, the grant has gone stale, remove it and add it back.",
+                pane: .automation)
         }
-        script.executeAndReturnError(&error)
-        if let error {
-            let num = (error[NSAppleScript.errorNumber] as? Int) ?? 0
-            // -1743 = not authorized to send Apple events: make it actionable.
-            if num == -1743 {
-                throw TerminalLaunchError.permissionNeeded(
-                    summary: "Tintpad isn't allowed to control your terminal",
-                    remedy: "Allow it in System Settings → Privacy & Security → Automation, then try again.",
-                    pane: .automation)
-            }
-            let msg = error[NSAppleScript.errorMessage] as? String ?? "\(error)"
-            throw TerminalLaunchError.launchFailed("AppleScript: \(msg)")
+        if raw.contains("(1002)") || raw.contains("(-1719)")
+            || raw.localizedCaseInsensitiveContains("not allowed to send keystrokes")
+            || raw.localizedCaseInsensitiveContains("not allowed assistive access") {
+            return .permissionNeeded(
+                summary: "Typing into your terminal needs Accessibility",
+                remedy: "Grant Tintpad in System Settings → Privacy & Security → Accessibility. If Tintpad is already listed, the grant has gone stale, remove it and add it back, then relaunch Tintpad.",
+                pane: .accessibility)
         }
+        let message = cleanMessage(raw)
+        return .launchFailed(message.isEmpty ? "exited \(status): " : "AppleScript: \(message)")
+    }
+
+    /// "12:40: execution error: Ghostty lost focus. (-2700)" → "Ghostty lost focus."
+    nonisolated static func cleanMessage(_ stderr: String) -> String {
+        var m = stderr.split(separator: "\n").first.map(String.init) ?? ""
+        if let r = m.range(of: "error: ") { m = String(m[r.upperBound...]) }
+        if let r = m.range(of: #"\s*\(-?\d+\)$"#, options: .regularExpression) { m.removeSubrange(r) }
+        return m.trimmingCharacters(in: .whitespaces)
     }
 }
 

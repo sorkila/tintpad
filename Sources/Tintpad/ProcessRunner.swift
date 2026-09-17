@@ -33,9 +33,13 @@ enum ProcessRunner {
         var value: Data { lock.lock(); defer { lock.unlock() }; return data }
     }
 
+    /// - Parameter input: written to the child's stdin, which is then closed
+    ///   so it sees EOF (`osascript -` reads its whole script this way). Nil
+    ///   leaves stdin inherited, as before.
     @discardableResult
     nonisolated static func run(_ executable: String, arguments: [String],
                                 environment: [String: String]? = nil,
+                                input: Data? = nil,
                                 timeout: TimeInterval) throws -> Output {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: executable)
@@ -44,6 +48,8 @@ enum ProcessRunner {
         let out = Pipe(), err = Pipe()
         p.standardOutput = out
         p.standardError = err
+        let inPipe: Pipe? = input == nil ? nil : Pipe()
+        if let inPipe { p.standardInput = inPipe }
 
         // Drain as data arrives — never after exit.
         let outBuf = Buffer(), errBuf = Buffer()
@@ -59,6 +65,19 @@ enum ProcessRunner {
         let done = DispatchSemaphore(value: 0)
         p.terminationHandler = { _ in done.signal() }
         do { try p.run() } catch { throw RunError.spawnFailed(error.localizedDescription) }
+
+        if let input, let inPipe {
+            // Written from its own thread: a child that never reads must not
+            // hold this one past the timeout (a pipe takes only 64KB before
+            // `write` blocks). NOSIGPIPE turns a child that exits unread into
+            // an EPIPE here, never a signal that kills Tintpad.
+            let handle = inPipe.fileHandleForWriting
+            _ = fcntl(handle.fileDescriptor, F_SETNOSIGPIPE, 1)
+            DispatchQueue.global(qos: .userInitiated).async {
+                try? handle.write(contentsOf: input)
+                try? handle.close()
+            }
+        }
 
         var timedOut = false
         if done.wait(timeout: .now() + timeout) == .timedOut {

@@ -50,8 +50,8 @@ and a worked example are in CONTRIBUTING.md under "Adding a terminal adapter."
 - New `TerminalAdapter` type with correct `displayName`, `bundleID`, and
   `isInstalled`.
 - Registered in `TerminalRegistry.all`.
-- `launch(_:)` opens at `workingDirectory` and runs `command`, any path goes
-  through `shellQuote`.
+- `prepare(_:)` returns the handoff that opens at `workingDirectory` and runs
+  `command`, any path goes through `shellQuote`.
 - Adapter is hidden when the app isn't installed.
 - PR notes how you tested it (`./Scripts/uitest.sh` or an eyeball launch).
 

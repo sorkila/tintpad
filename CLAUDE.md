@@ -84,7 +84,7 @@ in `Resources/Info.plist` then run `./Scripts/release.sh` to cut the next one.
 ## Commands
 ```sh
 swift build              # debug build
-swift test               # 124 unit tests (pure logic, keep green)
+swift test               # 140 unit tests (pure logic, keep green)
 swift run                # run from source (dev; unsigned)
 ./Scripts/package.sh     # assemble + sign .app/DMG in a TMPDIR scratch (signs if SIGN_IDENTITY set)
 ./Scripts/dev-install.sh # build → Developer ID sign → install to /Applications (local dev)
@@ -101,7 +101,11 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   `~/Library/Application Support/Tintpad/store.json`. Tolerant decoders (adding a field never reseeds).
 - **PaletteView.swift / CommandPanel.swift**, the palette (NSPanel + SwiftUI) and its controller.
 - **TerminalAdapter.swift**, 7 terminal adapters. **CommandTemplate.swift**, command building (the injection surface).
-- **LaunchService.swift**, `makeLaunch` (pure, tested) + injectable `resolveTerminal`.
+- **LaunchService.swift**, `makeLaunch` (pure, tested) + injectable `resolveTerminal`. Every launch
+  answers through a main-actor completion: `handOff` runs the adapter's `prepare` on main and its
+  blocking half on `handoffQueue` (GCD, not the cooperative pool, and **serial**: a re-summon clears
+  the palette's in-flight flag, so two keystroke scripts could otherwise interleave into one Ghostty
+  window, every step on it is bounded). `LaunchAnswerPolicy` (in `LaunchGate.swift`) decides where an answer lands. **LaunchStatusCopy.swift**, the drop's launch lines.
   `LaunchDefaults` (Models.swift) is the launch precedence: override → pin → last-used → default.
 - **ProcessRunner.swift**, the one way subprocesses run (timeout, drained pipes,
   SIGTERM→SIGKILL). **GitStatus.swift**, bounded dirty check. **RepoTint.swift**, per-repo
@@ -282,12 +286,21 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   safe = `--ask-for-approval untrusted` (needs a value). Claude: `--dangerously-skip-permissions`.
 - **Terminal permissions (TCC):** Terminal.app/iTerm2 use AppleScript → **Automation**, Ghostty types the command → **Accessibility**, CLI terminals (kitty/Alacritty/WezTerm) need neither.
   Surfaced with actionable errors. Open-in-tab is honored by Ghostty/iTerm2/Terminal/WezTerm.
+  AppleScript runs in a child `osascript` (stdin script, scrubbed spawn env), and TCC attributes
+  that child to Tintpad as the responsible process, so existing grants carry over and no new
+  "osascript" entry is needed. The stale-grant rule still applies to Tintpad's own signature.
+  `AppleScriptRunner.classify` maps -1743/-1744 to Automation and 1002/-1719 to Accessibility.
 - **Ghostty cold start:** `activate` on a not-running Ghostty *launches* it, and Ghostty
   opens its own initial window, so an unconditional ⌘N doubles the windows (one blank at
   home, one correct). `GhosttyAdapter` branches on `NSRunningApplication` (finished-launching
   instances only, a mid-launch instance is about to open its window too): warm keeps
   activate → ⌘N → type, cold types into the initial window with bounded polls instead of
-  fixed delays (NSAppleScript blocks the main actor, so a hung launch must fail, not wait).
+  fixed delays. The script runs off main through `osascript` with a 60s bound (long enough
+  for a first Automation consent prompt, which holds the Apple event), while the
+  `NSRunningApplication` check stays on main in `prepare`. The drop stays live meanwhile:
+  `launchInFlight` holds until the handoff answers, so Return is ignored, Esc still works,
+  a focus loss plays the launch exit. A failure lands in a newer drop that is up and idle, otherwise
+  on the next summon within 30s, never later.
 - **Code signing (important):**
   - **Unsigned/ad-hoc builds reset TCC grants on every rebuild** (the designated requirement
     is a cdhash that changes). A **Developer ID signature** has a stable cert-based requirement,

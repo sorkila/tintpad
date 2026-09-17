@@ -82,10 +82,14 @@ final class CommandPanelController: NSObject {
     private var dismissal = DismissSequencer()
 
     /// Owned here so it's alive + monitoring before the first summon.
-    private(set) lazy var model = PaletteModel(
-        store: .shared,
-        onClose: { [weak self] in self?.hide() },
-        onOpenSettings: { [weak self] in self?.openSettings() })
+    private(set) lazy var model: PaletteModel = {
+        let model = PaletteModel(
+            store: .shared,
+            onClose: { [weak self] in self?.hide() },
+            onOpenSettings: { [weak self] in self?.openSettings() })
+        model.isPresented = { [weak self] in self?.panel?.isVisible == true }
+        return model
+    }()
 
     /// Per-summon notch geometry, bridged into the SwiftUI island.
     private let anchor = NotchAnchor()

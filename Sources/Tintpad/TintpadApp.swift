@@ -38,7 +38,9 @@ struct TintpadApp: App {
             // The resume affordance lives here, not as palette chrome — menus
             // are where macOS teaches shortcuts (⌘0 also works in the palette).
             Button("Resume last session") {
-                if case .launched = LaunchService.resumeLast(store: store) {} else { NSSound.beep() }
+                LaunchService.resumeLast(store: store) { result in
+                    if case .failure(let error) = result, !LaunchService.isInFlight(error) { NSSound.beep() }
+                }
             }
             .disabled(!LaunchService.canResumeLast(store: store))
             Divider()
@@ -103,8 +105,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 DispatchQueue.main.async { self?.panelController.model.resumeLastSession() }
                 return
             }
-            if case .launched = LaunchService.resumeLast(store: store) {} else {
-                NSSound.beep()
+            LaunchService.resumeLast(store: store) { result in
+                if case .failure(let error) = result, !LaunchService.isInFlight(error) { NSSound.beep() }
             }
         }
 

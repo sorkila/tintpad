@@ -10,6 +10,37 @@ private struct PendingLaunch {
     let fire: () -> Void
 }
 
+/// What a launch line is about, held from the moment a launch starts until
+/// its handoff answers, so the completion needs to carry nothing but its
+/// generation (it crosses the handoff queue).
+private struct LaunchContext {
+    let generation: Int
+    let summonGeneration: Int
+    let repo: Repo?
+    /// The app named in "Opening …", nil for a launch with no line.
+    let target: String?
+    /// Re-runs the launch from its error line, through the danger gate. Nil
+    /// when a failure has nothing honest to retry.
+    let retry: (() -> Void)?
+    /// Overrides the failure line (the editor path's own copy).
+    let failureLine: ((Error) -> String)?
+}
+
+/// A failure that answered after its drop had gone (Esc, a focus loss, a
+/// re-summon), held so the next summon can say it instead of it vanishing.
+private struct DeferredFailure {
+    let error: Error
+    let context: LaunchContext
+    let at: Date
+}
+
+/// An error line that Return retries. Holds the exact line it showed, so
+/// anything that replaces or clears the line ends the retry.
+private struct FailedLaunch {
+    let line: String
+    let retry: () -> Void
+}
+
 /// A launch that failed on a missing TCC grant. Held so the next ⏎ opens the
 /// right System Settings pane instead of the error being a dead end — a
 /// permission failure whose only affordance is prose reads as "nothing
@@ -101,12 +132,22 @@ final class PaletteModel: ObservableObject {
     /// Moves on every request and cancel, so a stale fallback stands down.
     private var dismissRequestGeneration = 0
 
-    /// True from the launch request until the handoff begins (cleared just
-    /// before the deferred body runs). The handoff is deferred a beat so
-    /// "Opening …" is painted before it blocks, and a Return queued in that
-    /// beat must not launch a second time. A synchronous handoff holds the
-    /// main thread, so no second Return can be read while it runs.
+    /// True from the launch request until its handoff answers. The handoff
+    /// runs off main, so the drop stays live while it does: this flag is what
+    /// keeps a second Return from launching again (`LaunchGate`), and what
+    /// turns a focus loss mid-handoff (the terminal activating) into the
+    /// launch exit (`DismissPolicy`). A summon clears it, a newer drop is
+    /// free to launch while an older handoff finishes on its own.
     @Published private(set) var launchInFlight = false
+
+    /// Bumped by every launch. Only the latest launch's answer is acted on,
+    /// an older one was superseded by a launch the user made since.
+    private var launchGeneration = 0
+    private var launchContext: LaunchContext?
+    /// Plays the "Still opening …" beat, cancelled when the handoff answers.
+    private let launchBeats = StepSequencer()
+    private var failedLaunch: FailedLaunch?
+    private var deferredFailure: DeferredFailure?
 
     /// The note a finished launch left (Warp), kept while the drop stays open
     /// to show it.
@@ -149,6 +190,10 @@ final class PaletteModel: ObservableObject {
 
     fileprivate var pendingDangerous: PendingLaunch?
     @Published private(set) var pendingPermission: PendingPermission?
+
+    /// Whether the panel is on screen. Set by the controller: Settings orders
+    /// the panel out without a dismissal, so `isDismissing` alone can't tell.
+    var isPresented: () -> Bool = { true }
 
     /// Injectable (like `tabTraverses`) so the gesture can be tested off.
     var reduceMotionActive: () -> Bool = {
@@ -205,22 +250,67 @@ final class PaletteModel: ObservableObject {
         }
     }
 
-    /// Say where the launch is going, then run it a beat later. 50ms is three
-    /// display refreshes, enough for the line to be painted before a
-    /// synchronous AppleScript handoff holds the main thread.
-    private func launchAfterPaint(opening name: String?, repo: Repo?,
-                                  _ body: @escaping () -> Void) {
+    /// Say where the launch is going and start it. `start` kicks off the
+    /// handoff and must answer through the completion it is given, on main
+    /// (synchronously for a preflight error, later for the handoff itself).
+    /// After `stillOpeningAfter` seconds without an answer, the line admits
+    /// the launch is slow.
+    private func beginLaunch(opening target: String?, repo: Repo?,
+                             retry: (() -> Void)?,
+                             failureLine: ((Error) -> String)? = nil,
+                             _ start: (@escaping LaunchService.Completion) -> Void) {
+        launchGeneration += 1
+        let gen = launchGeneration
+        launchContext = LaunchContext(generation: gen, summonGeneration: summonGeneration,
+                                      repo: repo, target: target, retry: retry,
+                                      failureLine: failureLine)
+        // The user has moved on from any older failure.
+        deferredFailure = nil
+        failedLaunch = nil
         launchInFlight = true
         launchRepo = repo
-        if let name { status = "Opening \(name)…" }
-        let gen = summonGeneration
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-            guard let self else { return }
-            // A stale block leaves the flag alone: `reset()` already cleared
-            // it, and it may belong to a launch from the newer summon now.
-            guard summonGeneration == gen else { return }
+        launchBeats.cancel()
+        if let target {
+            let opening = LaunchStatusCopy.opening(target)
+            status = opening
+            launchBeats.run([StepSequencer.Beat(at: LaunchStatusCopy.stillOpeningAfter) { [weak self] in
+                // Only over its own line: typing or moving replaced it.
+                guard let self, launchGeneration == gen, launchInFlight, status == opening else { return }
+                status = LaunchStatusCopy.stillOpening(target)
+            }])
+        }
+        start { [weak self] result in self?.launchDidFinish(result, generation: gen) }
+    }
+
+    /// A handoff answered. `LaunchAnswerPolicy` decides where: in its own
+    /// drop it lands as usual (close, a note, an error line), a success
+    /// anywhere else is silent, and a failure is said in a newer drop that is
+    /// up and idle, or held for the next summon. It never closes a drop it
+    /// doesn't belong to.
+    private func launchDidFinish(_ result: Result<LaunchOutcome, Error>, generation gen: Int) {
+        guard gen == launchGeneration, let context = launchContext else { return }
+        launchContext = nil
+        let ownDrop = context.summonGeneration == summonGeneration
+        if ownDrop {
             launchInFlight = false
-            body()
+            launchBeats.cancel()
+        }
+        let succeeded: Bool
+        if case .success = result { succeeded = true } else { succeeded = false }
+        let disposition = LaunchAnswerPolicy.disposition(
+            succeeded: succeeded, ownDrop: ownDrop,
+            dropPresent: isPresented() && !isDismissing,
+            dropBusy: pendingDangerous != nil || pendingPermission != nil
+                || worktreeRepo != nil || promptRepo != nil)
+        switch (disposition, result) {
+        case (.land, .success(let outcome)):
+            finishLaunch(outcome)
+        case (.land, .failure(let error)), (.reportNow, .failure(let error)):
+            report(error, context: context)
+        case (.deferUntilSummon, .failure(let error)):
+            deferredFailure = DeferredFailure(error: error, context: context, at: Date())
+        default:
+            break
         }
     }
 
@@ -420,11 +510,14 @@ final class PaletteModel: ObservableObject {
     /// Called when the panel is shown to reset transient per-summon state.
     func reset() {
         cancelDismissal()
-        // A new summon supersedes any launch still deferred from the last
-        // one (it checks the generation and stands down), so nothing is in
-        // flight here and a stuck flag must never swallow every Return.
+        // A handoff still running from the last summon finishes on its own
+        // (its answer checks the generation and never lands in this drop), so
+        // nothing is in flight here and a stuck flag must never swallow every
+        // Return.
         summonGeneration += 1
         launchInFlight = false
+        launchBeats.cancel()
+        failedLaunch = nil
         launchNote = nil
         launchRepo = nil
         stripScrolled = false
@@ -454,6 +547,14 @@ final class PaletteModel: ObservableObject {
         // Off-main: a summon must render instantly even if the scan roots
         // live on a slow volume — the strip fills in as repos arrive.
         if store.repos.isEmpty { store.runAutoDiscoveryInBackground() }
+        // A launch that failed after its drop had gone says so now, last, so
+        // nothing above clears it. Return retries it, Esc closes.
+        if let failure = deferredFailure {
+            deferredFailure = nil
+            if LaunchAnswerPolicy.surfacesDeferred(age: Date().timeIntervalSince(failure.at)) {
+                report(failure.error, context: failure.context)
+            }
+        }
     }
 
     func handle(_ event: NSEvent) -> Bool {
@@ -544,19 +645,14 @@ final class PaletteModel: ObservableObject {
         guard let session = store.lastSession else { status = "No session to resume yet"; return true }
         let fire: () -> Void = { [weak self] in
             guard let self else { return }
-            let opening = LaunchService.canResumeLast(store: store)
-                ? LaunchService.terminalName(store: store) : nil
-            let repo = store.repos.first { $0.id == session.repoID }
-            launchAfterPaint(opening: opening, repo: repo) { [weak self] in
-                guard let self else { return }
-                switch LaunchService.resumeLast(store: store) {
-                case .launched: closeAfterLaunch()
-                case .unavailable:
-                    launchRepo = nil
-                    status = "⚠ That session can't be resumed, its repo, agent, or mode is gone"
-                case .failed(let error):
-                    report(error)
-                }
+            let canResume = LaunchService.canResumeLast(store: store)
+            let opening = canResume ? LaunchService.terminalName(store: store) : nil
+            let repo = canResume ? store.repos.first { $0.id == session.repoID } : nil
+            // A retry replays "the last session" as it is at retry time, the
+            // same as pressing ⌘0 again.
+            let retry: (() -> Void)? = canResume ? { [weak self] in _ = self?.resumeLastSession() } : nil
+            beginLaunch(opening: opening, repo: repo, retry: retry) { [store] completion in
+                LaunchService.resumeLast(store: store, completion: completion)
             }
         }
         if let agent = store.agent(session.agentID),
@@ -632,14 +728,27 @@ final class PaletteModel: ObservableObject {
     }
 
     /// Routes a launch error: permission failures arm the ⏎-opens-Settings
-    /// state, everything else lands in the status line as before.
-    private func report(_ error: Error) {
+    /// state, a gone session says so, and everything else is an error line
+    /// naming the app and what Return does (it retries).
+    private func report(_ error: Error, context: LaunchContext) {
+        launchRepo = context.repo
         if case TerminalLaunchError.permissionNeeded(let summary, _, let pane) = error {
             status = nil   // the "Opening …" line has had its turn
             pendingPermission = PendingPermission(summary: summary, pane: pane)
-        } else {
-            status = "⚠ \(error)"
+            return
         }
+        if error is LaunchService.ResumeError {
+            launchRepo = nil
+            status = "⚠ \(error)"
+            return
+        }
+        if let failureLine = context.failureLine {
+            status = "⚠ " + failureLine(error)
+            return
+        }
+        let line = "⚠ " + LaunchStatusCopy.error(terminal: context.target ?? "the terminal", error: error)
+        status = line
+        if let retry = context.retry { failedLaunch = FailedLaunch(line: line, retry: retry) }
     }
 
     /// Guarded so a scroll that never crosses the edge doesn't republish, and
@@ -742,7 +851,6 @@ final class PaletteModel: ObservableObject {
             // repo can take a while); the terminal handoff hops back to main.
             launchInFlight = true
             status = "Creating worktree…"
-            let store = self.store
             // A worktree add can take minutes on a stalled mount. If the user
             // has since dismissed and re-summoned, the result belongs to a
             // drop that no longer exists: stand down, never launch into the
@@ -753,18 +861,15 @@ final class PaletteModel: ObservableObject {
                     try WorktreeService.create(repoPath: repo.path, branch: branch, at: worktreePath)
                     Task { @MainActor [weak self] in
                         guard let self else { return }
-                        guard summonGeneration == gen else { return }   // flag: see launchAfterPaint
-                        // `launchAfterPaint` keeps the flight flag up across
-                        // the hop, so there is no gap for a second Return.
-                        launchAfterPaint(opening: LaunchService.terminalName(store: store),
-                                         repo: repo) { [weak self] in
-                            guard let self else { return }
-                            do {
-                                finishLaunch(try LaunchService.launchAgent(
-                                    repo: repo, agent: agent, mode: mode, prompt: promptText,
-                                    store: store, worktreePath: worktreePath))
-                            } catch { report(error) }
-                        }
+                        // A stale answer leaves the flag alone: `reset()`
+                        // already cleared it, and it may belong to a launch
+                        // from the newer summon now.
+                        guard summonGeneration == gen else { return }
+                        // `launch` keeps the flight flag up across the hop,
+                        // so there is no gap for a second Return. A retry
+                        // relaunches into the worktree, never re-creates it.
+                        launch(repo: repo, agent: agent, mode: mode,
+                               prompt: promptText, worktreePath: worktreePath)
                     }
                 } catch {
                     Task { @MainActor [weak self] in
@@ -813,6 +918,13 @@ final class PaletteModel: ObservableObject {
         if let pending = pendingDangerous {
             pendingDangerous = nil
             pending.fire()
+            return
+        }
+        // A launch failed and its line says Return retries: it does, through
+        // the danger gate again, since the drop may have been away since.
+        if let failed = failedLaunch, status == failed.line {
+            failedLaunch = nil
+            failed.retry()
             return
         }
         // A permission failure is showing: ⏎ opens the pane that fixes it.
@@ -879,23 +991,33 @@ final class PaletteModel: ObservableObject {
 
     private func openInEditor(repo: Repo) {
         let editor = EditorRegistry.preferred(settings: store.settings)
-        launchAfterPaint(opening: editor?.name, repo: repo) { [weak self] in
-            guard let self else { return }
-            do { try LaunchService.openInEditor(repo: repo, store: store); closeAfterLaunch() }
-            catch { status = "⚠ No editor detected, set one in Settings" }
+        beginLaunch(opening: editor?.name, repo: repo, retry: nil,
+                    failureLine: { _ in "No editor detected, set one in Settings" }) { [store] completion in
+            LaunchService.openInEditor(repo: repo, store: store, completion: completion)
         }
     }
 
     private func perform(repo: Repo, agent: Agent, mode: RunMode, prompt: String? = nil) {
-        // Resolved now, not in the deferred body: a prompt cycled in the beat
-        // before the handoff must not change what launches.
-        let prompt = prompt ?? selectedPrompt?.text
-        launchAfterPaint(opening: LaunchService.terminalName(store: store), repo: repo) { [weak self] in
-            guard let self else { return }
-            do {
-                finishLaunch(try LaunchService.launchAgent(
-                    repo: repo, agent: agent, mode: mode, prompt: prompt, store: store))
-            } catch { report(error) }
+        // Resolved now: what launches (and what a retry relaunches) is the
+        // prompt showing at Return, not whatever is cycled to later.
+        launch(repo: repo, agent: agent, mode: mode, prompt: prompt ?? selectedPrompt?.text)
+    }
+
+    /// The terminal launch itself, with everything already resolved, so a
+    /// retry from the error line runs exactly the same launch.
+    private func launch(repo: Repo, agent: Agent, mode: RunMode,
+                        prompt: String?, worktreePath: String? = nil) {
+        let retry: () -> Void = { [weak self] in
+            self?.fireOrConfirm(repo: repo, agent: agent, mode: mode) { [weak self] in
+                self?.launch(repo: repo, agent: agent, mode: mode,
+                             prompt: prompt, worktreePath: worktreePath)
+            }
+        }
+        beginLaunch(opening: LaunchService.terminalName(store: store), repo: repo,
+                    retry: retry) { [store] completion in
+            LaunchService.launchAgent(repo: repo, agent: agent, mode: mode, prompt: prompt,
+                                      store: store, worktreePath: worktreePath,
+                                      completion: completion)
         }
     }
 }
@@ -1535,9 +1657,9 @@ struct PaletteView: View {
 
     /// Hug the capsule to its content: clamp to [min, max], round up to 8pt
     /// (`DropGeometry.hugWidth`), and while the field holds text only ever
-    /// grow (`DropGeometry.ratchet`). Frozen while a launch is starting (a
-    /// resize animation would stall behind the synchronous handoff) and
-    /// while the drop is leaving. Animates only once the content has
+    /// grow (`DropGeometry.ratchet`). Frozen while a launch is in flight
+    /// (its Opening line is transient, the capsule must not breathe for it
+    /// and again for what replaces it) and while the drop is leaving. Animates only once the content has
     /// arrived, so the strip's viewport is static through the arrival's
     /// re-scroll (the 0.3.2 shear fix depends on that).
     private func rehug(animated: Bool, fresh: Bool = false) {

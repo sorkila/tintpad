@@ -33,13 +33,17 @@ protocol TerminalAdapter: Sendable {
     var displayName: String { get }
     var bundleID: String { get }
     var isInstalled: Bool { get }
-    @discardableResult
-    func launch(_ launch: TerminalLaunch) throws -> LaunchOutcome
+    @MainActor func prepare(_ launch: TerminalLaunch) throws -> TerminalHandoff
 }
 
-struct TerminalLaunch {
+struct TerminalLaunch: Sendable {
     let workingDirectory: String   // absolute, canonicalized repo path
     let command: String            // full command, binary already absolute
+}
+
+enum TerminalHandoff: Sendable {
+    case done(LaunchOutcome)                              // finished on main (quick AppKit calls)
+    case blocking(@Sendable () throws -> LaunchOutcome)   // run off main by LaunchService
 }
 ```
 
@@ -48,7 +52,7 @@ Steps:
 1. Add a `struct MyTermAdapter: TerminalAdapter`.
    - `bundleID`, the app's bundle identifier (e.g. `"com.example.MyTerm"`).
    - `isInstalled`, usually `NSWorkspace.shared.urlForApplication(withBundleIdentifier:) != nil`.
-   - `launch(_:)`, open a new window/tab at `launch.workingDirectory` and run `launch.command`. Prefer a CLI flag (like kitty/Alacritty) over AppleScript, fall back to AppleScript `do script` (like Terminal/iTerm2) or keystrokes (Ghostty) only if there's no command API.
+   - `prepare(_:)`, check what needs AppKit on the main actor (installed, TCC trust, whether the app is running) and return `.blocking { … }` with the work that opens a new window/tab at `launch.workingDirectory` and runs `launch.command`. The blocking closure runs off the main thread, so it must not touch AppKit, and subprocesses go through `ProcessRunner` (AppleScript through `AppleScriptRunner`, which runs `osascript`). Prefer a CLI flag (like kitty/Alacritty) over AppleScript, fall back to AppleScript `do script` (like Terminal/iTerm2) or keystrokes (Ghostty) only if there's no command API.
 2. Register it in `TerminalRegistry.all` (line ~264).
 3. If you build the command string, **reuse the existing `shellQuote` helper**, never hand-concatenate paths.
 4. Test it: add `TestA`/`TestB` marker agents and run `./Scripts/uitest.sh`, or just launch and eyeball it.

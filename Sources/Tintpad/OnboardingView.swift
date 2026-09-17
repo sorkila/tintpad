@@ -81,6 +81,8 @@ struct OnboardingView: View {
     @State private var axTrusted = false
     @State private var testStatus: String?
     @State private var testOK = false
+    /// A test launch is underway: its line is gray waiting, not a red error.
+    @State private var testInFlight = false
     // Monochrome, like everything the drop introduces: gray at rest, white
     // where the eye should land, and red only when something is wrong.
     private let errorRed = Color(red: 1, green: 0.42, blue: 0.32)
@@ -124,6 +126,7 @@ struct OnboardingView: View {
                     }
                     HStack(spacing: 10) {
                         Button("Test launch") { testLaunch() }
+                            .disabled(testInFlight)
                         if testOK {
                             Label("Working", systemImage: "checkmark.circle.fill")
                                 .font(.callout).foregroundStyle(.green)
@@ -131,9 +134,9 @@ struct OnboardingView: View {
                     }
                     if let s = testStatus, !testOK {
                         Text(s)
-                            .font(.caption).foregroundStyle(errorRed)
+                            .font(.caption).foregroundStyle(testInFlight ? Color.secondary : errorRed)
                             .fixedSize(horizontal: false, vertical: true)
-                        permissionsControl
+                        if !testInFlight { permissionsControl }
                     }
                 }
                 .frame(minHeight: 88, alignment: .topLeading)
@@ -234,16 +237,25 @@ struct OnboardingView: View {
     /// whole handoff works before the user leaves onboarding.
     private func testLaunch() {
         let terminal = TerminalRegistry.preferred(settings: store.settings)
-        do {
-            _ = try terminal.launch(TerminalLaunch(
-                workingDirectory: NSHomeDirectory(),
-                command: "echo 'Tintpad is set up, you can close this window.'"))
-            testOK = true
-            testStatus = "Working, a terminal window just opened."
-        } catch {
-            testOK = false
-            testStatus = "\(error)"
-            axTrusted = AXIsProcessTrusted()
+        testOK = false
+        testInFlight = true
+        testStatus = "Opening \(terminal.displayName)…"
+        // Same path as the palette, so the handoff runs off main and a cold
+        // start (or a first Automation prompt) never freezes the window.
+        LaunchService.handOff(TerminalLaunch(
+            workingDirectory: NSHomeDirectory(),
+            command: "echo 'Tintpad is set up, you can close this window.'"), to: terminal
+        ) { result in
+            testInFlight = false
+            switch result {
+            case .success:
+                testOK = true
+                testStatus = "Working, a terminal window just opened."
+            case .failure(let error):
+                testOK = false
+                testStatus = "\(error)"
+                axTrusted = AXIsProcessTrusted()
+            }
         }
     }
 

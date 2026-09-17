@@ -1317,3 +1317,141 @@ final class FuzzyMatchTests: XCTestCase {
         XCTAssertTrue(RepoSearch.rank("", in: ordered).allSatisfy { $0.match.offsets.isEmpty })
     }
 }
+
+/// `osascript` reports failures as exit status + stderr. The drop can only
+/// act on them (open the right pane, say what went wrong) if they classify.
+final class AppleScriptClassifyTests: XCTestCase {
+    func testSuccessIsNil() {
+        XCTAssertNil(AppleScriptRunner.classify(status: 0, stderr: ""))
+    }
+
+    func testMinus1743IsAutomation() {
+        let error = AppleScriptRunner.classify(
+            status: 1, stderr: "0:62: execution error: Not authorized to send Apple events to iTerm2. (-1743)\n")
+        guard case .permissionNeeded(_, _, let pane)? = error else {
+            return XCTFail("expected a permission error, got \(String(describing: error))")
+        }
+        XCTAssertEqual(pane, .automation)
+    }
+
+    func testKeystrokeNotAllowedIsAccessibility() {
+        for stderr in [
+            "120:160: execution error: System Events got an error: osascript is not allowed to send keystrokes. (1002)",
+            "System Events got an error: osascript is not allowed assistive access. (-1719)",
+        ] {
+            let error = AppleScriptRunner.classify(status: 1, stderr: stderr)
+            guard case .permissionNeeded(_, _, let pane)? = error else {
+                return XCTFail("expected a permission error for \(stderr)")
+            }
+            XCTAssertEqual(pane, .accessibility)
+        }
+    }
+
+    func testOtherErrorsAreLaunchFailedWithStderr() {
+        let error = AppleScriptRunner.classify(
+            status: 1, stderr: "88:140: execution error: Ghostty lost focus, nothing was typed. (-2700)\n")
+        guard case .launchFailed(let message)? = error else {
+            return XCTFail("expected launchFailed, got \(String(describing: error))")
+        }
+        XCTAssertEqual(message, "AppleScript: Ghostty lost focus, nothing was typed.")
+        // Silent failure: the exit status is all there is to say.
+        guard case .launchFailed(let bare)? = AppleScriptRunner.classify(status: 3, stderr: "  \n") else {
+            return XCTFail("expected launchFailed")
+        }
+        XCTAssertEqual(bare, "exited 3: ")
+    }
+}
+
+final class ProcessRunnerTests: XCTestCase {
+    func testStdinIsDelivered() throws {
+        let script = "tell application \"Ghostty\" to activate\nkeystroke \"cd '/x/Åsa' && claude\"\n"
+        let out = try ProcessRunner.run("/bin/cat", arguments: [],
+                                        input: Data(script.utf8), timeout: 10)
+        XCTAssertEqual(out.status, 0)
+        XCTAssertEqual(out.stdout, script)
+    }
+
+    // Past a pipe's 64KB buffer both ways: the stdin writer and the stdout
+    // drain must run concurrently or the child and the runner deadlock.
+    func testLargeStdinDoesNotDeadlock() throws {
+        let input = String(repeating: "0123456789abcdef", count: 16 * 1024)   // 256KB
+        let out = try ProcessRunner.run("/bin/cat", arguments: [],
+                                        input: Data(input.utf8), timeout: 10)
+        XCTAssertEqual(out.stdout.count, input.count)
+    }
+}
+
+final class LaunchStatusCopyTests: XCTestCase {
+    func testErrorCopyNamesTerminalAndReturn() {
+        XCTAssertEqual(
+            LaunchStatusCopy.error(terminal: "Ghostty", error: TerminalLaunchError.launchFailed("exited 1: boom")),
+            "Couldn't open Ghostty (exit 1), Return retries, Esc closes")
+    }
+
+    func testTimeoutsReadTimedOut() {
+        XCTAssertEqual(LaunchStatusCopy.reason(ProcessRunner.RunError.timedOut(60)), "timed out")
+        XCTAssertEqual(LaunchStatusCopy.reason(
+            TerminalLaunchError.launchFailed("/usr/bin/open: timed out after 15s")), "timed out")
+    }
+
+    func testAppleScriptMessageReadsAsItsFirstClause() {
+        XCTAssertEqual(LaunchStatusCopy.reason(
+            TerminalLaunchError.launchFailed("AppleScript: Ghostty lost focus, nothing was typed.")),
+            "Ghostty lost focus")
+        XCTAssertEqual(LaunchStatusCopy.reason(TerminalLaunchError.notInstalled), "not installed")
+    }
+
+    func testLongReasonsAreCutToOneLine() {
+        let reason = LaunchStatusCopy.reason(TerminalLaunchError.launchFailed(
+            "AppleScript: Can't get window 1 of application process Ghostty.app because it is gone"))
+        XCTAssertLessThanOrEqual(reason.count, LaunchStatusCopy.maxReason)
+        XCTAssertTrue(reason.hasSuffix("…"))
+        XCTAssertTrue(reason.hasPrefix("Can't get window 1 of application"))
+    }
+
+    func testWaitingLines() {
+        XCTAssertEqual(LaunchStatusCopy.opening("iTerm2"), "Opening iTerm2…")
+        XCTAssertEqual(LaunchStatusCopy.stillOpening("iTerm2"), "Still opening iTerm2…")
+        XCTAssertEqual(LaunchStatusCopy.stillOpeningAfter, 4)
+    }
+}
+
+final class LaunchAnswerPolicyTests: XCTestCase {
+    private func d(_ succeeded: Bool, own: Bool, present: Bool, busy: Bool = false) -> LaunchAnswerPolicy.Disposition {
+        LaunchAnswerPolicy.disposition(succeeded: succeeded, ownDrop: own, dropPresent: present, dropBusy: busy)
+    }
+
+    func testOwnDropStillUpLands() {
+        XCTAssertEqual(d(true, own: true, present: true), .land)
+        XCTAssertEqual(d(false, own: true, present: true), .land)
+        // Its own drop lands even mid-capture: the line is its own.
+        XCTAssertEqual(d(false, own: true, present: true, busy: true), .land)
+    }
+
+    func testSuccessElsewhereIsSilent() {
+        for own in [false, true] {
+            for present in [false, true] where !(own && present) {
+                XCTAssertEqual(d(true, own: own, present: present), .silent)
+            }
+        }
+    }
+
+    // Esc or a click elsewhere, then the exit plays or the panel is gone.
+    func testFailureWithNoDropUpWaitsForTheNextSummon() {
+        XCTAssertEqual(d(false, own: true, present: false), .deferUntilSummon)
+        XCTAssertEqual(d(false, own: false, present: false), .deferUntilSummon)
+    }
+
+    // Re-summoned while the old launch ran: say it in the new drop now.
+    func testFailureFromOlderSummonReportsInIdleNewerDrop() {
+        XCTAssertEqual(d(false, own: false, present: true), .reportNow)
+        // Never over a confirm, a permission line or a capture.
+        XCTAssertEqual(d(false, own: false, present: true, busy: true), .deferUntilSummon)
+    }
+
+    func testDeferredFailuresExpire() {
+        XCTAssertTrue(LaunchAnswerPolicy.surfacesDeferred(age: 5))
+        XCTAssertTrue(LaunchAnswerPolicy.surfacesDeferred(age: LaunchAnswerPolicy.deferredLifetime))
+        XCTAssertFalse(LaunchAnswerPolicy.surfacesDeferred(age: LaunchAnswerPolicy.deferredLifetime + 1))
+    }
+}

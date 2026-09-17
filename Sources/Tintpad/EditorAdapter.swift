@@ -32,18 +32,20 @@ struct EditorApp: Identifiable, Sendable {
 
     private func runOpen(_ args: [String]) throws { try runProcess("/usr/bin/open", args) }
 
+    /// Bounded and drained through `ProcessRunner`: this runs on the serial
+    /// handoff queue ahead of the terminal, so a chatty or hung editor CLI
+    /// must fail after 15s, never hold every later launch behind it.
     private func runProcess(_ exe: String, _ args: [String]) throws {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: exe)
-        p.arguments = args
-        p.environment = ShellEnvironment.processEnvironment
-        p.standardError = Pipe(); p.standardOutput = Pipe()
-        do { try p.run() } catch {
+        let result: ProcessRunner.Output
+        do {
+            result = try ProcessRunner.run(exe, arguments: args,
+                                           environment: ShellEnvironment.processEnvironment,
+                                           timeout: 15)
+        } catch {
             throw TerminalLaunchError.launchFailed("\(exe): \(error.localizedDescription)")
         }
-        p.waitUntilExit()
-        if p.terminationStatus != 0 {
-            throw TerminalLaunchError.launchFailed("\(name) exited \(p.terminationStatus)")
+        if result.status != 0 {
+            throw TerminalLaunchError.launchFailed("exited \(result.status): \(name)")
         }
     }
 }
