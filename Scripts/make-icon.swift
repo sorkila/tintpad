@@ -9,7 +9,8 @@
 // grid), Resources/Tintpad.icns, Sources/Tintpad/Resources/appicon.png (the
 // unbundled `swift run` fallback), docs/assets/icon.png (512), the web family
 // (icon 64, apple-touch-icon 180, favicon-16, favicon-32) and the GitHub
-// social card (docs/assets/social-card.png, upload it in the repo settings).
+// social card (docs/assets/social-card.png, upload it in the repo settings)
+// plus the site's share card (web/assets/og.png, og.jpg).
 
 import AppKit
 
@@ -109,19 +110,43 @@ NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: card)
 NSGraphicsContext.current?.imageInterpolation = .high
 NSColor(white: 0.035, alpha: 1).setFill()
 NSRect(x: 0, y: 0, width: 2560, height: 1280).fill()
-export.draw(in: NSRect(x: 220, y: 340, width: 600, height: 600))
-func text(_ s: String, size: CGFloat, weight: NSFont.Weight, white: CGFloat, y: CGFloat, kern: CGFloat = 0) {
-    let attrs: [NSAttributedString.Key: Any] = [
+// Icon and words centered as one group, so the card balances in any crop.
+func line(_ s: String, size: CGFloat, weight: NSFont.Weight, white: CGFloat, kern: CGFloat = 0) -> NSAttributedString {
+    NSAttributedString(string: s, attributes: [
         .font: NSFont.systemFont(ofSize: size, weight: weight),
         .foregroundColor: NSColor(white: white, alpha: 1),
         .kern: kern,
-    ]
-    NSAttributedString(string: s, attributes: attrs).draw(at: NSPoint(x: 940, y: y))
+    ])
 }
-text("Tintpad", size: 190, weight: .semibold, white: 0.96, y: 660, kern: -4)
-text("It falls out of your notch.", size: 76, weight: .regular, white: 0.62, y: 540)
-text("FREE  ·  OPEN SOURCE  ·  MACOS", size: 40, weight: .semibold, white: 0.42, y: 420, kern: 4)
+let words = [
+    (line("Tintpad", size: 190, weight: .semibold, white: 0.96, kern: -4), CGFloat(660)),
+    (line("It falls out of your notch.", size: 76, weight: .regular, white: 0.62), CGFloat(540)),
+    (line("FREE  ·  OPEN SOURCE  ·  MACOS", size: 40, weight: .semibold, white: 0.42, kern: 4), CGFloat(420)),
+]
+let iconSide: CGFloat = 600, gap: CGFloat = 120
+let textWidth = words.map { $0.0.size().width }.max()!
+let left = (2560 - (iconSide + gap + textWidth)) / 2
+export.draw(in: NSRect(x: left, y: 340, width: iconSide, height: iconSide))
+for (text, y) in words { text.draw(at: NSPoint(x: left + iconSide + gap, y: y)) }
 NSGraphicsContext.restoreGraphicsState()
 try! card.representation(using: .png, properties: [:])!.write(to: path("docs/assets/social-card.png"))
 
-print("done: source, icns, app fallback, docs icon, web family, social card")
+// The site's share card is the same card at the 1280x640 Open Graph size, a
+// png source and the progressive jpeg the pages actually serve.
+let og = NSImage(size: NSSize(width: 2560, height: 1280))
+og.addRepresentation(card)
+let ogRep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 1280, pixelsHigh: 640,
+                             bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
+                             isPlanar: false, colorSpaceName: .deviceRGB,
+                             bytesPerRow: 0, bitsPerPixel: 0)!
+ogRep.size = NSSize(width: 1280, height: 640)
+NSGraphicsContext.saveGraphicsState()
+NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: ogRep)
+NSGraphicsContext.current?.imageInterpolation = .high
+og.draw(in: NSRect(x: 0, y: 0, width: 1280, height: 640))
+NSGraphicsContext.restoreGraphicsState()
+try! ogRep.representation(using: .png, properties: [:])!.write(to: path("web/assets/og.png"))
+try! ogRep.representation(using: .jpeg, properties: [.compressionFactor: 0.9, .progressive: true])!
+    .write(to: path("web/assets/og.jpg"))
+
+print("done: source, icns, app fallback, docs icon, web family, social + share cards")

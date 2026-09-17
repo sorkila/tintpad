@@ -5,7 +5,7 @@
 # sequence, cuts every published asset, and restores the store.
 #
 # Needs: the current app installed (Scripts/dev-install.sh), ffmpeg, Pillow
-# (python3 -m pip install Pillow, for the progressive og.jpg), and
+# (python3 -m pip install Pillow, for the keycap captions), and
 # Screen Recording permission for the terminal running this.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -201,18 +201,5 @@ ffmpeg -v error -y -ss 8.2 -i web/assets/demo.mp4 -frames:v 1 -update 1 -q:v 3 w
 ffmpeg -v error -y -i "$WORK/hero-full.png" -i "$WORK/notch.png" -filter_complex \
   "[1:v]scale=405:-1[tab];[0:v]crop=1800:406:612:48,pad=1800:446:0:40:color=black[b];[b][tab]overlay=697:0" \
   -frames:v 1 -update 1 docs/assets/palette.png
-ffmpeg -v error -y -i "$WORK/hero-full.png" -i "$WORK/notch.png" -filter_complex \
-  "[1:v]scale=405:-1[tab];[0:v]crop=1600:770:712:48,pad=1600:800:0:30:color=black[b];[b][tab]overlay=597:-10,scale=1280:640" \
-  -frames:v 1 -update 1 web/assets/og.png
-# The share card the site actually serves: same 1280x640 frame as og.png,
-# re-encoded as progressive JPEG q90 (ffmpeg's mjpeg and sips only write
-# baseline, Pillow matches the file the pages reference byte-for-byte).
-python3 - web/assets/og.png web/assets/og.jpg <<'EOF'
-import sys
-from PIL import Image
-Image.open(sys.argv[1]).convert("RGB").save(
-    sys.argv[2], "JPEG", quality=90, progressive=True, optimize=True)
-EOF
-
-echo "✓ Assets written: web/assets/demo.mp4, demo-poster.jpg, og.png, og.jpg, docs/assets/palette.png"
+echo "✓ Assets written: web/assets/demo.mp4, demo-poster.jpg, docs/assets/palette.png"
 echo "  Review them, then: git add web/assets docs/assets && git commit && git push"

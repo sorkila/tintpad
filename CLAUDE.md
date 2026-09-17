@@ -386,8 +386,8 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   carries canonical + SoftwareApplication/FAQPage JSON-LD and a Lockpaw cross-link in the footer),
   `appcast.xml`, `robots.txt`, `sitemap.xml`, `llms.txt`, `.htaccess` (https + apex 301s, verify
   via Inleed if redirects misbehave), and `assets/` (demo.mp4, demo-poster.jpg, og.jpg, og.png).
-  Uses umami analytics + full Open Graph / Twitter-card meta. og.jpg (progressive JPEG ~160KB) is
-  the served share card, og.png stays as the pipeline source, `record-demo.sh` emits both (Pillow).
+  Uses umami analytics + full Open Graph / Twitter-card meta. og.jpg (progressive JPEG ~50KB) is
+  the served share card, the icon card, emitted with og.png by `Scripts/make-icon.swift` (bump its `?v=`).
   Auto-deploys to tintpad.com via `.github/workflows/deploy-web.yml`.
 - `Scripts/`, package / dev-install / release / uitest. `Casks/tintpad.rb`, Homebrew cask
   (mirrored into the separate `sorkila/homebrew-tap` repo, which is what `brew` installs from).

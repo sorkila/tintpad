@@ -16,7 +16,6 @@ raw take, then cuts every published asset and restores your store.
 |---|---|
 | `web/assets/demo.mp4` | the film on tintpad.com (12s, 60fps) |
 | `web/assets/demo-poster.jpg` | the video's poster frame (the red MODE dwell) |
-| `web/assets/og.png` | Open Graph / Twitter share card |
 | `docs/assets/palette.png` | README still (the GIF is the hero) |
 | `docs/assets/demo.gif` | README hero, rendered from `demo.mp4` (see below) |
 
