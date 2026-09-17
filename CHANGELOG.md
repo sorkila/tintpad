@@ -4,6 +4,11 @@ All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepac
 
 ## [0.4.1] - Unreleased
 
+### Changed
+- **A new app icon**, built in Icon Composer: a lit glass capsule resting on a dark pad,
+  the drop and the notch it falls from. The favicon is redrawn as its silhouette so it
+  still reads at 16px, and the GitHub social card carries it too.
+
 ### Removed
 - **The Supporter tip and its tinted chips.** Tintpad is free with nothing to
   unlock: the license key field, the Supporter badge, and the Appearance pane

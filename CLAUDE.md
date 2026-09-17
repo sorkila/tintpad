@@ -364,26 +364,24 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   on every push (a "startup failure"). Map secrets to **job-level `env`** and gate on `env.X`.
 - **Settings:** don't put multiple SwiftUI `.menu` Pickers in one `Form` (AttributeGraph crash on
   this SDK), use `PopUpPicker` (NSPopUpButton wrapper).
-- **App icon on macOS 26 (Tahoe):** the system composites a ~3pt Liquid Glass rim onto
-  **every** icon, Apple's own included. It can't be removed, only made to read native,
-  and two rules make it behave. The icns art must sit on Apple's standard grid, an
-  824×824 squircle (corner radius ~185) centered in the 1024 canvas with transparent
-  margins. A full-bleed squircle makes Tahoe's ring land half on, half off the corners
-  and look broken (this survived every shading fix until the grid was corrected). And
-  the panel behind the ring must be a **flat** gray ~31, the value native dark icons
-  use. Any gradient or vignette there reads as a glowing frame, and gamma tweaks can't
-  fix gradient shape, so flatten with background subtraction. Always rebuild from the
-  raw render (`Resources/appicon-raw.jpg`) rather than stacking curve fixes on the
-  masked source, then `swift Scripts/make-icon.swift` regenerates the icns and the
-  docs/web favicon family. Icon caches outlive `killall Dock`: also `lsregister -f`
-  the installed app, delete `$(getconf DARWIN_USER_CACHE_DIR)com.apple.iconservices`,
-  and `killall iconservicesagent`. The properly native fix is the layered `.icon`
-  format (Icon Composer + `actool`), on the roadmap.
+- **App icon (0.4.1, Icon Composer):** the icon is designed in Icon Composer and exported
+  (iOS, Default, 1024) to `Resources/appicon-export.png`. `swift Scripts/make-icon.swift`
+  builds everything from that one file: the art on Apple's **824-in-1024 grid**
+  (`appicon-source.png`, also the `swift run` fallback in `Sources/Tintpad/Resources`), the
+  icns, `docs/assets/icon.png`, the web family, and `docs/assets/social-card.png` (upload it
+  by hand in the repo's Settings, GitHub has no API for it). Tahoe composites its rim onto
+  every icns, and a full-bleed tile makes that rim land half off the corners, so keep the grid.
+  **Favicons are redrawn, never shrunk**: at 16px the glass turns to mud and a dark tile
+  vanishes into a dark tab bar, so `favicon-16/32` are the silhouette with a light rim. Bump
+  the `?v=` on the icon links in `web/index.html` when the icon changes. Icon caches outlive
+  `killall Dock`: also `lsregister -f` the installed app, delete
+  `$(getconf DARWIN_USER_CACHE_DIR)com.apple.iconservices`, and `killall iconservicesagent`.
+  Shipping the `.icon` itself (compiled by `actool` into `Assets.car`) is still on the roadmap.
 
 ## Repo layout
 - `Sources/Tintpad/`, app. `Tests/TintpadTests/`, unit tests. `Resources/`, Info.plist, icns,
-  entitlements, and the icon sources (`appicon-raw.jpg` the raw render, `appicon-source.png`
-  the masked 1024 build that `Scripts/make-icon.swift` consumes).
+  entitlements, and the icon sources (`appicon-export.png` the Icon Composer export,
+  `appicon-source.png` the 824-grid build `Scripts/make-icon.swift` makes from it).
 - `web/`, marketing site: a single hand-written `index.html` (no build step, kept lean ~16KB: hero + film, WHAT IT DOES, five QUESTIONS, a three-line footer, each fact said once,
   carries canonical + SoftwareApplication/FAQPage JSON-LD and a Lockpaw cross-link in the footer),
   `appcast.xml`, `robots.txt`, `sitemap.xml`, `llms.txt`, `.htaccess` (https + apex 301s, verify

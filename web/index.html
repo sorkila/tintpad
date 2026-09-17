@@ -22,10 +22,10 @@
 <meta name="twitter:title" content="Tintpad | The launcher that falls out of your notch" />
 <meta name="twitter:description" content="A hotkey, a black drop from the notch, your repos inside. Return opens your terminal with your agent already running. Free, open source, native macOS." />
 <meta name="twitter:image" content="https://tintpad.com/assets/og.jpg" />
-<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=3" />
-<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=3" />
-<link rel="icon" type="image/png" href="assets/icon.png?v=3" />
-<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=3" />
+<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=4" />
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=4" />
+<link rel="icon" type="image/png" href="assets/icon.png?v=4" />
+<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=4" />
 <script defer src="https://cloud.umami.is/script.js" data-website-id="e2f753b7-c462-48c7-8bfc-46e6e78aa516"></script>
 <style>
   :root{
@@ -44,10 +44,8 @@
 
   nav{display:flex;justify-content:space-between;align-items:center;padding:22px 0;font-size:14px}
   .logo{display:flex;align-items:center;gap:10px;font-weight:550;letter-spacing:-.01em}
-  /* The mark sits in a hardware tile — the black drop needs a bezel on a black page. */
-  .logo .mark{width:27px;height:27px;border-radius:8px;background:#16161a;
-    border:1px solid rgba(255,255,255,.14);display:grid;place-items:center}
-  .logo .mark img{width:21px;height:21px;border-radius:5px;display:block}
+  /* The icon brings its own tile, so it stands on the page as it is. */
+  .logo img{width:30px;height:30px;display:block}
 
   .hero{text-align:left;padding:60px 0 0}
   h1{font-size:clamp(38px,6.4vw,60px);font-weight:600;letter-spacing:-.035em;line-height:1.05;color:var(--text)}
@@ -179,7 +177,7 @@
 <body>
 <div class="wrap">
   <nav>
-    <span class="logo"><span class="mark"><img src="assets/icon.png?v=3" alt=""/></span>tintpad</span>
+    <span class="logo"><img src="assets/icon.png?v=4" width="30" height="30" alt=""/>tintpad</span>
   </nav>
 
   <div class="hero">

@@ -6,9 +6,8 @@
 
 **It falls out of your notch.**
 
-Press a hotkey and a black drop falls from the camera housing with your repos
-inside. Return opens your terminal at that repo with Claude Code, Codex, or
-whatever you run, already going.
+Hotkey, repo, Return. Your terminal opens at that repo with Claude Code, Codex,
+or whichever agent you're into this week, already running.
 
 [![CI](https://github.com/sorkila/tintpad/actions/workflows/ci.yml/badge.svg)](https://github.com/sorkila/tintpad/actions/workflows/ci.yml)
 &nbsp;![macOS 14+](https://img.shields.io/badge/macOS-14%2B-000)
@@ -21,79 +20,46 @@ whatever you run, already going.
 
 ---
 
-Press <kbd>⌥⌘Space</kbd>. Arrow or type to a repo. Hit <kbd>⏎</kbd>. Your real terminal
-opens there with the agent running, in under two seconds, without the mouse.
-
-**Think ⌘Tab, for repos.** A black drop falls out of the notch with your projects inside, each with its
-own tint, ranked by how you actually work. It hands off to the terminal you already use.
-It doesn't try to be one.
-
-> Not a usage monitor. Not an IDE. Not a terminal. The launcher the agent menu-bar apps forgot.
-
-The chips are the contract: `AGENT Claude Code · MODE Default`, exactly what ⏎ will
-run, in the agent's own words. Nothing happens that the chips didn't announce, and a
-mode that skips permissions is a red chip before you ever press ⏎.
-
-
-## Why
-
-GUI apps don't inherit your shell `PATH`, so double-clicking an app can't find
-`claude` or `codex`. Repo-switching is friction. Tintpad fixes both: it resolves your
-login-shell `PATH` once, ranks repos by frecency, and hands the command to your terminal
-at the right directory. The boring 2-second thing you do twenty times a day, gone.
-
 ## Install
 
-**[Download the latest signed, notarized `Tintpad.dmg`](https://github.com/sorkila/tintpad/releases/latest/download/Tintpad.dmg)**,
-drag it to Applications, and launch. macOS 14+.
-(Or browse all [releases](https://github.com/sorkila/tintpad/releases).)
-
-Or with Homebrew:
+**[Download Tintpad.dmg](https://github.com/sorkila/tintpad/releases/latest/download/Tintpad.dmg)**
+(signed and notarized, macOS 14+), or:
 
 ```sh
 brew install --cask sorkila/tap/tintpad
 ```
 
-Or build from source (macOS 14+, Swift 6 toolchain / Xcode 16+):
+Or build it yourself (Swift 6, Xcode 16+):
 
 ```sh
-git clone https://github.com/sorkila/tintpad.git
-cd tintpad
+git clone https://github.com/sorkila/tintpad.git && cd tintpad
 swift run                  # dev run
-./Scripts/package.sh       # build Tintpad.app into .build/release
+./Scripts/package.sh       # Tintpad.app into .build/release
 ```
+
+## What it does
+
+- **The drop.** Black on black, straight out of the housing. No notch? It hangs below the menu bar.
+- **Your terminal, not a new one.** Ghostty, iTerm2, kitty, WezTerm, Alacritty, Terminal, or
+  Warp, opened at the repo with the agent running. Warp has no command API, so it gets the
+  repo and your clipboard gets the command.
+- **The contract.** Two chips say exactly what Return runs, in the agent's own words. A mode
+  that skips permissions turns red first and can ask before it fires, on every path.
+- **Frecency.** The repos you actually use float up, with the agent and mode you used last.
+- **Worktrees and dispatch.** <kbd>⌃W</kbd> for a fresh branch checkout with an agent inside,
+  <kbd>⌃⏎</kbd> to run one in the background and get pinged when it's done.
+- **The rest.** Prompt library, per-repo presets, GitHub import, open in editor.
+- **Polite.** Dynamic Type, VoiceOver, Reduce Motion. Local-only, no account, no telemetry.
+
+It also fixes the quiet one: GUI apps don't inherit your shell `PATH`, so a double-clicked
+app can't find `claude` at all. Tintpad reads your login shell once and moves on.
 
 ### If Return does nothing
 
-Launch problems show inside the drop as a red line, and Return on that line opens the
-System Settings pane that fixes it. One macOS quirk is worth knowing: permission grants
-are keyed to the app's signature, so Accessibility can show Tintpad as enabled yet no
-longer apply. Remove Tintpad from the list with the minus button, add it back, and
+Blame permissions. Launch problems show as a red line in the drop, and Return on that line
+opens the right System Settings pane. If Accessibility says Tintpad is on but nothing
+happens, macOS is holding a stale grant: remove Tintpad with the minus button, add it back,
 relaunch.
-
-## Features
-
-- **Frecency repo search**, your most-used repos rise to the top, zoxide-style, and
-  Tintpad **remembers how you opened each repo last** (agent and mode), so ⏎ repeats it.
-- **Git-aware**, worktree creation and branch context are checked in the background,
-  so the drop never waits on git.
-- **<kbd>⌘0</kbd> resume** replays your last session exactly, from the palette or a
-  global hotkey.
-- **Hands off to 7 terminals**, Ghostty, iTerm2, kitty, WezTerm, Alacritty, Terminal, Warp.
-  All open at the repo with the command running, except Warp, which has no
-  command-injection API, so it opens at the repo with the command on your clipboard.
-- **Run modes in each agent's own words**, Default and Skip permissions for Claude
-  Code, Untrusted, Default, and Full access for Codex. A mode that skips permissions is
-  a red chip, and, on new installs by default, asks you to confirm, on every path,
-  including dispatch and resume.
-- **Worktrees**, <kbd>⌃W</kbd> spins up an isolated branch checkout and launches the agent in it.
-- **Headless dispatch**, <kbd>⌃⏎</kbd> runs an agent in the background and notifies you when it's done.
-- **Prompt library, per-repo presets, GitHub import, open-in-editor.**
-- **Keyboard-first and accessible**, Dynamic Type in the palette, VoiceOver labels and
-  announcements, Reduce Motion honored (the drop crossfades instead of falling), and Tab
-  left alone for focus traversal when assistive tech needs it. Nothing is translucent, so
-  there is no Reduce Transparency case to answer.
-- **Local-only.** No accounts, no telemetry, nothing leaves your Mac.
 
 ## Keys
 
@@ -131,17 +97,17 @@ Every interpolated value is sanitized and shell-quoted before it runs.
 
 ## Contributing
 
-PRs welcome, **especially new terminal adapters**, which are about one protocol and one
-struct. See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+PRs welcome, **especially new terminal adapters**, one protocol and one struct each. See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Pairs with
 
-[Lockpaw](https://getlockpaw.com) is the other half of the loop. Tintpad starts your agents per repo, Lockpaw covers your screen while they run and glows when one needs you. Also free, also MIT.
+[Lockpaw](https://getlockpaw.com) is the other half of the loop. Tintpad starts your agents,
+Lockpaw covers your screen while they run and glows when one needs you. Also free, also MIT.
 
 ## Support
 
-Tintpad is **free and MIT**, the whole thing. Nothing to unlock, no Pro version. If it
-earns a spot in your day, [**buy me a coffee →**](https://www.buymeacoffee.com/eriknielsen)
+Free and MIT, the whole thing. Nothing to unlock, no Pro version. If it saves you a
+morning, [**buy me a coffee →**](https://www.buymeacoffee.com/eriknielsen)
 
 ## License
 
