@@ -4,6 +4,14 @@ All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepac
 
 ## [0.3.8] - Unreleased
 
+### Added
+- **The contract chips read what Return would do while you hold a modifier.**
+  Holding ⌥ turns MODE red before Return lands, ⇧ shows the safest mode, ⌃ adds
+  RUN · Headless, and holding ⌘ for a beat adds OPEN IN with your editor. Let go
+  and the chips return to rest. The modifiers used to change a launch without
+  the drop saying so, so a leftover ⌥ could skip permissions under a gray chip.
+  The preview and the launch now share one rule, so they cannot disagree.
+
 ### Fixed
 - **The drop's shadow really no longer lingers after it is dismissed.** Removing
   the window's fade in 0.3.7 was not enough, the shadow could still be left on

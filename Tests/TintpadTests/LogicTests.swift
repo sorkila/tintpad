@@ -547,6 +547,122 @@ final class KeyPolicyTests: XCTestCase {
     }
 }
 
+/// The live contract. The MODE chip previews the held modifier, so it must
+/// state exactly the mode ⏎ resolves with the same modifiers.
+final class ContractPreviewTests: XCTestCase {
+    private let safe = RunMode(name: "Untrusted", flags: "--ask-for-approval untrusted",
+                               isDangerous: false, description: "")
+    private let def = RunMode.defaultMode()
+    private let yolo = RunMode(name: "Skip permissions", flags: "--yolo", isDangerous: true,
+                               description: "")
+
+    private func agent(modes: [RunMode]? = nil) -> Agent {
+        Agent(name: "Codex", commandTemplate: "codex {mode}", acceptsPrompt: true, tintHex: nil,
+              symbol: "terminal", modes: modes ?? [def, safe, yolo], defaultModeID: def.id)
+    }
+
+    private func chips(_ held: ContractPreview.Held, editor: String? = "Zed",
+                       prompt: PromptTemplate? = nil, modes: [RunMode]? = nil) -> [ContractPreview.Chip] {
+        ContractPreview.chips(agent: agent(modes: modes), restingMode: def, prompt: prompt,
+                              editorName: editor, held: held)
+    }
+
+    func testAtRestTheContractIsAgentThenMode() {
+        let c = chips(.none)
+        XCTAssertEqual(c.map(\.kind), [.agent, .mode])
+        XCTAssertEqual(c[1].label, "Default")
+        XCTAssertFalse(c[1].danger)
+    }
+
+    func testPromptLeadsTheContract() {
+        let c = chips(.none, prompt: PromptTemplate(title: "Review", text: "review"))
+        XCTAssertEqual(c.map(\.kind), [.prompt, .agent, .mode])
+        XCTAssertEqual(c[0].label, "Review")
+    }
+
+    func testOptionPreviewsDangerousModeInRed() {
+        let mode = chips(ContractPreview.Held(option: true)).first { $0.kind == .mode }
+        XCTAssertEqual(mode?.label, "Skip permissions")
+        XCTAssertEqual(mode?.danger, true)
+    }
+
+    func testOptionOnAnAgentWithNoDangerousModeKeepsTheRestingMode() {
+        let mode = chips(ContractPreview.Held(option: true), modes: [def, safe]).first { $0.kind == .mode }
+        XCTAssertEqual(mode?.label, "Default")
+        XCTAssertEqual(mode?.danger, false)
+    }
+
+    func testShiftPreviewsSafestMode() {
+        // The first non-dangerous mode in the agent's order, not "Default" by name.
+        let mode = chips(ContractPreview.Held(shift: true), modes: [safe, yolo, def])
+            .first { $0.kind == .mode }
+        XCTAssertEqual(mode?.label, "Untrusted")
+    }
+
+    func testControlAppendsHeadless() {
+        let c = chips(ContractPreview.Held(control: true))
+        XCTAssertEqual(c.map(\.kind), [.agent, .mode, .run])
+        XCTAssertEqual(c.last?.label, "Headless")
+        XCTAssertEqual(c.last?.tag, "run")
+    }
+
+    func testCommandHeldLongAppendsOpenInOnlyWithAnEditor() {
+        let short = ContractPreview.Held(command: true)
+        XCTAssertEqual(chips(short).map(\.kind), [.agent, .mode])
+        let long = ContractPreview.Held(command: true, commandHeldLong: true)
+        XCTAssertEqual(chips(long).map(\.kind), [.agent, .mode, .openIn])
+        XCTAssertEqual(chips(long).last?.label, "Zed")
+        XCTAssertEqual(chips(long).last?.tag, "open in")
+        XCTAssertEqual(chips(long, editor: nil).map(\.kind), [.agent, .mode])
+    }
+
+    // ⌘⏎ opens the editor and ⌘1–⌘9 launch at rest, so while ⌘ is down no
+    // other modifier may paint a mode or a headless run that ⏎ won't do.
+    func testCommandSuspendsTheOtherModifiers() {
+        let c = chips(ContractPreview.Held(option: true, control: true, command: true))
+        XCTAssertEqual(c.map(\.kind), [.agent, .mode])
+        XCTAssertEqual(c[1].label, "Default")
+        XCTAssertFalse(c[1].danger)
+    }
+
+    // A summon seeds from the physical keys, and the hotkey chord (⌥⌘Space)
+    // is still down. It must show neither OPEN IN nor a red MODE.
+    func testSummonChordSeedsWithoutOpenInOrDanger() {
+        let c = chips(ContractPreview.Held(flags: [.option, .command], commandHeldLong: false))
+        XCTAssertEqual(c.map(\.kind), [.agent, .mode])
+        XCTAssertEqual(c[1].label, "Default")
+        XCTAssertFalse(c[1].danger)
+    }
+
+    func testHeldFromFlagsNeverHoldsLongWithoutCommand() {
+        let held = ContractPreview.Held(flags: [.option], commandHeldLong: true)
+        XCTAssertEqual(held, ContractPreview.Held(option: true))
+    }
+
+    func testPreviewAgreesWithResolveMode() {
+        for modes in [[def, safe, yolo], [yolo, safe], [def, safe], [yolo]] {
+            let a = agent(modes: modes)
+            let resting = modes[0]
+            for option in [false, true] {
+                for shift in [false, true] {
+                    for control in [false, true] {
+                        let resolved = ModeResolution.mode(for: a, resting: resting,
+                                                           option: option, shift: shift)
+                        let held = ContractPreview.Held(option: option, shift: shift, control: control)
+                        let chip = ContractPreview.chips(agent: a, restingMode: resting, prompt: nil,
+                                                         editorName: nil, held: held)
+                            .first { $0.kind == .mode }
+                        XCTAssertEqual(chip?.label, resolved.name)
+                        XCTAssertEqual(chip?.danger, resolved.isDangerous)
+                        XCTAssertEqual(ContractPreview.mode(agent: a, restingMode: resting, held: held).id,
+                                       resolved.id)
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// The double-launch rules. A launch is deferred a beat so "Opening …" can be
 /// painted, and a Return queued in that beat, during the close gesture, or on
 /// a Warp note must never start a second launch.

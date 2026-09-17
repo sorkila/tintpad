@@ -84,7 +84,7 @@ in `Resources/Info.plist` then run `./Scripts/release.sh` to cut the next one.
 ## Commands
 ```sh
 swift build              # debug build
-swift test               # 71 unit tests (pure logic, keep green)
+swift test               # 82 unit tests (pure logic, keep green)
 swift run                # run from source (dev; unsigned)
 ./Scripts/package.sh     # assemble + sign .app/DMG in a TMPDIR scratch (signs if SIGN_IDENTITY set)
 ./Scripts/dev-install.sh # build → Developer ID sign → install to /Applications (local dev)
@@ -146,7 +146,10 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   the *system* accent, never ours, so it must not appear in product surfaces, and
   `AppearanceMode`/`TintAccent` survive only as decode shells so stored values
   round-trip. Danger red is the only color, spent on the MODE chip and the
-  confirm line, said once passively and once at the gate. **One object language**:
+  confirm line, said once passively and once at the gate. The MODE chip previews the
+  held modifier (`ContractPreview`, sharing `ModeResolution` with the launch), so ⌥
+  shows red before Return lands, ⌃ appends RUN, a held ⌘ appends OPEN IN, and the
+  monitor never swallows `flagsChanged`. **One object language**:
   every element is a capsule of `chipH` — white chip (position), etched hairline chips
   (the contract: AGENT and MODE as labeled instrument fields with baseline-aligned
   micro-eyebrows), red-etched chip (skips permissions). A contract never truncates

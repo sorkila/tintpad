@@ -96,6 +96,21 @@ final class PaletteModel: ObservableObject {
     /// The controller's `.blank` effect, see `DismissSequencer`.
     func noteDismissal() { dismissGeneration += 1 }
 
+    /// The modifiers held while the palette is key, fed by `flagsChanged`, so
+    /// the contract chips can preview what ⏎ would do before it lands.
+    @Published private(set) var heldModifiers: NSEvent.ModifierFlags = []
+    /// ⌘ has been held past `commandHoldDelay`. A hold, not a chord: ⌘R or
+    /// ⌘P tapped quickly never flashes OPEN IN.
+    @Published private(set) var commandHeld = false
+    /// The editor ⌘⏎ opens, looked up once per ⌘ hold rather than per render
+    /// (detection touches the filesystem).
+    @Published private(set) var heldEditorName: String?
+    /// Bumped on every ⌘ transition and every summon, so only the latest ⌘
+    /// press can arm the hold.
+    private var commandGeneration = 0
+    private var commandDown = false
+    private static let commandHoldDelay: TimeInterval = 0.15
+
     fileprivate var pendingDangerous: PendingLaunch?
     @Published private(set) var pendingPermission: PendingPermission?
 
@@ -260,11 +275,43 @@ final class PaletteModel: ObservableObject {
 
     /// Install a local key monitor scoped to the command panel. Returns the
     /// event (passes through) for normal typing, nil to swallow handled keys.
+    /// `flagsChanged` only updates the held modifiers and is always passed on,
+    /// never swallowed: AppKit and the field editor track modifiers from it too.
     func startMonitoring() {
         guard monitor == nil else { return }
-        monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self, let window = event.window, window is CommandPanel else { return event }
+        monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { [weak self] event in
+            guard let self else { return event }
+            if event.type == .flagsChanged {
+                if event.window is CommandPanel || NSApp.keyWindow is CommandPanel {
+                    noteModifiers(event.modifierFlags)
+                }
+                return event
+            }
+            guard let window = event.window, window is CommandPanel else { return event }
             return self.handle(event) ? nil : event
+        }
+    }
+
+    /// ⌥, ⇧ and ⌃ preview at once (⌥ must be red before Return lands). ⌘
+    /// waits a beat, so a chord like ⌘R doesn't flash a chip.
+    private func noteModifiers(_ flags: NSEvent.ModifierFlags) {
+        let held = flags.intersection([.option, .shift, .control, .command])
+        if heldModifiers != held { heldModifiers = held }
+        let down = held.contains(.command)
+        guard down != commandDown else { return }
+        // Every ⌘ transition moves the generation, so a timer armed by an
+        // earlier press finds it changed and stands down.
+        commandDown = down
+        commandGeneration += 1
+        guard down else {
+            if commandHeld { commandHeld = false }
+            return
+        }
+        let gen = commandGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.commandHoldDelay) { [weak self] in
+            guard let self, commandGeneration == gen else { return }
+            heldEditorName = EditorRegistry.preferred(settings: store.settings)?.name
+            commandHeld = true
         }
     }
 
@@ -283,6 +330,15 @@ final class PaletteModel: ObservableObject {
         launchInFlight = false
         launchNote = nil
         stripScrolled = false
+        // Seed from the physical keys: the hotkey chord (⌥⌘Space by default)
+        // is still down on every summon, and no flagsChanged arrives until it
+        // moves. ⌘ is recorded as down but never arms the hold, so the
+        // hotkey's own ⌘ cannot flash OPEN IN. Any timer from the last summon
+        // stands down, and the next ⌘ transition bumps the generation again.
+        heldModifiers = NSEvent.modifierFlags.intersection([.option, .shift, .control, .command])
+        commandHeld = false
+        commandDown = heldModifiers.contains(.command)
+        commandGeneration += 1
         status = nil
         pendingDangerous = nil
         pendingPermission = nil
@@ -481,14 +537,29 @@ final class PaletteModel: ObservableObject {
         return LaunchDefaults.mode(for: repo, agent: agent, overrideID: override)
     }
 
+    /// The mode ⏎ runs with these modifiers. The rule lives in `ModeResolution`,
+    /// shared with the chips' live preview so the two cannot disagree.
     func resolveMode(agent: Agent, repo: Repo, modifiers: NSEvent.ModifierFlags) -> RunMode {
-        if modifiers.contains(.option), let danger = agent.dangerousMode { return danger }
-        if modifiers.contains(.shift) {
-            // "Safest available": the first non-dangerous mode, whatever the
-            // agent calls it (modes speak the agent's language, not ours).
-            return agent.modes.first { !$0.isDangerous } ?? agent.modes.first ?? .defaultMode()
-        }
-        return displayMode(agent: agent, repo: repo)
+        ModeResolution.mode(for: agent, resting: displayMode(agent: agent, repo: repo),
+                            option: modifiers.contains(.option),
+                            shift: modifiers.contains(.shift))
+    }
+
+    /// The mode the contract states for this repo right now: what ⏎ would
+    /// run with the held modifiers. The tile's VoiceOver label speaks it too.
+    func previewMode(agent: Agent, repo: Repo) -> RunMode {
+        ContractPreview.mode(
+            agent: agent, restingMode: displayMode(agent: agent, repo: repo),
+            held: ContractPreview.Held(flags: heldModifiers, commandHeldLong: commandHeld))
+    }
+
+    /// The contract chips for the selected repo as they read with the
+    /// modifiers held right now (see `ContractPreview`).
+    func contractChips(agent: Agent, repo: Repo) -> [ContractPreview.Chip] {
+        ContractPreview.chips(
+            agent: agent, restingMode: displayMode(agent: agent, repo: repo),
+            prompt: selectedPrompt, editorName: heldEditorName,
+            held: ContractPreview.Held(flags: heldModifiers, commandHeldLong: commandHeld))
     }
 
 
@@ -1096,7 +1167,7 @@ struct PaletteView: View {
     /// contract (and again at the confirm gate), never as a ring here.
     private func token(_ repo: Repo, index: Int, selected: Bool) -> some View {
         let agent = model.activeAgent(for: repo)
-        let mode = agent.map { model.displayMode(agent: $0, repo: repo) }
+        let mode = agent.map { model.previewMode(agent: $0, repo: repo) }
         // No pin glyph: pinned repos already speak by standing first in the
         // row (VoiceOver still says "pinned" — the mark was decoration).
         return HStack(spacing: 4) {
@@ -1161,22 +1232,47 @@ struct PaletteView: View {
     /// hides reads as a bug), and quietly clickable (the visible counterpart
     /// of ⇥/⇧⇥, real flags in the tooltip). No branch chip: where you are
     /// launching *from* is the tile's business, not the contract's.
+    ///
+    /// Live: the chips read what ⏎ would do with the modifiers held right
+    /// now (`ContractPreview`), so ⌥ turns MODE red before Return lands, ⌃
+    /// appends RUN, and a held ⌘ appends OPEN IN.
     @ViewBuilder private var contractRegion: some View {
         if middleToken == 0, let repo = model.selectedRepo,
            let agent = model.activeAgent(for: repo) {
-            let mode = model.displayMode(agent: agent, repo: repo)
+            let chips = model.contractChips(agent: agent, repo: repo)
             HStack(spacing: 6) {
-                if let prompt = model.selectedPrompt {
-                    chip("prompt", prompt.title,
-                         help: "Starting prompt, ⌘P cycles") { model.cyclePrompt() }
-                }
-                chip("agent", agent.name,
-                     help: "Agent, click or ⇥ to switch") { model.cycleAgent() }
-                chip("mode", mode.name, danger: mode.isDangerous,
-                     help: modeHelp(mode)) { model.cycleMode() }
+                ForEach(chips) { contractChip($0, agent: agent, repo: repo) }
             }
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.12), value: chips)
             .transition(.opacity)
         }
+    }
+
+    private func contractChip(_ c: ContractPreview.Chip, agent: Agent, repo: Repo) -> some View {
+        let help: String
+        let action: () -> Void
+        switch c.kind {
+        case .prompt:
+            help = "Starting prompt, ⌘P cycles"
+            action = { model.cyclePrompt() }
+        case .agent:
+            help = "Agent, click or ⇥ to switch"
+            action = { model.cycleAgent() }
+        case .mode:
+            help = modeHelp(model.previewMode(agent: agent, repo: repo))
+            action = { model.cycleMode() }
+        case .run:
+            help = "⌃⏎ runs headless"
+            action = {}
+        case .openIn:
+            help = "⌘⏎ opens the repo in \(c.label)"
+            action = {}
+        }
+        return chip(c.tag, c.label, danger: c.danger, help: help, action: action)
+            // RUN and OPEN IN only state what a modifier does, a click does
+            // nothing, so they must not announce themselves as buttons.
+            .accessibilityRemoveTraits(c.kind == .run || c.kind == .openIn ? .isButton : [])
+            .transition(.opacity)
     }
 
     /// The tooltip carries the truth: the exact flags this mode passes.
