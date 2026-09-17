@@ -2,7 +2,7 @@
 
 All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepachangelog.com), this project aims for [Semantic Versioning](https://semver.org).
 
-## [0.4.1] - Unreleased
+## [0.4.1] - 2026-09-17
 
 ### Changed
 - **A new app icon**, built in Icon Composer: a lit glass capsule above a navy pad,

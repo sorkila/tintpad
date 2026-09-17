@@ -38,22 +38,12 @@ inside. Return opens your terminal at that repo with your coding agent (Claude C
 already running. Hands off to the terminal you already use. Native, local-only, free and open
 source.
 
-### New in 0.4.0
-- **The drop, refined.** It hangs 8pt under the housing (or the menu bar) at the housing's own
-  height, with a hairline edge instead of a heavy shadow. A bead swells at the lip and opens in
-  place, the words follow the shape, and Return and Esc both shrink it back into the bead. One
-  white chip slides between repos, and the capsule hugs its content.
-- **No stranded shadow, no frozen drop.** Launches run off the main thread, the drop is blanked
-  before it is removed, and a quick launch no longer flashes a line. "Opening Ghostty…" appears
-  only when a launch is genuinely slow, and stays long enough to read.
-- **The chips never lie.** Hold ⌥ and MODE turns red before Return lands, ⇧ shows the safest
-  mode, ⌃ shows headless, and the confirm line names the repo. New installs confirm
-  permission-skipping launches by default.
-- **Fuzzy search** with ranked tiers ("tp" finds tintpad), matched letters in white.
-- **Hold ⌘ to see the keys**, plus a Palette keys menu in the menu bar.
-- **Permission help that finishes the job.** A second failure shows the remove-and-re-add fix,
-  and after you grant access the next summon offers to finish the launch.
-- **Onboarding finds your repos first**, and Settings puts things where you'd look.
+### New in 0.4.1
+- **A new icon.** A lit glass capsule above a navy pad, built in Icon Composer.
+- **Free, with nothing to unlock.** The Supporter tip, its license key and the tinted chips are
+  gone. The drop is black and white for everyone, and Buy me a coffee stays in About.
+- **The left fade tells the truth.** The token strip fades its left edge only when repos are
+  actually scrolled out of view, and the first repo sits at its true start again.
 
 ### Install
 - **Download \`Tintpad.dmg\` below**, drag to Applications, launch. macOS 14+.
