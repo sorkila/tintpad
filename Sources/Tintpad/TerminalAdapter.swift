@@ -362,10 +362,10 @@ struct WarpAdapter: TerminalAdapter {
         comps.path = "/new_window"
         comps.queryItems = [URLQueryItem(name: "path", value: launch.workingDirectory)]
         if let url = comps.url, NSWorkspace.shared.open(url) {
-            return LaunchOutcome(note: "Command copied, paste in Warp (no command-injection API)")
+            return LaunchOutcome(note: "Command copied, paste it in Warp")
         }
         try run("/usr/bin/open", ["-nb", bundleID])
-        return LaunchOutcome(note: "Command copied, paste in Warp (no command-injection API)")
+        return LaunchOutcome(note: "Command copied, paste it in Warp")
     }
 }
 

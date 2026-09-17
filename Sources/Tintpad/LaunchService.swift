@@ -11,6 +11,12 @@ enum LaunchService {
         TerminalRegistry.preferred(settings: $0)
     }
 
+    /// The terminal a launch would open right now, by name, for the drop's
+    /// "Opening …" line.
+    static func terminalName(store: AppStore) -> String {
+        resolveTerminal(store.settings).displayName
+    }
+
     /// Pure: turn a launch request into the concrete `TerminalLaunch` (working
     /// directory + resolved command + tab preference). No side effects, no store —
     /// this is the decision logic, unit-tested in isolation.

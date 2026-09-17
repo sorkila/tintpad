@@ -17,6 +17,23 @@ All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepac
   sequence a turn later, outside the deactivation pass, and summoning the drop
   while it is being dismissed cancels the dismissal, so pressing the hotkey twice
   fast brings it back instead of leaving it hidden.
+- **Return can no longer launch twice.** A Return pressed again while a launch
+  was starting, or while the drop was closing after one, could open a second
+  terminal. Every launch gesture (Return, a click on a repo, ⌘1 to ⌘9, ⌘0) now
+  passes one gate that ignores it while a launch is underway.
+- **Return on a Warp note closes the drop instead of launching again.** Warp
+  leaves the command on the clipboard and the drop stays open to say so, and a
+  second Return there used to open another Warp window. It now closes the drop,
+  and the note closes by itself after 1.6 seconds.
+
+### Changed
+- **The confirm line names the repo.** It reads "Skip permissions in tintpad
+  with Claude Code, Return confirms, Esc cancels", so the launch you are
+  consenting to says where it runs, not only how.
+- **The drop says where a launch is going.** "Opening Ghostty…" (or your editor)
+  is painted before the handoff starts, so a slow terminal no longer looks like
+  a Return that did nothing. The Warp note now reads "Command copied, paste it
+  in Warp".
 
 ## [0.3.7] - 2026-08-30
 

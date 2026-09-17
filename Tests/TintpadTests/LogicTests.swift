@@ -547,6 +547,37 @@ final class KeyPolicyTests: XCTestCase {
     }
 }
 
+/// The double-launch rules. A launch is deferred a beat so "Opening …" can be
+/// painted, and a Return queued in that beat, during the close gesture, or on
+/// a Warp note must never start a second launch.
+final class LaunchGateTests: XCTestCase {
+    func testReturnIgnoredWhileInFlight() {
+        XCTAssertEqual(LaunchGate.returnDisposition(inFlight: true, launching: false, noteShown: false),
+                       .ignore)
+    }
+
+    func testReturnIgnoredDuringCloseGesture() {
+        XCTAssertEqual(LaunchGate.returnDisposition(inFlight: false, launching: true, noteShown: false),
+                       .ignore)
+    }
+
+    func testReturnClosesOnNoteWithoutLaunching() {
+        XCTAssertEqual(LaunchGate.returnDisposition(inFlight: false, launching: false, noteShown: true),
+                       .closeOnly)
+    }
+
+    // A launch underway outranks a stale note: nothing closes under it.
+    func testInFlightOutranksNote() {
+        XCTAssertEqual(LaunchGate.returnDisposition(inFlight: true, launching: false, noteShown: true),
+                       .ignore)
+    }
+
+    func testReturnLaunchesAtRest() {
+        XCTAssertEqual(LaunchGate.returnDisposition(inFlight: false, launching: false, noteShown: false),
+                       .launch)
+    }
+}
+
 /// `Scripts/uitest.sh` drives the real GUI and can only assert on side effects,
 /// so its whole mode-cycle journey rests on one assumption: the marker template
 /// `echo "[{mode}]" > …` writes the *flags of the mode that actually ran*. That

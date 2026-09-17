@@ -67,6 +67,28 @@ final class PaletteModel: ObservableObject {
     /// offscreen. Esc still closes instantly.
     @Published private(set) var launching = false
 
+    /// True from the launch request until the terminal handoff returns. The
+    /// handoff is deferred a beat so "Opening …" is painted before it blocks,
+    /// and a Return queued in that beat must not launch a second time.
+    @Published private(set) var launchInFlight = false
+
+    /// The note a finished launch left (Warp), kept while the drop stays open
+    /// to show it.
+    private var launchNote: String?
+
+    /// True while the status line is still that note. Derived from `status`,
+    /// so anything that replaces or clears the line (typing, moving, a scan)
+    /// ends it, and Return goes back to launching.
+    var noteShown: Bool { launchNote != nil && status == launchNote }
+
+    /// Bumped on every summon. Deferred launch work captures it and stands
+    /// down when a newer summon has happened, so a launch the user walked
+    /// away from (Esc, then the hotkey) never lands in and closes a fresh drop.
+    private var summonGeneration = 0
+
+    /// Bumped by every note, so only the latest note's auto-close can fire.
+    private var noteGeneration = 0
+
     /// Moves each time the controller blanks the panel for dismissal, so the
     /// view can snap the drop back to rest with no animation.
     @Published private(set) var dismissGeneration = 0
@@ -86,10 +108,55 @@ final class PaletteModel: ObservableObject {
     /// is reduced, because a delay with no animation just reads as lag.
     private func closeAfterLaunch() {
         guard !launching else { return }
-        if reduceMotionActive() { onClose(); return }
+        // Set on the reduced path too: it is what `LaunchGate` reads to ignore
+        // a Return that lands while the panel is on its way out.
         launching = true
+        if reduceMotionActive() { onClose(); return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) { [weak self] in
             self?.onClose()
+        }
+    }
+
+    /// The gate every launch gesture passes first. Returns true when the
+    /// gesture may go on to launch.
+    private func admitLaunchGesture() -> Bool {
+        switch LaunchGate.returnDisposition(
+            inFlight: launchInFlight, launching: launching, noteShown: noteShown) {
+        case .launch: return true
+        case .ignore: return false
+        case .closeOnly: onClose(); return false
+        }
+    }
+
+    /// Say where the launch is going, then run it a beat later. 50ms is three
+    /// display refreshes, enough for the line to be painted before a
+    /// synchronous AppleScript handoff holds the main thread.
+    private func launchAfterPaint(opening name: String?, _ body: @escaping () -> Void) {
+        launchInFlight = true
+        if let name { status = "Opening \(name)…" }
+        let gen = summonGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            guard let self else { return }
+            // A stale block leaves the flag alone: `reset()` already cleared
+            // it, and it may belong to a launch from the newer summon now.
+            guard summonGeneration == gen else { return }
+            launchInFlight = false
+            body()
+        }
+    }
+
+    /// A launch returned: close, or keep the drop open to show its note and
+    /// close on our own after a moment if nothing else happens.
+    private func finishLaunch(_ outcome: LaunchOutcome) {
+        noteGeneration += 1
+        guard let note = outcome.note else { closeAfterLaunch(); return }
+        launchNote = note
+        status = note
+        let noteGen = noteGeneration, summonGen = summonGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak self] in
+            guard let self, noteGeneration == noteGen, summonGeneration == summonGen,
+                  noteShown else { return }
+            onClose()
         }
     }
 
@@ -186,7 +253,7 @@ final class PaletteModel: ObservableObject {
 
     var pendingDangerousDescription: String? {
         guard let p = pendingDangerous else { return nil }
-        return "\(p.agent.name) · \(p.mode.name)"
+        return "\(p.mode.name) in \(p.repo.name) with \(p.agent.name)"
     }
 
     // MARK: - Key monitor
@@ -209,6 +276,12 @@ final class PaletteModel: ObservableObject {
     /// Called when the panel is shown to reset transient per-summon state.
     func reset() {
         launching = false
+        // A new summon supersedes any launch still deferred from the last
+        // one (it checks the generation and stands down), so nothing is in
+        // flight here and a stuck flag must never swallow every Return.
+        summonGeneration += 1
+        launchInFlight = false
+        launchNote = nil
         stripScrolled = false
         status = nil
         pendingDangerous = nil
@@ -290,6 +363,7 @@ final class PaletteModel: ObservableObject {
     /// typing into the field, where ⌘<n> should stay inert.
     private func launchByIndex(_ index: Int) -> Bool {
         guard worktreeRepo == nil, promptRepo == nil else { return false }
+        guard admitLaunchGesture() else { return true }
         // ⌘n while a dangerous confirm (or permission prompt) is pending
         // cancels it — the jump must never fire a YOLO that was armed for a
         // different repo, nor bounce the user into System Settings.
@@ -310,16 +384,22 @@ final class PaletteModel: ObservableObject {
     @discardableResult
     func resumeLastSession() -> Bool {
         guard worktreeRepo == nil, promptRepo == nil else { return false }
+        guard admitLaunchGesture() else { return true }
         clearTransient()
         guard let session = store.lastSession else { status = "No session to resume yet"; return true }
         let fire: () -> Void = { [weak self] in
             guard let self else { return }
-            switch LaunchService.resumeLast(store: store) {
-            case .launched: closeAfterLaunch()
-            case .unavailable:
-                status = "⚠ That session can't be resumed, its repo, agent, or mode is gone"
-            case .failed(let error):
-                report(error)
+            let opening = LaunchService.canResumeLast(store: store)
+                ? LaunchService.terminalName(store: store) : nil
+            launchAfterPaint(opening: opening) { [weak self] in
+                guard let self else { return }
+                switch LaunchService.resumeLast(store: store) {
+                case .launched: closeAfterLaunch()
+                case .unavailable:
+                    status = "⚠ That session can't be resumed, its repo, agent, or mode is gone"
+                case .failed(let error):
+                    report(error)
+                }
             }
         }
         if let agent = store.agent(session.agentID),
@@ -381,6 +461,7 @@ final class PaletteModel: ObservableObject {
     /// state, everything else lands in the status line as before.
     private func report(_ error: Error) {
         if case TerminalLaunchError.permissionNeeded(let summary, _, let pane) = error {
+            status = nil   // the "Opening …" line has had its turn
             pendingPermission = PendingPermission(summary: summary, pane: pane)
         } else {
             status = "⚠ \(error)"
@@ -440,22 +521,37 @@ final class PaletteModel: ObservableObject {
             guard let self else { return }
             // The git work runs off the main actor (a worktree add on a big
             // repo can take a while); the terminal handoff hops back to main.
+            launchInFlight = true
             status = "Creating worktree…"
             let store = self.store
-            DispatchQueue.global(qos: .userInitiated).async {
+            // A worktree add can take minutes on a stalled mount. If the user
+            // has since dismissed and re-summoned, the result belongs to a
+            // drop that no longer exists: stand down, never launch into the
+            // new one.
+            let gen = summonGeneration
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
                 do {
                     try WorktreeService.create(repoPath: repo.path, branch: branch, at: worktreePath)
                     Task { @MainActor [weak self] in
                         guard let self else { return }
-                        do {
-                            let outcome = try LaunchService.launchAgent(
-                                repo: repo, agent: agent, mode: mode, prompt: promptText,
-                                store: store, worktreePath: worktreePath)
-                            if let note = outcome.note { status = note } else { closeAfterLaunch() }
-                        } catch { report(error) }
+                        guard summonGeneration == gen else { return }   // flag: see launchAfterPaint
+                        // `launchAfterPaint` keeps the flight flag up across
+                        // the hop, so there is no gap for a second Return.
+                        launchAfterPaint(opening: LaunchService.terminalName(store: store)) { [weak self] in
+                            guard let self else { return }
+                            do {
+                                finishLaunch(try LaunchService.launchAgent(
+                                    repo: repo, agent: agent, mode: mode, prompt: promptText,
+                                    store: store, worktreePath: worktreePath))
+                            } catch { report(error) }
+                        }
                     }
                 } catch {
-                    Task { @MainActor [weak self] in self?.status = "⚠ \(error)" }
+                    Task { @MainActor [weak self] in
+                        guard let self, summonGeneration == gen else { return }
+                        launchInFlight = false
+                        status = "⚠ \(error)"
+                    }
                 }
             }
         }
@@ -491,6 +587,9 @@ final class PaletteModel: ObservableObject {
     }
 
     func handleReturn(modifiers mods: NSEvent.ModifierFlags) {
+        // First, before any pending state is consumed: a Return queued behind
+        // a launch is ignored, a Return on a note closes.
+        guard admitLaunchGesture() else { return }
         if let pending = pendingDangerous {
             pendingDangerous = nil
             pending.fire()
@@ -541,6 +640,7 @@ final class PaletteModel: ObservableObject {
     /// while a dangerous confirm is pending cancels the pending launch — a
     /// click must never fire a YOLO that was armed for a different repo.
     func activate(at index: Int) {
+        guard admitLaunchGesture() else { return }
         if pendingDangerous != nil || pendingPermission != nil { clearTransient() }
         guard filtered.indices.contains(index) else { return }
         selection = index
@@ -556,17 +656,25 @@ final class PaletteModel: ObservableObject {
     }
 
     private func openInEditor(repo: Repo) {
-        do { try LaunchService.openInEditor(repo: repo, store: store); closeAfterLaunch() }
-        catch { status = "⚠ No editor detected, set one in Settings" }
+        let editor = EditorRegistry.preferred(settings: store.settings)
+        launchAfterPaint(opening: editor?.name) { [weak self] in
+            guard let self else { return }
+            do { try LaunchService.openInEditor(repo: repo, store: store); closeAfterLaunch() }
+            catch { status = "⚠ No editor detected, set one in Settings" }
+        }
     }
 
     private func perform(repo: Repo, agent: Agent, mode: RunMode, prompt: String? = nil) {
-        do {
-            let outcome = try LaunchService.launchAgent(
-                repo: repo, agent: agent, mode: mode,
-                prompt: prompt ?? selectedPrompt?.text, store: store)
-            if let note = outcome.note { status = note } else { closeAfterLaunch() }
-        } catch { report(error) }
+        // Resolved now, not in the deferred body: a prompt cycled in the beat
+        // before the handoff must not change what launches.
+        let prompt = prompt ?? selectedPrompt?.text
+        launchAfterPaint(opening: LaunchService.terminalName(store: store)) { [weak self] in
+            guard let self else { return }
+            do {
+                finishLaunch(try LaunchService.launchAgent(
+                    repo: repo, agent: agent, mode: mode, prompt: prompt, store: store))
+            } catch { report(error) }
+        }
     }
 }
 
@@ -717,7 +825,7 @@ struct PaletteView: View {
         .onChange(of: model.isPendingDangerous) { _, pending in
             if pending, let d = model.pendingDangerousDescription {
                 AccessibilityNotification.Announcement(
-                    "Confirm dangerous launch: \(d). Press return again to launch, or escape to cancel."
+                    "Confirm: \(d). Press return again to launch, or escape to cancel."
                 ).post()
             }
         }
@@ -856,15 +964,17 @@ struct PaletteView: View {
     /// all speak here, in place of the tokens. One storey, always.
     @ViewBuilder private var middleRegion: some View {
         if model.isPendingDangerous {
-            middleLine("Return again to launch \(model.pendingDangerousDescription ?? ""), Esc cancels",
+            middleLine("\(model.pendingDangerousDescription ?? ""), Return confirms, Esc cancels",
                        color: dangerTint)
         } else if let permission = model.pendingPermission {
             middleLine("\(permission.summary), Return opens System Settings, Esc cancels",
                        color: dangerTint)
         } else if let status = model.status {
+            // Gray means waiting ("Opening …"), red means failure, white
+            // means done (a launch note).
             let isError = status.hasPrefix("⚠")
             middleLine(isError ? String(status.dropFirst(2)) : status,
-                       color: isError ? dangerTint : nil)
+                       color: isError ? dangerTint : model.noteShown ? Color(white: 0.9) : nil)
         } else if model.worktreeRepo != nil {
             middleLine(worktreeExplainer)
         } else if model.promptRepo != nil {
