@@ -19,7 +19,7 @@ whatever you run, already going.
 
 ---
 
-Press <kbd>⌥⌘Space</kbd>. Arrow or type to a repo. Hit <kbd>↵</kbd>. Your real terminal
+Press <kbd>⌥⌘Space</kbd>. Arrow or type to a repo. Hit <kbd>⏎</kbd>. Your real terminal
 opens there with the agent running, in under two seconds, without the mouse.
 
 **Think ⌘Tab, for repos.** A black drop falls out of the notch with your projects inside, each with its
@@ -32,9 +32,9 @@ It doesn't try to be one.
   <img src="docs/assets/palette.png" alt="Tintpad: a black drop below the MacBook notch holding repo names, with AGENT and MODE chips reading Claude Code, Default" width="720" />
 </div>
 
-The chips are the contract: `AGENT Claude Code · MODE Default`, exactly what ↵ will
+The chips are the contract: `AGENT Claude Code · MODE Default`, exactly what ⏎ will
 run, in the agent's own words. Nothing happens that the chips didn't announce, and a
-mode that skips permissions is a red chip before you ever press ↵.
+mode that skips permissions is a red chip before you ever press ⏎.
 
 <!-- Animated demo: record per docs/DEMO.md and drop at docs/assets/demo.gif. -->
 
@@ -69,7 +69,7 @@ swift run                  # dev run
 ## Features
 
 - **Frecency repo search**, your most-used repos rise to the top, zoxide-style, and
-  Tintpad **remembers how you opened each repo last** (agent and mode), so ↵ repeats it.
+  Tintpad **remembers how you opened each repo last** (agent and mode), so ⏎ repeats it.
 - **Git-aware**, worktree creation and branch context are checked in the background,
   so the drop never waits on git.
 - **<kbd>⌘0</kbd> resume** replays your last session exactly, from the palette or a
@@ -82,7 +82,7 @@ swift run                  # dev run
   a red chip, and, on new installs by default, asks you to confirm, on every path,
   including dispatch and resume.
 - **Worktrees**, <kbd>⌃W</kbd> spins up an isolated branch checkout and launches the agent in it.
-- **Headless dispatch**, <kbd>⌃↵</kbd> runs an agent in the background and notifies you when it's done.
+- **Headless dispatch**, <kbd>⌃⏎</kbd> runs an agent in the background and notifies you when it's done.
 - **Prompt library, per-repo presets, GitHub import, open-in-editor.**
 - **Keyboard-first and accessible**, Dynamic Type in the palette, VoiceOver labels and
   announcements, Reduce Motion honored (the drop crossfades instead of falling), and Tab
@@ -96,18 +96,22 @@ swift run                  # dev run
 |---|---|
 | <kbd>⌥⌘Space</kbd> | Summon (change in Settings → Hotkeys) |
 | <kbd>↑</kbd> <kbd>↓</kbd> | Move through your repos |
-| <kbd>←</kbd> <kbd>→</kbd> | Move through your repos, while the query is empty (once you type, they move the caret) |
-| <kbd>↵</kbd> | Launch what the chips say |
+| <kbd>←</kbd> <kbd>→</kbd> | Move through your repos while the field is empty |
+| <kbd>⏎</kbd> | Launch what the chips say |
 | <kbd>⌘0</kbd> | Resume the last session exactly |
 | <kbd>⌘1</kbd>–<kbd>⌘9</kbd> | Jump straight to the nth repo and launch it |
-| <kbd>⌘↵</kbd> | Open repo in editor |
-| <kbd>⌥↵</kbd> | Launch the dangerous mode |
-| <kbd>⇧↵</kbd> | Launch the safest mode |
-| <kbd>⌃↵</kbd> | Headless dispatch |
+| <kbd>⌘⏎</kbd> | Open repo in editor |
+| <kbd>⌥⏎</kbd> | Launch the dangerous mode |
+| <kbd>⇧⏎</kbd> | Launch the safest mode |
+| <kbd>⌃⏎</kbd> | Headless dispatch |
 | <kbd>⌃W</kbd> | New worktree |
 | <kbd>⇥</kbd> / <kbd>⇧⇥</kbd> | Cycle agent / mode |
 | <kbd>⌘L</kbd> · <kbd>⌘P</kbd> | Inline prompt · cycle saved prompt |
 | <kbd>⌘R</kbd> · <kbd>Esc</kbd> | Re-scan repos · close |
+| <kbd>⌘,</kbd> | Settings |
+
+Hold <kbd>⌘</kbd> for a beat and the drop shows each repo's number and each chip's key.
+The menu bar's **Palette keys** menu lists this table.
 
 ## Configure
 

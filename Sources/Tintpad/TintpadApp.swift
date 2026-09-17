@@ -28,6 +28,13 @@ struct TintpadApp: App {
         MenuBarExtra {
             Button("Summon palette") { delegate.panelController.show() }
                 .keyboardShortcut(.space, modifiers: [.option, .command])
+            // Every key the palette answers to, where macOS teaches shortcuts.
+            // Rows are text, not commands: they only work inside the drop.
+            Menu("Palette keys") {
+                ForEach(PaletteKeys.all) { row in
+                    Text("\(row.keys)    \(row.action)")
+                }
+            }
             // The resume affordance lives here, not as palette chrome — menus
             // are where macOS teaches shortcuts (⌘0 also works in the palette).
             Button("Resume last session") {

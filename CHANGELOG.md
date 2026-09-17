@@ -2,6 +2,19 @@
 
 All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepachangelog.com), this project aims for [Semantic Versioning](https://semver.org).
 
+## [0.4.1] - Unreleased
+
+### Added
+- **Hold ⌘ and the drop shows its keys.** After a short beat each of the first
+  nine repos wears the digit that launches it, and each contract chip names its
+  key: ⇥ on AGENT, ⇧⇥ on MODE, P on a starting prompt, ⏎ on OPEN IN. Let go and
+  the drop is mute again. A quick chord like ⌘R flashes nothing, the summon
+  hotkey's own ⌘ never reveals, and the capsule keeps its width, since the hug
+  measures the drop at rest.
+- **Palette keys in the menu bar.** A new menu under "Summon palette" lists every
+  key the palette answers to, row for row with the README's Keys table, which
+  now also carries a Settings row (⌘,).
+
 ## [0.4.0] - Unreleased
 
 ### Added

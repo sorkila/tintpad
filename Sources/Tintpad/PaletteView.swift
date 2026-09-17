@@ -167,6 +167,7 @@ final class PaletteModel: ObservableObject {
         guard next != dismissal else { return }
         dismissal = next
         exitClosed = false
+        disarmCommandHold()
         dismissRequestGeneration += 1
         // Safety net, not the choreography: if the view never plays the exit
         // (it isn't rendering), the panel must still close, a beat after the
@@ -367,14 +368,26 @@ final class PaletteModel: ObservableObject {
         commandDown = down
         commandGeneration += 1
         guard down else {
-            if commandHeld { commandHeld = false }
+            if commandHeld { setCommandHeld(false) }
             return
         }
         let gen = commandGeneration
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.commandHoldDelay) { [weak self] in
-            guard let self, commandGeneration == gen else { return }
+            // Never reveal onto a launch or an exit (the ⌘1 chord's own ⌘).
+            guard let self, commandGeneration == gen, !isDismissing, !launchInFlight else { return }
             heldEditorName = EditorRegistry.preferred(settings: store.settings)?.name
-            commandHeld = true
+            setCommandHeld(true)
+        }
+    }
+
+    /// The ⌘ reveal (digits on tokens, keys on chips) crossfades in and out
+    /// in 0.12s, instant under Reduce Motion. Only the hold animates this
+    /// way, a summon's reset clears it unanimated.
+    private func setCommandHeld(_ held: Bool) {
+        if reduceMotionActive() {
+            commandHeld = held
+        } else {
+            withAnimation(.easeInOut(duration: 0.12)) { commandHeld = held }
         }
     }
 
@@ -579,7 +592,18 @@ final class PaletteModel: ObservableObject {
     }
 
     func openSettings() {
+        // Settings orders the panel out without a dismissal, so disarm here too.
+        disarmCommandHold()
         onOpenSettings()
+    }
+
+    /// A leaving drop takes no ⌘ reveal with it. ⌘1 or ⌘, is a chord whose
+    /// ⌘ is often still down when the 150ms beat lands, and that timer would
+    /// otherwise reveal onto exiting content and leave `commandHeld` true on
+    /// the hidden panel. `commandDown` stays as the keys are, like `reset()`.
+    private func disarmCommandHold() {
+        commandGeneration += 1
+        if commandHeld { commandHeld = false }
     }
 
     func clearTransient() {
@@ -972,6 +996,8 @@ struct PaletteView: View {
     @ScaledMetric(relativeTo: .body) private var typeScale: CGFloat = 1
     @ScaledMetric(relativeTo: .body) private var fieldSize: CGFloat = 12
     @ScaledMetric(relativeTo: .body) private var metaSize: CGFloat = 11
+    /// The ⌘ reveal's superscript digit, the chips' eyebrow size.
+    @ScaledMetric(relativeTo: .body) private var digitSize: CGFloat = 8.5
 
     /// Every size the drop lays out with, for this summon's screen.
     private var drop: DropGeometry { DropGeometry.resolve(anchor.geometry, typeScale: typeScale) }
@@ -1368,10 +1394,13 @@ struct PaletteView: View {
         let label = role == .measuring ? repo.name : tokenAccessibilityText(repo, index: index)
         // No pin glyph: pinned repos already speak by standing first in the
         // row (VoiceOver still says "pinned", the mark was decoration).
-        return Text(repo.name)
+        let ink = selected ? Color.black : Color(white: 0.58)
+        return tokenText(repo, index: index, selected: selected, role: role)
+            // The digit crossfades in with the ⌘ hold's transaction instead of popping.
+            .contentTransition(reduceMotion ? .identity : .opacity)
             .font(.system(size: fieldSize,
                           weight: selected || role == .measuring ? .medium : .regular))
-            .foregroundStyle(selected ? Color.black : Color(white: 0.58))
+            .foregroundStyle(ink)
             .lineLimit(1)
             .padding(.horizontal, Self.tokenPadding)
             .frame(height: chipH)
@@ -1386,6 +1415,20 @@ struct PaletteView: View {
             .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
             .accessibilityAction(named: "Switch agent") { model.cycleAgent() }
             .accessibilityAction(named: "Switch mode") { model.cycleMode() }
+    }
+
+    /// The name, and while ⌘ is held a superscript digit: the ⌘1–⌘9 that
+    /// launches it. Strip tokens only. The subject token is not a target and
+    /// the measuring copy never carries a digit, so a held ⌘ reflows the
+    /// strip (the same object, briefly annotated) but never moves the hug.
+    private func tokenText(_ repo: Repo, index: Int, selected: Bool, role: TokenRole) -> Text {
+        let name = Text(repo.name)
+        guard role == .strip, model.commandHeld, index < 9 else { return name }
+        // The name and its digit are one Text, see `.contentTransition` at the call site.
+        return name + Text(" \(index + 1)")
+            .font(.system(size: digitSize, weight: .medium))
+            .foregroundStyle(selected ? Color.black.opacity(0.5) : Color(white: 0.58))
+            .baselineOffset(4)
     }
 
     /// The chip's fill. Supporters may spend one drop of color here: the
@@ -1551,7 +1594,7 @@ struct PaletteView: View {
             help = "⌘⏎ opens the repo in \(c.label)"
             action = {}
         }
-        return chip(c.tag, c.label, danger: c.danger, help: help, action: action)
+        return chip(c.tag, c.label, key: c.key, danger: c.danger, help: help, action: action)
             // RUN and OPEN IN only state what a modifier does, a click does
             // nothing, so they must not announce themselves as buttons.
             .accessibilityRemoveTraits(c.kind == .run || c.kind == .openIn ? .isButton : [])
@@ -1566,9 +1609,9 @@ struct PaletteView: View {
             : "Mode (\(flags)), click or ⇧⇥ to switch"
     }
 
-    private func chip(_ tag: String, _ label: String, danger: Bool = false, help: String,
-                      action: @escaping () -> Void) -> some View {
-        ChipButton(tag: tag, label: label, danger: danger, help: help,
+    private func chip(_ tag: String, _ label: String, key: String? = nil, danger: Bool = false,
+                      help: String, action: @escaping () -> Void) -> some View {
+        ChipButton(tag: tag, label: label, key: key, danger: danger, help: help,
                    size: metaSize, height: chipH, action: action)
     }
 
@@ -1711,6 +1754,7 @@ private extension View {
 private struct ChipButton: View {
     let tag: String
     let label: String
+    let key: String?
     let danger: Bool
     let help: String
     let size: CGFloat
@@ -1720,7 +1764,7 @@ private struct ChipButton: View {
 
     var body: some View {
         Button(action: action) {
-            ChipFace(tag: tag, label: label, danger: danger, hovering: hovering,
+            ChipFace(tag: tag, label: label, key: key, danger: danger, hovering: hovering,
                      size: size, height: height)
         }
         .buttonStyle(.plain)
@@ -1735,6 +1779,9 @@ private struct ChipButton: View {
 private struct ChipFace: View {
     let tag: String
     let label: String
+    /// The ⌘ reveal's key hint, between the eyebrow and the value. Nil at
+    /// rest, and always nil in the hug's measuring copy.
+    var key: String? = nil
     let danger: Bool
     let hovering: Bool
     let size: CGFloat
@@ -1742,6 +1789,7 @@ private struct ChipFace: View {
     /// The eyebrow's own metric, so it scales with Dynamic Type but never
     /// drops below legibility at the default size.
     @ScaledMetric(relativeTo: .body) private var eyebrowSize: CGFloat = 8.5
+    @ScaledMetric(relativeTo: .body) private var keySize: CGFloat = 10
 
     var body: some View {
         // Baseline-aligned, not box-centered: the eyebrow and the value
@@ -1757,6 +1805,12 @@ private struct ChipFace: View {
                 .baselineOffset(1)
                 .foregroundStyle(danger ? AnyShapeStyle(dangerTint.opacity(0.6))
                                         : AnyShapeStyle(Color(white: 0.5)))
+            if let key {
+                Text(key)
+                    .font(.system(size: keySize, weight: .regular))
+                    .foregroundStyle(Color(white: 0.5))
+                    .accessibilityHidden(true)
+            }
             Text(label)
                 .font(.system(size: size, weight: .medium))
                 .foregroundStyle(danger ? AnyShapeStyle(dangerTint)

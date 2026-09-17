@@ -157,7 +157,7 @@ struct GeneralSettingsView: View {
                                 selection: editorSelection)
                         .frame(width: 220)
                 }
-                Text("Used by ⌘↵ in the palette. \(editorSummary)")
+                Text("Used by ⌘⏎ in the palette. \(editorSummary)")
                     .font(.caption).foregroundStyle(.secondary)
                 Toggle("Also open editor when launching an agent", isOn: store.bind(\.alsoOpenEditor))
             }

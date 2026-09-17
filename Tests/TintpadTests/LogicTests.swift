@@ -643,6 +643,20 @@ final class ContractPreviewTests: XCTestCase {
         XCTAssertFalse(c[1].danger)
     }
 
+    // Held past the beat, every chip names the key that works it. At rest,
+    // and on a quick ⌘ chord, none does, which is what keeps the hug (it
+    // measures `Held.none`) from widening for a hint.
+    func testCommandHeldRevealsKeys() {
+        let prompt = PromptTemplate(title: "Review", text: "review")
+        let long = chips(ContractPreview.Held(command: true, commandHeldLong: true), prompt: prompt)
+        XCTAssertEqual(long.map(\.kind), [.prompt, .agent, .mode, .openIn])
+        XCTAssertEqual(long.map(\.key), ["P", "⇥", "⇧⇥", "⏎"])
+        for held in [ContractPreview.Held.none, ContractPreview.Held(command: true),
+                     ContractPreview.Held(option: true), ContractPreview.Held(control: true)] {
+            XCTAssertTrue(chips(held, prompt: prompt).allSatisfy { $0.key == nil }, "\(held)")
+        }
+    }
+
     func testHeldFromFlagsNeverHoldsLongWithoutCommand() {
         let held = ContractPreview.Held(flags: [.option], commandHeldLong: true)
         XCTAssertEqual(held, ContractPreview.Held(option: true))
@@ -1176,5 +1190,47 @@ final class DismissPolicyTests: XCTestCase {
                 XCTAssertEqual(DismissPolicy.next(current: current, requested: .focusLoss, inFlight: inFlight), current)
             }
         }
+    }
+}
+
+/// The menu bar's "Palette keys" list against the README's Keys table, its
+/// source, and against the keys the palette really handles.
+final class PaletteKeysTests: XCTestCase {
+    /// The README's Keys table rows as (keys, action), `<kbd>` markup removed.
+    private func readmeRows() throws -> [PaletteKeys.Row] {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let readme = try String(contentsOf: root.appendingPathComponent("README.md"), encoding: .utf8)
+        let lines = readme.components(separatedBy: "\n")
+        guard let start = lines.firstIndex(of: "## Keys") else { XCTFail("no Keys section"); return [] }
+        var rows: [PaletteKeys.Row] = []
+        for line in lines[(start + 1)...] {
+            if line.hasPrefix("## ") { break }
+            guard line.hasPrefix("| <kbd>") else { continue }
+            let cells = line.split(separator: "|").map { $0.trimmingCharacters(in: .whitespaces) }
+            guard cells.count == 2 else { XCTFail("unexpected row \(line)"); continue }
+            let keys = cells[0].replacingOccurrences(of: "<kbd>", with: "")
+                .replacingOccurrences(of: "</kbd>", with: "")
+            rows.append(PaletteKeys.Row(keys: keys, action: cells[1]))
+        }
+        return rows
+    }
+
+    func testPaletteKeysAreUniqueAndCoverReadmeTable() throws {
+        let keys = PaletteKeys.all.map(\.keys)
+        XCTAssertEqual(Set(keys).count, keys.count)
+        XCTAssertTrue(PaletteKeys.all.allSatisfy { !$0.keys.isEmpty && !$0.action.isEmpty })
+        // The summon hotkey is global and configurable, not a palette key.
+        let readme = try readmeRows().filter { !$0.action.hasPrefix("Summon") }
+        XCTAssertEqual(PaletteKeys.all, readme)
+    }
+
+    // Pinned, so a key added to or dropped from the palette is a deliberate
+    // edit here, in the README, and in `PaletteModel.handle(_:)` together.
+    func testPaletteKeysArePinned() {
+        XCTAssertEqual(PaletteKeys.all.map(\.keys), [
+            "↑ ↓", "← →", "⏎", "⌘0", "⌘1–⌘9", "⌘⏎", "⌥⏎", "⇧⏎", "⌃⏎", "⌃W",
+            "⇥ / ⇧⇥", "⌘L · ⌘P", "⌘R · Esc", "⌘,",
+        ])
     }
 }

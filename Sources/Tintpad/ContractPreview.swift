@@ -41,6 +41,10 @@ enum ContractPreview {
         let kind: Kind
         let label: String
         var danger = false
+        /// The key that works this chip, shown only while ⌘ is held past the
+        /// beat. Never set at rest, so the hug (which measures `Held.none`)
+        /// can't widen for a hint.
+        var key: String? = nil
 
         var id: Kind { kind }
         /// The micro-eyebrow above the value.
@@ -96,6 +100,28 @@ enum ContractPreview {
         if held.commandHeldLong, let editorName {
             chips.append(Chip(kind: .openIn, label: editorName))
         }
-        return chips
+        guard held.commandHeldLong else { return chips }
+        return chips.map { c in
+            var c = c
+            c.key = key(for: c.kind)
+            return c
+        }
+    }
+
+    /// The key hint a held ⌘ reveals on each chip. ⌘ is already down, so a
+    /// chord names only what completes it (P for ⌘P, ⏎ for ⌘⏎). ⇥ and ⇧⇥
+    /// take no ⌘ and read as themselves. RUN never shows under ⌘.
+    ///
+    /// The mix is deliberate: with ⌘ down, Tab is the system app switcher, so
+    /// the ⇥/⇧⇥ hints teach the chip's key (for after ⌘ is released) rather
+    /// than invite pressing it now.
+    static func key(for kind: Chip.Kind) -> String? {
+        switch kind {
+        case .prompt: return "P"
+        case .agent: return "⇥"
+        case .mode: return "⇧⇥"
+        case .openIn: return "⏎"
+        case .run: return nil
+        }
     }
 }
