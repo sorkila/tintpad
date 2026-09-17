@@ -188,7 +188,7 @@ PYKEYS
 KEY_INPUTS=()
 while IFS= read -r f; do [ -n "$f" ] && KEY_INPUTS+=(-i "$f"); done < "$WORK/keys.inputs"
 {
-  printf '%s' "[0:v]crop=1800:406:612:48,pad=1800:446:0:40:color=0x0b0b12,tpad=stop_mode=clone:stop_duration=4,fps=60,trim=0.9:12.9,setpts=PTS-STARTPTS,scale=5400:-2,zoompan=z='${Z}':x='${X}':y='${Y}':d=1:s=1600x396:fps=60[cam];[1:v]loop=loop=720:size=1:start=0,fps=60,format=rgba[tab];[cam][tab]overlay=620:0:shortest=1[out];"
+  printf '%s' "[0:v]crop=1800:406:612:48,pad=1800:446:0:40:color=black,tpad=stop_mode=clone:stop_duration=4,fps=60,trim=0.9:12.9,setpts=PTS-STARTPTS,scale=5400:-2,zoompan=z='${Z}':x='${X}':y='${Y}':d=1:s=1600x396:fps=60[cam];[1:v]loop=loop=720:size=1:start=0,fps=60,format=rgba[tab];[cam][tab]overlay=620:0:shortest=1[out];"
   cat "$WORK/keys.filter"
 } > "$WORK/film.filter"
 ffmpeg -y -i "$WORK/demo-raw.mov" -i "$WORK/notch.png" "${KEY_INPUTS[@]}" \
@@ -200,10 +200,10 @@ ffmpeg -v error -y -ss 8.2 -i web/assets/demo.mp4 -frames:v 1 -update 1 -q:v 3 w
 # above it and the notch tab (drawn at film scale, 1600/1800, so scaled back
 # up for these source-scale crops), so the drop hangs from hardware here too.
 ffmpeg -v error -y -i "$WORK/hero-full.png" -i "$WORK/notch.png" -filter_complex \
-  "[1:v]scale=405:-1[tab];[0:v]crop=1800:406:612:48,pad=1800:446:0:40:color=0x0b0b12[b];[b][tab]overlay=697:0" \
+  "[1:v]scale=405:-1[tab];[0:v]crop=1800:406:612:48,pad=1800:446:0:40:color=black[b];[b][tab]overlay=697:0" \
   -frames:v 1 -update 1 docs/assets/palette.png
 ffmpeg -v error -y -i "$WORK/hero-full.png" -i "$WORK/notch.png" -filter_complex \
-  "[1:v]scale=405:-1[tab];[0:v]crop=1600:770:712:48,pad=1600:800:0:30:color=0x0b0b12[b];[b][tab]overlay=597:-10,scale=1280:640" \
+  "[1:v]scale=405:-1[tab];[0:v]crop=1600:770:712:48,pad=1600:800:0:30:color=black[b];[b][tab]overlay=597:-10,scale=1280:640" \
   -frames:v 1 -update 1 web/assets/og.png
 # The share card the site actually serves: same 1280x640 frame as og.png,
 # re-encoded as progressive JPEG q90 (ffmpeg's mjpeg and sips only write
