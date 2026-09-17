@@ -10,6 +10,17 @@ Hands off to *your* terminal, it isn't one. Accessory app (`LSUIElement`), local
 no accounts. **Free & open source (MIT) + optional Supporter tip.**
 
 ## Status (shipped)
+**v0.4.0** (2026-09-17, cut and pushed, release pending notarization run): the polish
+round, planned and reviewed with Fable, built package by package with Opus. The drop hangs
+8pt under the housing at housing depth with a key line (`DropGeometry`), arrives and exits
+on one interruptible `StepSequencer` timeline (`DropTimeline`), hugs its content, and slides
+one selection chip. The stranded shadow is closed structurally (`DismissSequencer`: blank,
+order out a turn later, never from inside `resignKey`) and launches run off main through
+`osascript` on a serial queue. Modifier-live chips (`ContractPreview`), fuzzy tiers
+(`FuzzyMatch`), ⌘-held key reveal (`PaletteKeys`), permission escalation and post-grant
+resume, a repos-first onboarding, and a waiting line that appears only after 700ms and
+holds 600ms once shown (`LaunchFeedbackTiming`). Two bugs only a live summon could show
+were caught before shipping (see the zero-scale and PreferenceKey gotchas).
 **v0.3.7 is live** (2026-08-30): the drop's shadow no longer lingers after
 dismissal. The panel carried AppKit's `.utilityWindow` animation, which *fades*
 a window out instead of removing it, so `orderOut` returned with the drop still
@@ -228,7 +239,7 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   capsule against the black housing is invisible, so what you saw stranded was the
   drop's **shadow** (the 0.3.7 fix). Keep `animationBehavior = .none` and keep the
   `NSApp.hide` deferred a turn behind the order-out. **That alone did not end it**
-  (the shadow still stuck after 0.3.7), so 0.3.8 adds three rules, and
+  (the shadow still stuck after 0.3.7), so 0.4.0 adds three rules, and
   `DismissSequencer` (pure, tested) is the source of truth for all of them:
   **blank before order-out** (alpha 0 and the drop snapped to rest without animation,
   then order out one turn later, then hide the app one turn after that, so any frame
@@ -286,7 +297,7 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   calls `reduce` for every node under the reading modifier, and nodes that never set
   the key contribute the default. `value = nextValue()` let those zeros overwrite the
   hidden measuring copy's real width, so the capsule sat at its minimum with the token
-  strip crushed to nothing and the MODE chip clipped (caught live after 0.4.0 WP6,
+  strip crushed to nothing and the MODE chip clipped (caught live before 0.4.0 shipped,
   invisible to unit tests). `StripScrolledKey` still reduces last-wins, which is why
   the left fade never appears; making it honest showed a fade on the resting strip, a
   separate issue to fix before switching it.

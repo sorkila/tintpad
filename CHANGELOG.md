@@ -2,9 +2,19 @@
 
 All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepachangelog.com), this project aims for [Semantic Versioning](https://semver.org).
 
-## [0.4.1] - Unreleased
+## [0.4.0] - 2026-09-17
 
 ### Added
+- **Onboarding starts with your repos.** The first step scans your folders and
+  says what it found ("Found 14 repos in ~/Developer"), and "Add a folder…" adds
+  the one your projects live in and scans it on the spot. First run used to end
+  with an empty drop whenever the default folders did not match yours.
+- **The contract chips read what Return would do while you hold a modifier.**
+  Holding ⌥ turns MODE red before Return lands, ⇧ shows the safest mode, ⌃ adds
+  RUN · Headless, and holding ⌘ for a beat adds OPEN IN with your editor. Let go
+  and the chips return to rest. The modifiers used to change a launch without
+  the drop saying so, so a leftover ⌥ could skip permissions under a gray chip.
+  The preview and the launch now share one rule, so they cannot disagree.
 - **Hold ⌘ and the drop shows its keys.** After a short beat each of the first
   nine repos wears the digit that launches it, and each contract chip names its
   key: ⇥ on AGENT, ⇧⇥ on MODE, P on a starting prompt, ⏎ on OPEN IN. Let go and
@@ -21,58 +31,6 @@ All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepac
   of a mytintfork you open daily. The matched letters read white and semibold on the
   gray tokens. On the white chip they stay full black and bold while the rest
   of the name steps back, never a color.
-
-### Changed
-- **A quick launch no longer flashes a line.** Return dims the repo's chip at
-  once, and "Opening Ghostty…" appears only if the launch is still going 700ms
-  later and the drop is still in front, so a warm launch just leaves. Once the line has appeared it stays at
-  least 600ms before the drop leaves, which holds only the drop, never the
-  terminal. The same goes for the editor on ⌘⏎, for ⌘0 and for "Creating
-  worktree…". Errors, permission lines and notes still show at once.
-- **A slow launch says so.** After four seconds the line changes from "Opening
-  Ghostty…" to "Still opening Ghostty…".
-- **Errors say what Return does.** A failed launch reads "Couldn't open Ghostty
-  (Ghostty lost focus), Return retries, Esc closes", and Return relaunches exactly
-  what failed, through the confirm again when the mode skips permissions. A launch
-  that fails after you have pressed Esc or clicked away is not lost, the drop
-  that is up shows it, or the next summon within half a minute does. Launches
-  run one at a time, so two can never type into the same window, and a double
-  press on Resume last session (menu, hotkey or Recents) opens it once. Onboarding's Test launch says "Opening…" while it waits.
-- **A permission failure that repeats says how to fix it.** The second time a
-  launch fails on the same missing grant in a session, the drop stops repeating
-  the summary and reads "Still no Accessibility, if Tintpad is listed, remove it
-  and add it back, Return opens the pane", since a listed Tintpad that is still
-  refused is a stale grant. Automation lists apps as switches, so its line says
-  to switch Tintpad off and on instead. A launch that goes through starts the
-  count over.
-- **A launch stopped by a permission waits for you.** After Return opens System
-  Settings, the next summon lands on the same repo and offers the launch back:
-  "Accessibility granted, Return launches tintpad with Claude Code" once the
-  grant is in, or "Return retries the launch in tintpad with Claude Code" for
-  Automation, which Tintpad can't check. It never launches on its own. Esc,
-  moving on, or any other launch forgets it, as does removing the repo, agent or
-  mode, or ten minutes passing. It runs the repo, agent and mode as they are
-  when you press Return, through the confirm when the mode skips permissions.
-- **A search that finds nothing says what to try.** The line reads "No match
-  for “zzq”, ⌘R rescans your folders", since a repo cloned since the last scan
-  is the usual reason.
-
-### Fixed
-- **No launch freezes the drop any more.** AppleScript handoffs (Ghostty, iTerm2,
-  Terminal) used to run on the main thread, up to about 8.5 seconds on a cold
-  Ghostty, and a frozen drop couldn't answer macOS when the terminal took focus,
-  which is how 0.3.8's stranded shadow began. Every launch now runs off the main
-  thread through `osascript`, so Esc works while a terminal opens, and a terminal
-  taking focus plays the launch exit. Existing Automation and Accessibility grants
-  carry over, macOS counts the helper as Tintpad.
-
-## [0.4.0] - Unreleased
-
-### Added
-- **Onboarding starts with your repos.** The first step scans your folders and
-  says what it found ("Found 14 repos in ~/Developer"), and "Add a folder…" adds
-  the one your projects live in and scans it on the spot. First run used to end
-  with an empty drop whenever the default folders did not match yours.
 
 ### Changed
 - **The hotkey is the last thing onboarding asks for.** Terminal choice and the
@@ -126,23 +84,51 @@ All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepac
 - **Every line in the drop keeps its subject.** The confirm, Opening, error, note,
   worktree and prompt lines now show the repo they are about as a white chip to
   their left, including a session resumed with ⌘0 from a different repo.
+- **The confirm line names the repo.** It reads "Skip permissions in tintpad
+  with Claude Code, Return confirms, Esc cancels", so the launch you are
+  consenting to says where it runs, not only how.
+- **The drop says where a launch is going.** "Opening Ghostty…" (or your editor)
+  is painted before the handoff starts, so a slow terminal no longer looks like
+  a Return that did nothing. The Warp note now reads "Command copied, paste it
+  in Warp".
+- **A quick launch no longer flashes a line.** Return dims the repo's chip at
+  once, and "Opening Ghostty…" appears only if the launch is still going 700ms
+  later and the drop is still in front, so a warm launch just leaves. Once the line has appeared it stays at
+  least 600ms before the drop leaves, which holds only the drop, never the
+  terminal. The same goes for the editor on ⌘⏎, for ⌘0 and for "Creating
+  worktree…". Errors, permission lines and notes still show at once.
+- **A slow launch says so.** After four seconds the line changes from "Opening
+  Ghostty…" to "Still opening Ghostty…".
+- **Errors say what Return does.** A failed launch reads "Couldn't open Ghostty
+  (Ghostty lost focus), Return retries, Esc closes", and Return relaunches exactly
+  what failed, through the confirm again when the mode skips permissions. A launch
+  that fails after you have pressed Esc or clicked away is not lost, the drop
+  that is up shows it, or the next summon within half a minute does. Launches
+  run one at a time, so two can never type into the same window, and a double
+  press on Resume last session (menu, hotkey or Recents) opens it once. Onboarding's Test launch says "Opening…" while it waits.
+- **A permission failure that repeats says how to fix it.** The second time a
+  launch fails on the same missing grant in a session, the drop stops repeating
+  the summary and reads "Still no Accessibility, if Tintpad is listed, remove it
+  and add it back, Return opens the pane", since a listed Tintpad that is still
+  refused is a stale grant. Automation lists apps as switches, so its line says
+  to switch Tintpad off and on instead. A launch that goes through starts the
+  count over.
+- **A launch stopped by a permission waits for you.** After Return opens System
+  Settings, the next summon lands on the same repo and offers the launch back:
+  "Accessibility granted, Return launches tintpad with Claude Code" once the
+  grant is in, or "Return retries the launch in tintpad with Claude Code" for
+  Automation, which Tintpad can't check. It never launches on its own. Esc,
+  moving on, or any other launch forgets it, as does removing the repo, agent or
+  mode, or ten minutes passing. It runs the repo, agent and mode as they are
+  when you press Return, through the confirm when the mode skips permissions.
+- **A search that finds nothing says what to try.** The line reads "No match
+  for “zzq”, ⌘R rescans your folders", since a repo cloned since the last scan
+  is the usual reason.
 
 ### Fixed
 - **Larger text sizes no longer grow the drop past its cap.** Dynamic Type was
   clamped inside the drop, where its own size metrics could not see the clamp,
   so the capsule and its window could outgrow the extra-extra-large limit.
-
-## [0.3.8] - Unreleased
-
-### Added
-- **The contract chips read what Return would do while you hold a modifier.**
-  Holding ⌥ turns MODE red before Return lands, ⇧ shows the safest mode, ⌃ adds
-  RUN · Headless, and holding ⌘ for a beat adds OPEN IN with your editor. Let go
-  and the chips return to rest. The modifiers used to change a launch without
-  the drop saying so, so a leftover ⌥ could skip permissions under a gray chip.
-  The preview and the launch now share one rule, so they cannot disagree.
-
-### Fixed
 - **The drop's shadow really no longer lingers after it is dismissed.** Removing
   the window's fade in 0.3.7 was not enough, the shadow could still be left on
   the desktop. Three things kept a frame alive. The panel was ordered out while
@@ -163,15 +149,13 @@ All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepac
   leaves the command on the clipboard and the drop stays open to say so, and a
   second Return there used to open another Warp window. It now closes the drop,
   and the note closes by itself after 1.6 seconds.
-
-### Changed
-- **The confirm line names the repo.** It reads "Skip permissions in tintpad
-  with Claude Code, Return confirms, Esc cancels", so the launch you are
-  consenting to says where it runs, not only how.
-- **The drop says where a launch is going.** "Opening Ghostty…" (or your editor)
-  is painted before the handoff starts, so a slow terminal no longer looks like
-  a Return that did nothing. The Warp note now reads "Command copied, paste it
-  in Warp".
+- **No launch freezes the drop any more.** AppleScript handoffs (Ghostty, iTerm2,
+  Terminal) used to run on the main thread, up to about 8.5 seconds on a cold
+  Ghostty, and a frozen drop couldn't answer macOS when the terminal took focus,
+  which is how the stranded shadow began. Every launch now runs off the main
+  thread through `osascript`, so Esc works while a terminal opens, and a terminal
+  taking focus plays the launch exit. Existing Automation and Accessibility grants
+  carry over, macOS counts the helper as Tintpad.
 
 ## [0.3.7] - 2026-08-30
 
