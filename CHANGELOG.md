@@ -2,6 +2,16 @@
 
 All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepachangelog.com), this project aims for [Semantic Versioning](https://semver.org).
 
+## [0.4.1] - Unreleased
+
+### Fixed
+- **The strip's left fade appears when the row is scrolled, and only then.** The
+  scroll measurement was overwritten by nodes that never measured, so the left
+  edge never faded, even with tokens hidden behind it. Underneath that, returning
+  to the first repo scrolled the row by its 3pt edge protection, which left the
+  first chip against the hard clip and would have faded the resting strip. The
+  first repo now brings the row back to its true start.
+
 ## [0.4.0] - 2026-09-17
 
 ### Added

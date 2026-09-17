@@ -298,9 +298,13 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   the key contribute the default. `value = nextValue()` let those zeros overwrite the
   hidden measuring copy's real width, so the capsule sat at its minimum with the token
   strip crushed to nothing and the MODE chip clipped (caught live before 0.4.0 shipped,
-  invisible to unit tests). `StripScrolledKey` still reduces last-wins, which is why
-  the left fade never appears; making it honest showed a fade on the resting strip, a
-  separate issue to fix before switching it.
+  invisible to unit tests). A Bool key reduces with `||` for the same reason:
+  `StripScrolledKey` reduced last-wins, so the left fade never appeared (fixed in
+  0.4.1). Making it honest exposed a second bug, a fade on the resting strip:
+  `scrollTo(0, anchor: .leading)` aligned token 0, which sits 3pt inside the padded
+  row, so the rest offset was really -3pt and the first chip sat against the hard
+  clip. Index 0 now scrolls to `PaletteView.stripStart`, an id on the padded row
+  itself (`scrollStrip(_:to:)`), so the resting offset is truly 0.
 - **Frecency comparator must be transitive**, no epsilon "≈ tie" band, it breaks strict
   weak ordering and makes `sort()` reshuffle the list every render.
 - **New-SDK symbols need a compiler gate, not just `#available`.** Liquid Glass APIs

@@ -1433,6 +1433,35 @@ struct PaletteView: View {
     /// measurement at all, so a half-built layout cannot mislead it.
     static func anchor(for index: Int) -> UnitPoint { index == 0 ? .leading : .center }
 
+    /// The scroll id of the strip's true leading edge: the padded row itself,
+    /// so its leading edge sits *before* the 3pt shear protection.
+    static let stripStart = "stripStart"
+    /// Protected points inside the scroll content, before the first chip.
+    static let stripLeadingPad: CGFloat = 3
+
+    /// Whether scrolling to `index` targets the strip's start rather than the
+    /// token. Index 0 must: token 0 sits `stripLeadingPad` inside the content,
+    /// so aligning *its* leading edge with the viewport scrolls the content by
+    /// the padding, which parks the chip against the hard clip it protects
+    /// and reports an offset at rest (the left fade over the white chip).
+    static func scrollsToStripStart(_ index: Int) -> Bool { index == 0 }
+
+    /// Whether the strip is holding a scroll offset, from the padded row's
+    /// minX in the viewport's space. At rest that minX is exactly 0, so the
+    /// half-point slack only absorbs rounding, never the padding.
+    static func stripIsScrolled(contentMinX: CGFloat) -> Bool { contentMinX < -0.5 }
+
+    /// Scroll the strip so `index` is in view. Index 0 lands on the strip's
+    /// start (offset 0, padding intact), every other token keeps
+    /// `anchor(for:)`.
+    private static func scrollStrip(_ proxy: ScrollViewProxy, to index: Int) {
+        if scrollsToStripStart(index) {
+            proxy.scrollTo(stripStart, anchor: .leading)
+        } else {
+            proxy.scrollTo(index, anchor: anchor(for: index))
+        }
+    }
+
     // Dynamic Type. The drop's geometry (`DropGeometry`) scales with
     // `typeScale`, the type with its own metrics, so they grow together.
     // Capped at xxLarge — one line cannot absorb accessibility sizes.
@@ -1768,7 +1797,11 @@ struct PaletteView: View {
                     }
                     if repos.isEmpty { emptyState }
                 }
-                .padding(.leading, 3)
+                .padding(.leading, Self.stripLeadingPad)
+                // The row's start, padding included, is the target for index 0
+                // (`scrollStrip`), so the resting offset is truly 0. A constant
+                // id on the container, the tokens keep their index identities.
+                .id(Self.stripStart)
                 // The measurement rides with the content: its minX in the
                 // viewport's space *is* the scroll offset. A Bool preference,
                 // not the raw offset, so this fires when the edge state flips
@@ -1777,7 +1810,8 @@ struct PaletteView: View {
                     GeometryReader { g in
                         Color.clear.preference(
                             key: StripScrolledKey.self,
-                            value: g.frame(in: .named(Self.stripSpace)).minX < -0.5)
+                            value: Self.stripIsScrolled(
+                                contentMinX: g.frame(in: .named(Self.stripSpace)).minX))
                     })
             }
             .coordinateSpace(.named(Self.stripSpace))
@@ -1803,7 +1837,7 @@ struct PaletteView: View {
             .onChange(of: model.selection) { _, new in
                 // The same curve as the chip's slide (`PaletteModel.select`),
                 // so the strip and the chip move together.
-                let scroll = { proxy.scrollTo(new, anchor: Self.anchor(for: new)) }
+                let scroll = { Self.scrollStrip(proxy, to: new) }
                 reduceMotion ? scroll() : withAnimation(.snappy(duration: 0.24), scroll)
             }
             // Typing reshapes the row (fewer tokens) but leaves the ScrollView
@@ -1813,7 +1847,7 @@ struct PaletteView: View {
             // shearing the first chip against the hard clip at x=0. Re-anchor on
             // the query itself, unanimated: the content just swapped, so sliding
             // it as well reads as noise rather than movement.
-            .onChange(of: model.query) { _, _ in proxy.scrollTo(0, anchor: .leading) }
+            .onChange(of: model.query) { _, _ in Self.scrollStrip(proxy, to: 0) }
             // Same staleness across summons: the view is reused, so a strip left
             // scrolled by the last visit must return to its margin on arrival.
             .onChange(of: contentA) { _, shown in
@@ -1822,7 +1856,7 @@ struct PaletteView: View {
                 var t = Transaction()
                 t.disablesAnimations = true
                 withTransaction(t) {
-                    proxy.scrollTo(model.selection, anchor: Self.anchor(for: model.selection))
+                    Self.scrollStrip(proxy, to: model.selection)
                 }
             }
         }
@@ -2200,7 +2234,9 @@ struct PaletteView: View {
 /// only question the mask asks keeps a drag from republishing every frame.
 private struct StripScrolledKey: PreferenceKey {
     static let defaultValue = false
-    static func reduce(value: inout Bool, nextValue: () -> Bool) { value = nextValue() }
+    // OR, never last-wins: nodes that don't set the key report the default
+    // false, which overwrote the real measurement so the left fade never showed.
+    static func reduce(value: inout Bool, nextValue: () -> Bool) { value = value || nextValue() }
 }
 
 /// The natural width of the drop's content, from the hidden measuring copy.
