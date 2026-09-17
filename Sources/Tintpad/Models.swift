@@ -157,6 +157,7 @@ struct Settings: Codable {
     var preferredEditorID: String?
     var rootScanFolders: [String] = []
     var frecencyHalfLifeDays: Double = 30
+    /// Off for decoded stores that predate or reject it, on for new ones (`defaults()`).
     var confirmDangerousModes: Bool = false
     /// Multi-step launch: also open the editor when launching an agent.
     var alsoOpenEditor: Bool = false
@@ -215,6 +216,10 @@ struct Settings: Codable {
         let home = NSHomeDirectory()
         var s = Settings()
         s.rootScanFolders = ["\(home)/Documents/Repositories", "\(home)/Developer"]
+        // New stores start with the confirm gate on. Only here: `init()` and the
+        // tolerant decoder keep `false`, so an existing store.json that lacks the
+        // key, or holds false, keeps the behavior its user already has.
+        s.confirmDangerousModes = true
         return s
     }
 }
@@ -246,7 +251,13 @@ struct StoreDocument: Codable {
         agents = try c.decodeIfPresent([Agent].self, forKey: .agents) ?? []
         prompts = try c.decodeIfPresent([PromptTemplate].self, forKey: .prompts) ?? []
         sessions = try c.decodeIfPresent([Session].self, forKey: .sessions) ?? []
-        settings = try c.decodeIfPresent(Settings.self, forKey: .settings) ?? .defaults()
+        // A store on disk is an existing store, even one missing its settings
+        // object, so the fallback keeps the confirm gate where old stores had it.
+        settings = try c.decodeIfPresent(Settings.self, forKey: .settings) ?? {
+            var s = Settings.defaults()
+            s.confirmDangerousModes = false
+            return s
+        }()
     }
 
     static func seeded() -> StoreDocument {

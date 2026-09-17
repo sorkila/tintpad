@@ -105,9 +105,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // slow fileprovider volumes and must never block launch.
         AppStore.shared.runAutoDiscoveryInBackground()
 
-        // Ask for notification permission so headless dispatch can notify on done.
-        DispatchService.shared.requestAuthorization()
-
         // Finishing onboarding summons the palette so the user lands in the app.
         NotificationCenter.default.addObserver(
             forName: .tintpadSummonPalette, object: nil, queue: .main

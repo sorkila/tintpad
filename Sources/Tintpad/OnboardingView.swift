@@ -3,8 +3,9 @@ import ApplicationServices
 import KeyboardShortcuts
 import SwiftUI
 
-/// First-run onboarding: set the summon hotkey, pick a terminal, and explain
-/// the permissions Tintpad will ask for.
+/// First-run onboarding: find the repos, pick a terminal and prove the handoff,
+/// then set the summon hotkey last, so it is the freshest thing in mind when
+/// the window closes.
 @MainActor
 final class OnboardingWindowController: NSObject, NSWindowDelegate {
     static let shared = OnboardingWindowController()
@@ -22,7 +23,10 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
             w.isReleasedWhenClosed = false
             w.delegate = self
             w.appearance = NSAppearance(named: .darkAqua)
-            let hosting = NSHostingView(rootView: OnboardingView { [weak self] in self?.finish() })
+            let hosting = NSHostingView(rootView: OnboardingView(
+                store: AppStore.shared,
+                onDone: { [weak self] in self?.finish() },
+                fit: { [weak self] in self?.fit() }))
             w.contentView = hosting
             w.setContentSize(hosting.fittingSize)   // fit the window to the content
             window = w
@@ -32,6 +36,22 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
         window?.center()
         window?.makeKeyAndOrderFront(nil)
         window?.orderFrontRegardless()
+    }
+
+    /// Refits the window to its content, keeping the top edge where it is.
+    /// The steps change height after the window exists (the repos line, a
+    /// test launch's error), and a window sized once would clip them.
+    func fit() {
+        guard let w = window, let content = w.contentView else { return }
+        // Let SwiftUI apply the state change before measuring.
+        DispatchQueue.main.async {
+            let size = content.fittingSize
+            let old = w.frame
+            let frame = w.frameRect(forContentRect: NSRect(origin: .zero, size: size))
+            guard abs(frame.height - old.height) > 0.5 || abs(frame.width - old.width) > 0.5 else { return }
+            w.setFrame(NSRect(x: old.minX, y: old.maxY - frame.height,
+                              width: frame.width, height: frame.height), display: true)
+        }
     }
 
     private func finish() {
@@ -50,7 +70,13 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
 }
 
 struct OnboardingView: View {
+    @ObservedObject var store: AppStore
     let onDone: () -> Void
+    let fit: () -> Void
+    /// Scan roots that exist on disk, cached: a root can sit on a slow iCloud
+    /// volume, and stat-ing it on every body render is main-thread work.
+    @State private var existingRoots: [String] = []
+    @State private var shortcut = KeyboardShortcuts.getShortcut(for: .summon)?.description
     @State private var terminalSel = ""
     @State private var axTrusted = false
     @State private var testStatus: String?
@@ -77,28 +103,25 @@ struct OnboardingView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            step(1, "Set your summon hotkey", "Press it anywhere to open the palette.") {
-                KeyboardShortcuts.Recorder(for: .summon)
+            step(1, "Where your repos live", reposLine) {
+                Button("Add a folder…") { addFolder() }
             }
 
-            step(2, "Choose your terminal", "Where agents launch.") {
-                Picker("", selection: $terminalSel) {
-                    Text("Auto (first detected)").tag("")
-                    ForEach(TerminalRegistry.installed, id: \.bundleID) { t in
-                        Text(t.displayName).tag(t.bundleID)
-                    }
-                }
-                .labelsHidden()
-                .frame(maxWidth: 220, alignment: .leading)
-                .padding(.leading, -8)   // cancel the pop-up's label inset → aligns with the leading line
-                .onChange(of: terminalSel) { _, v in
-                    AppStore.shared.settings.preferredTerminalBundleID = v.isEmpty ? nil : v
-                    AppStore.shared.save()
-                }
-            }
-
-            step(3, "Test the handoff", permissionsBlurb) {
+            step(2, "Choose your terminal", permissionsBlurb) {
                 VStack(alignment: .leading, spacing: 8) {
+                    Picker("", selection: $terminalSel) {
+                        Text("Auto (first detected)").tag("")
+                        ForEach(TerminalRegistry.installed, id: \.bundleID) { t in
+                            Text(t.displayName).tag(t.bundleID)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: 220, alignment: .leading)
+                    .padding(.leading, -8)   // cancel the pop-up's label inset → aligns with the leading line
+                    .onChange(of: terminalSel) { _, v in
+                        store.settings.preferredTerminalBundleID = v.isEmpty ? nil : v
+                        store.save()
+                    }
                     HStack(spacing: 10) {
                         Button("Test launch") { testLaunch() }
                         if testOK {
@@ -113,13 +136,17 @@ struct OnboardingView: View {
                         permissionsControl
                     }
                 }
-                .frame(minHeight: 88, alignment: .topLeading)   // reserve room so the window fits the failure case
+                .frame(minHeight: 88, alignment: .topLeading)
+            }
+
+            step(3, "Set your summon hotkey", "Press it anywhere to open the drop.") {
+                KeyboardShortcuts.Recorder(for: .summon) { new in shortcut = new?.description }
             }
 
             Button(action: onDone) {
                 // The product's own signature, full width: the white chip with
                 // black ink, the same object the selected repo wears in the drop.
-                Text(testOK ? "Done, start using Tintpad" : "Get started").frame(maxWidth: .infinity)
+                Text(OnboardingCopy.doneLabel(shortcut: shortcut)).frame(maxWidth: .infinity)
                     .foregroundStyle(.black)
             }
             .controlSize(.large).buttonStyle(.borderedProminent).tint(.white)
@@ -132,21 +159,59 @@ struct OnboardingView: View {
         .onAppear {
             // Default to Terminal.app — it's the most reliable handoff (one
             // Automation prompt, no Accessibility/relaunch dance).
-            if AppStore.shared.settings.preferredTerminalBundleID == nil,
+            if store.settings.preferredTerminalBundleID == nil,
                TerminalRegistry.adapter(forBundleID: "com.apple.Terminal")?.isInstalled == true {
-                AppStore.shared.settings.preferredTerminalBundleID = "com.apple.Terminal"
-                AppStore.shared.save()
+                store.settings.preferredTerminalBundleID = "com.apple.Terminal"
+                store.save()
             }
-            terminalSel = AppStore.shared.settings.preferredTerminalBundleID ?? ""
+            terminalSel = store.settings.preferredTerminalBundleID ?? ""
             axTrusted = AXIsProcessTrusted()
+            // The app's launch scan may still be walking a slow volume, run it
+            // again here so the line fills in as repos land (the merge dedupes).
+            store.runAutoDiscoveryInBackground()
+            refreshRoots()
         }
+        .onChange(of: store.repos.count) { _, _ in fit() }
+        .onChange(of: store.settings.rootScanFolders) { _, _ in refreshRoots(); fit() }
+        .onChange(of: testStatus) { _, _ in fit() }
         // Re-check after the user returns from System Settings.
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             axTrusted = AXIsProcessTrusted()
+            shortcut = KeyboardShortcuts.getShortcut(for: .summon)?.description
         }
     }
 
-    /// The actionable part of step 3: grant Accessibility (Ghostty) or open the
+    /// Step 1's status line. `store.repos` is observed, so it updates as the
+    /// background scan lands.
+    private var reposLine: String {
+        OnboardingCopy.reposLine(count: store.repos.count, existingRoots: existingRoots)
+    }
+
+    private func refreshRoots() {
+        let fm = FileManager.default
+        existingRoots = store.settings.rootScanFolders.filter { root in
+            var isDir: ObjCBool = false
+            return fm.fileExists(atPath: (root as NSString).expandingTildeInPath, isDirectory: &isDir)
+                && isDir.boolValue
+        }
+    }
+
+    /// A user action, so the scan runs synchronously and the line answers at once.
+    private func addFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Add"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        if !store.settings.rootScanFolders.contains(url.path) {
+            store.settings.rootScanFolders.append(url.path)
+        }
+        store.save()
+        _ = store.runAutoDiscovery()
+    }
+
+    /// The actionable part of step 2: grant Accessibility (Ghostty) or open the
     /// Automation pane (AppleScript terminals). CLI terminals need nothing.
     @ViewBuilder private var permissionsControl: some View {
         switch resolvedTerminalID {
@@ -168,7 +233,7 @@ struct OnboardingView: View {
     /// macOS permission prompt (so it's granted here, in-flow) and proves the
     /// whole handoff works before the user leaves onboarding.
     private func testLaunch() {
-        let terminal = TerminalRegistry.preferred(settings: AppStore.shared.settings)
+        let terminal = TerminalRegistry.preferred(settings: store.settings)
         do {
             _ = try terminal.launch(TerminalLaunch(
                 workingDirectory: NSHomeDirectory(),

@@ -4,7 +4,29 @@ All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepac
 
 ## [0.4.0] - Unreleased
 
+### Added
+- **Onboarding starts with your repos.** The first step scans your folders and
+  says what it found ("Found 14 repos in ~/Developer"), and "Add a folder…" adds
+  the one your projects live in and scans it on the spot. First run used to end
+  with an empty drop whenever the default folders did not match yours.
+
 ### Changed
+- **The hotkey is the last thing onboarding asks for.** Terminal choice and the
+  test launch are now one step, the hotkey comes after them, and the finish
+  button names your summon hotkey, so the key you need next is the last one
+  you saw.
+- **Settings puts each thing where you look for it.** GitHub import sits under
+  Workspace next to Repos, and the frecency half-life moved from Appearance to a
+  Ranking card on Repos, beside the list it orders. The confirm toggle left the
+  Advanced group for its own Safety section on General, with a line saying which
+  paths it covers. A repo's agent and mode pickers read "Remembers last" instead
+  of a dash and "default", and Scan says "Scanned, 3 new repos" and clears.
+- **Notifications are requested on your first ⌃⏎.** Tintpad used to ask at app
+  launch, before anything had a reason to notify you. It now asks the first time
+  a headless dispatch will want to report back.
+- **New installs confirm before skipping permissions.** "Confirm before launching
+  a mode that skips permissions" is on for a new store. An existing install keeps
+  its setting, whether it was saved off or never saved at all.
 - **The drop sits closer and matches the housing.** The capsule now hangs 8pt
   below the camera housing instead of 34pt, and on a notched Mac it is exactly as
   tall as the housing is deep (between 32 and 40 points), so the two read as one

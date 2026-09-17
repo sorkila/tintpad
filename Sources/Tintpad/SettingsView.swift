@@ -14,8 +14,8 @@ struct SettingsView: View {
             // it is content (repo hues, agent tints, danger red).
             List(selection: $selection) {
                 Section { rows([.general, .appearance, .hotkeys]) }
-                Section { rows([.repos, .agents, .prompts]) } header: { sectionHeader("Workspace") }
-                Section { rows([.recents, .github]) } header: { sectionHeader("Activity") }
+                Section { rows([.repos, .agents, .prompts, .github]) } header: { sectionHeader("Workspace") }
+                Section { rows([.recents]) } header: { sectionHeader("Activity") }
                 Section { rows([.about]) }
             }
             // Solid black, not sidebar material: the wallpaper tinting
@@ -106,12 +106,12 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         switch self {
         case .general:    "Startup, terminal, and editor"
         case .hotkeys:    "Global keyboard shortcuts"
-        case .repos:      "Your repositories and scan roots"
+        case .repos:      "Repositories, scan roots, and ranking"
         case .agents:     "Agents, command templates, and run modes"
         case .prompts:    "Reusable starting prompts"
         case .recents:    "Recent sessions and quick-resume"
         case .github:     "Import repositories from GitHub"
-        case .appearance: "Chip tints and ranking"
+        case .appearance: "Chip tints"
         case .about:      "Version, license, and updates"
         }
     }
@@ -162,6 +162,13 @@ struct GeneralSettingsView: View {
                 Toggle("Also open editor when launching an agent", isOn: store.bind(\.alsoOpenEditor))
             }
 
+            Section("Safety") {
+                Toggle("Confirm before launching a mode that skips permissions",
+                       isOn: store.bind(\.confirmDangerousModes))
+                Text("Return once arms the confirm line, Return again launches. Every path passes the gate, including ⌥⏎, ⌘1 to ⌘9, ⌃⏎ dispatch, and resume.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
             Section {
                 DisclosureGroup("Advanced") {
                     LabeledContent("Worktree root") {
@@ -175,8 +182,6 @@ struct GeneralSettingsView: View {
                             }
                         }
                     }
-                    Toggle("Confirm before launching a mode that skips permissions",
-                           isOn: store.bind(\.confirmDangerousModes))
                 }
             }
         }
@@ -220,9 +225,6 @@ struct GeneralSettingsView: View {
 
 struct AppearanceSettingsView: View {
     @ObservedObject var store: AppStore
-    // Paired with the callout-based type below so the chip and swatches keep
-    // fitting their content at accessibility sizes (a11y #3).
-    @ScaledMetric(relativeTo: .callout) private var chipWidth: CGFloat = 48
 
     var body: some View {
         Form {
@@ -239,36 +241,11 @@ struct AppearanceSettingsView: View {
             // No theme picker: the drop, Settings, and onboarding each pin
             // darkAqua on their own window, so Light and System selected
             // nothing a user could see. One black world, no control for it.
-            Section {
-                DisclosureGroup("Advanced") {
-                    slider("Frecency half-life", value: store.bind(\.frecencyHalfLifeDays), range: 3...90, unit: "d", snap: 1)
-                    Text("Half-life controls how fast a repo's ranking decays. Shorter = recency wins; longer = frequency wins.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-            }
+            // Ranking moved to Repos, next to the list it orders.
         }
         .formStyle(.grouped)
         .padding(20)
     }
-
-    /// A clean tinted slider (no tick marks) with a value chip; snaps on release.
-    private func slider(_ title: String, value: Binding<Double>,
-                        range: ClosedRange<Double>, unit: String, snap: Double) -> some View {
-        LabeledContent(title) {
-            HStack(spacing: 14) {
-                Slider(value: value, in: range) { editing in
-                    if !editing { value.wrappedValue = (value.wrappedValue / snap).rounded() * snap }
-                }
-                .tint(.gray)   // monochrome controls, like the drop
-                Text("\(Int((value.wrappedValue / snap).rounded() * snap))\(unit)")
-                    .font(TypeRamp.mono.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .frame(width: chipWidth, alignment: .trailing)
-                    .monospacedDigit()
-            }
-        }
-    }
-
 }
 
 // MARK: - About

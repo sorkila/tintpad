@@ -8,10 +8,10 @@ extension KeyboardShortcuts.Name {
     static let resumeLast = Self("resumeLast")
 }
 
-/// Registers the global summon hotkey. In production we will NOT set a default
-/// and will instead prompt the user via the Recorder on first launch (per the
-/// brief). For the Phase 0 spike we seed ⌥⌘Space if nothing is set, so the
-/// hotkey is testable immediately.
+/// Registers the global summon hotkey. ⌥⌘Space is seeded when nothing is set,
+/// before onboarding shows, so the hotkey works from the first launch and
+/// onboarding's last step (and its Done button) can name it. The Recorder
+/// there, or in Settings → Hotkeys, replaces it.
 enum HotkeyManager {
     static func configureSpikeDefaultIfNeeded() {
         if KeyboardShortcuts.getShortcut(for: .summon) == nil {

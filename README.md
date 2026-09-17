@@ -79,8 +79,8 @@ swift run                  # dev run
   command-injection API, so it opens at the repo with the command on your clipboard.
 - **Run modes in each agent's own words**, Default and Skip permissions for Claude
   Code, Untrusted, Default, and Full access for Codex. A mode that skips permissions is
-  a red chip, and (optionally) requires a confirm, on every path, including dispatch
-  and resume.
+  a red chip, and, on new installs by default, asks you to confirm, on every path,
+  including dispatch and resume.
 - **Worktrees**, <kbd>⌃W</kbd> spins up an isolated branch checkout and launches the agent in it.
 - **Headless dispatch**, <kbd>⌃↵</kbd> runs an agent in the background and notifies you when it's done.
 - **Prompt library, per-repo presets, GitHub import, open-in-editor.**

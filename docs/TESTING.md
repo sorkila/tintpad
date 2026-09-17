@@ -105,7 +105,7 @@ land. `Charlie` below is that repo.
 |---|---------|-------|--------|
 | J7 | Arrow the strip | summon, → →, ⏎ | Charlie's marker, the third token |
 | J8 | Jump shortcut | summon, ⌘3 | Charlie's marker without any arrowing |
-| J9 | Danger needs consent | `confirmDangerousModes` on, ⇧⇥ to `Skip permissions`, ⏎ | no marker yet, the confirm line arms and reads `Skip permissions in <repo> with <agent>, Return confirms, Esc cancels`, a second ⏎ produces it |
+| J9 | Danger needs consent | `confirmDangerousModes` on, ⇧⇥ to `Skip permissions`, ⏎ | no marker yet, the confirm line arms and reads `Skip permissions in <repo> with <agent>, Return confirms, Esc cancels`, a second ⏎ produces it. `confirmDangerousModes` is on by default for a new store only, an existing store keeps its value, the harness store writes it false, flip it for J9 |
 | J10 | Resume | J1 first, summon, ⌘0 | row 1's marker again, sessions deduped to one |
 | J11 | The app remembers | J4 first, summon again | the MODE chip states `Skip permissions`, and ⏎ passes `--test-danger` |
 | J12 | Worktree mode | summon, ⌃W, type a branch, ⏎ | the worktree dir exists and the marker ran inside it |

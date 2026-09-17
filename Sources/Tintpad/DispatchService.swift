@@ -18,6 +18,9 @@ final class DispatchService {
         return dir
     }()
 
+    /// Asked on the first ⌃⏎, not at app launch: the prompt makes sense the
+    /// moment a background run will want to report back, and not before.
+    /// Idempotent, macOS shows the prompt only while the status is undetermined.
     func requestAuthorization() {
         guard AppEnvironment.isBundled else { return }  // UN crashes outside a bundle
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
@@ -76,6 +79,7 @@ final class DispatchService {
             }
         }
 
+        requestAuthorization()
         do {
             try p.run()
         } catch {
@@ -93,13 +97,22 @@ final class DispatchService {
             NSLog("Tintpad dispatch done: \(agent) @ \(repo) exit \(status) — \(log.path)")
             return
         }
-        let content = UNMutableNotificationContent()
         let ok = status == 0
-        content.title = ok ? "✓ \(agent) finished" : "⚠ \(agent) exited \(status)"
-        content.body = repo
-        content.sound = ok ? .default : .defaultCritical
-        content.userInfo = ["log": log.path]
-        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
-        UNUserNotificationCenter.current().add(request)
+        let title = ok ? "✓ \(agent) finished" : "⚠ \(agent) exited \(status)"
+        let logPath = log.path
+        // Ask again before adding: a sub-second dispatch can finish while the
+        // first-run prompt is still undetermined, and `add` would then drop the
+        // notification silently. Once decided, this answers immediately. The
+        // request is built inside the callback so only Sendable values cross it.
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in
+            guard granted else { return }
+            let content = UNMutableNotificationContent()
+            content.title = title
+            content.body = repo
+            content.sound = ok ? .default : .defaultCritical
+            content.userInfo = ["log": logPath]
+            let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+            UNUserNotificationCenter.current().add(request)
+        }
     }
 }

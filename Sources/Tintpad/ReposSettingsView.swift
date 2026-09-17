@@ -5,6 +5,10 @@ import UniformTypeIdentifiers
 struct ReposSettingsView: View {
     @ObservedObject var store: AppStore
     @State private var scanResult: String?
+    @State private var scanClear: Task<Void, Never>?
+    // Paired with the mono value chip so it keeps fitting at accessibility
+    // sizes (a11y #3).
+    @ScaledMetric(relativeTo: .callout) private var chipWidth: CGFloat = 48
 
     var body: some View {
         SettingsScroll {
@@ -32,7 +36,7 @@ struct ReposSettingsView: View {
             SettingsCard("Repositories · \(store.repos.count)", trailing: AnyView(HStack(spacing: 10) {
                 if let scanResult { Text(scanResult).font(.caption).foregroundStyle(.secondary) }
                 Button("Add…") { addRepoFolder() }
-                Button("Scan") { let n = store.runAutoDiscovery(); scanResult = "+\(n)" }
+                Button("Scan") { scan() }
             })) {
                 if store.repos.isEmpty {
                     EmptyStateView(icon: "folder.badge.plus", title: "No repositories yet",
@@ -44,11 +48,53 @@ struct ReposSettingsView: View {
                     }
                 }
             }
+
+            // Ranking lives beside the list it orders.
+            SettingsCard("Ranking") {
+                VStack(alignment: .leading, spacing: 6) {
+                    slider("Frecency half-life", value: store.bind(\.frecencyHalfLifeDays), range: 3...90, unit: "d", snap: 1)
+                    Text("How fast a repo's ranking decays. Shorter, recency wins. Longer, frequency wins.")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.horizontal, 14).padding(.vertical, 10)
+            }
         }
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in handleDrop(providers) }
     }
 
     // MARK: - Actions
+
+    /// Says what the scan did in words, then clears after two seconds. A new
+    /// scan cancels the pending clear so it cannot wipe the fresh result.
+    private func scan() {
+        scanClear?.cancel()
+        let n = store.runAutoDiscovery()
+        scanResult = "Scanned, \(n) new repo\(n == 1 ? "" : "s")"
+        scanClear = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            scanResult = nil
+        }
+    }
+
+    /// A clean tinted slider (no tick marks) with a value chip, snaps on release.
+    private func slider(_ title: String, value: Binding<Double>,
+                        range: ClosedRange<Double>, unit: String, snap: Double) -> some View {
+        LabeledContent(title) {
+            HStack(spacing: 14) {
+                Slider(value: value, in: range) { editing in
+                    if !editing { value.wrappedValue = (value.wrappedValue / snap).rounded() * snap }
+                }
+                .tint(.gray)   // monochrome controls, like the drop
+                Text("\(Int((value.wrappedValue / snap).rounded() * snap))\(unit)")
+                    .font(TypeRamp.mono.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: chipWidth, alignment: .trailing)
+                    .monospacedDigit()
+            }
+        }
+    }
 
     private func addRepoFolder() {
         guard let url = chooseFolder() else { return }
@@ -124,16 +170,16 @@ private struct RepoRow: View {
             .help(repo.pinned ? "Unpin" : "Pin to top")
 
             Picker("", selection: agentBinding) {
-                Text("—").tag(UUID?.none)
+                Text("Remembers last").tag(UUID?.none)
                 ForEach(store.agents) { a in Text(a.name).tag(Optional(a.id)) }
             }
             .labelsHidden().frame(width: 130)
 
             Picker("", selection: modeBinding) {
-                Text("default").tag(UUID?.none)
+                Text("Remembers last").tag(UUID?.none)
                 ForEach(agent?.modes ?? []) { m in Text(m.name).tag(Optional(m.id)) }
             }
-            .labelsHidden().frame(width: 100)
+            .labelsHidden().frame(width: 130)
 
             Button { store.removeRepo(repo.id) } label: { Image(systemName: "trash") }
                 .buttonStyle(.borderless).foregroundStyle(.secondary)

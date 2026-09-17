@@ -784,6 +784,68 @@ final class SettingsDecodeTests: XCTestCase {
         XCTAssertEqual(again.tintAccent, .teal)
         XCTAssertEqual(again.appearance, .light)
     }
+
+    // The confirm gate is on for a brand-new store only. A store.json that
+    // already exists keeps what its user had: missing the key means the build
+    // that wrote it had no default of true, so it stays off.
+    func testConfirmGateOnForNewStoresOnly() throws {
+        XCTAssertTrue(Settings.defaults().confirmDangerousModes)
+        XCTAssertTrue(StoreDocument.seeded().settings.confirmDangerousModes)
+        XCTAssertFalse(try decode("{}").confirmDangerousModes)
+        XCTAssertFalse(try decode(#"{"confirmDangerousModes":false}"#).confirmDangerousModes)
+        XCTAssertTrue(try decode(#"{"confirmDangerousModes":true}"#).confirmDangerousModes)
+        let doc = try JSONDecoder().decode(StoreDocument.self, from: Data(#"{"repos":[]}"#.utf8))
+        XCTAssertFalse(doc.settings.confirmDangerousModes, "a store on disk without settings is not a new store")
+        // A new store's true survives its own save and reload.
+        let saved = try JSONEncoder().encode(Settings.defaults())
+        XCTAssertTrue(try JSONDecoder().decode(Settings.self, from: saved).confirmDangerousModes)
+    }
+}
+
+final class OnboardingCopyTests: XCTestCase {
+    private let home = "/Users/me"
+
+    func testFoundManyInOneRoot() {
+        XCTAssertEqual(OnboardingCopy.reposLine(count: 14, existingRoots: ["/Users/me/Developer"], home: home),
+                       "Found 14 repos in ~/Developer")
+    }
+
+    func testFoundOneIsSingular() {
+        XCTAssertEqual(OnboardingCopy.reposLine(count: 1, existingRoots: ["/Users/me/Developer"], home: home),
+                       "Found 1 repo in ~/Developer")
+    }
+
+    func testTwoRootsJoinWithAnd() {
+        XCTAssertEqual(OnboardingCopy.reposLine(count: 3, existingRoots: ["/Users/me/Developer", "/Users/me/code"], home: home),
+                       "Found 3 repos in ~/Developer and ~/code")
+    }
+
+    func testThreeRootsUseCommas() {
+        XCTAssertEqual(OnboardingCopy.joined(["a", "b", "c"]), "a, b, and c")
+    }
+
+    func testNoneFoundYet() {
+        XCTAssertEqual(OnboardingCopy.reposLine(count: 0, existingRoots: ["/Users/me/Developer"], home: home),
+                       "No repos found in ~/Developer yet")
+    }
+
+    func testNoRootOnDiskAsksForAFolder() {
+        XCTAssertEqual(OnboardingCopy.reposLine(count: 5, existingRoots: [], home: home),
+                       "Add the folder your projects live in, Tintpad finds the repos inside it")
+    }
+
+    func testTildeAbbreviationOnlyAtAPathBoundary() {
+        XCTAssertEqual(OnboardingCopy.abbreviate("/Users/me", home: home), "~")
+        XCTAssertEqual(OnboardingCopy.abbreviate("/Users/me/x", home: "/Users/me/"), "~/x")
+        XCTAssertEqual(OnboardingCopy.abbreviate("/Users/mex/code", home: home), "/Users/mex/code")
+        XCTAssertEqual(OnboardingCopy.abbreviate("/Volumes/work", home: home), "/Volumes/work")
+    }
+
+    func testDoneLabelNamesTheHotkey() {
+        XCTAssertEqual(OnboardingCopy.doneLabel(shortcut: "⌥Space"), "Done, press ⌥Space anytime")
+        XCTAssertEqual(OnboardingCopy.doneLabel(shortcut: nil), "Done, press your hotkey anytime")
+        XCTAssertEqual(OnboardingCopy.doneLabel(shortcut: ""), "Done, press your hotkey anytime")
+    }
 }
 
 final class DismissSequencerTests: XCTestCase {
