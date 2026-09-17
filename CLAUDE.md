@@ -168,8 +168,8 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   micro-eyebrows), red-etched chip (skips permissions). A contract never truncates
   (`fixedSize`), never hides, and holds no branch (where you launch from is the tile's
   business). Return dims the subject chip wordlessly, and the gray waiting line
-  ("Opening …", "Creating worktree…") appears only after 350ms in flight and holds
-  600ms once shown before the launch exit (`LaunchFeedbackTiming`, the drop waits,
+  ("Opening …", "Creating worktree…") appears only after 700ms in flight (and only while the drop is key) and holds
+  600ms once shown before any launch exit, a focus loss included (`LaunchFeedbackTiming`, the drop waits,
   the handoff never does). Fully mute at rest: tokens only, the query materializes as you type,
   and keys and digits appear only while ⌘ is held (past the 150ms beat, the ⌘1–⌘9
   digit on strip tokens, the key on each chip via `ContractPreview.Chip.key`).

@@ -128,6 +128,11 @@ final class PaletteModel: ObservableObject {
     // they were made on — so a query change clears them along with transients.
     @Published var query = "" {
         didSet {
+            // An unchanged write while a launch is busy is not typing: the
+            // field commits its binding when it loses key (the terminal
+            // taking focus), and treating that as a query change would clear
+            // the waiting line and move the selection under the dimmed chip.
+            guard query != oldValue || !launchBusy else { return }
             // Unanimated: the row just changed under the chip, a slide from a
             // token that no longer exists would be noise.
             select(0, animated: false)
@@ -185,6 +190,13 @@ final class PaletteModel: ObservableObject {
     /// Plays the hold's one beat, so anything that moves on cancels it.
     private let exitHold = StepSequencer()
 
+    /// Whether the strip's white chip on `repo` dims as Return's wordless
+    /// acknowledgement: a launch is busy and it is the launch's own repo
+    /// (⌘0 resumes a repo that may not be the selection).
+    func acknowledgesLaunch(of repo: Repo) -> Bool {
+        launchBusy && (launchRepo == nil || launchRepo?.id == repo.id)
+    }
+
     /// A launch is running or its exit is being held. What the gate, the
     /// focus-loss upgrade, the dimmed subject chip and the frozen hug read.
     var launchBusy: Bool { launchInFlight || launchExitHeld }
@@ -205,6 +217,11 @@ final class PaletteModel: ObservableObject {
     /// When the current wait began: the Return, for a worktree launch too.
     private var waitStartedAt: TimeInterval = 0
     private var waitingLine: WaitingLine?
+    /// Whether the drop is key in an active app, so a waiting line is still
+    /// worth showing (the terminal has not already come to the front). Set
+    /// by the controller.
+    var isFrontmost: () -> Bool = { true }
+
     /// Monotonic seconds, for the waiting line's stamps.
     private func clock() -> TimeInterval { ProcessInfo.processInfo.systemUptime }
 
@@ -310,8 +327,12 @@ final class PaletteModel: ObservableObject {
         let next = DismissPolicy.next(current: dismissal, requested: reason, inFlight: launchBusy)
         guard next != dismissal else { return }
         if next == .launch {
+            // Keyed to the line having appeared, not to it still being the
+            // status: whatever replaced it in the meantime, the eye saw it
+            // arrive and must see it stay, however the exit was asked for
+            // (the handoff answering, or the terminal taking focus first).
             let wait = LaunchFeedbackTiming.exitDelay(
-                start: waitStartedAt, lineShownAt: waitingLineShownAt, completedAt: clock())
+                lineShownAt: waitingLine?.shownAt, requestedAt: clock())
             if wait > 0 { holdLaunchExit(for: wait); return }
         }
         beginExit(next)
@@ -434,9 +455,10 @@ final class PaletteModel: ObservableObject {
             } else {
                 let due = LaunchFeedbackTiming.lineDelay(start: waitStartedAt, now: now)
                 beats.append(StepSequencer.Beat(at: due) { [weak self] in
-                    // Never over another line, and never onto a leaving drop.
+                    // Never over another line, never onto a leaving drop, and
+                    // never once the terminal is already in front.
                     guard let self, launchGeneration == gen, launchInFlight, !isDismissing,
-                          status == nil else { return }
+                          !launchExitHeld, isFrontmost(), status == nil else { return }
                     showWaitingLine(opening)
                 })
             }
@@ -500,6 +522,7 @@ final class PaletteModel: ObservableObject {
     private func finishLaunch(_ outcome: LaunchOutcome) {
         noteGeneration += 1
         guard let note = outcome.note else { closeAfterLaunch(); return }
+        waitingLine = nil
         launchNote = note
         status = note
         let noteGen = noteGeneration, summonGen = summonGeneration
@@ -965,6 +988,8 @@ final class PaletteModel: ObservableObject {
     /// state, a gone session says so, and everything else is an error line
     /// naming the app and what Return does (it retries).
     private func report(_ error: Error, context: LaunchContext) {
+        // An error is not a waiting line, nothing about it holds an exit.
+        waitingLine = nil
         launchRepo = context.repo
         if case TerminalLaunchError.permissionNeeded(let summary, _, let pane) = error {
             status = nil   // the "Opening …" line has had its turn
@@ -1100,7 +1125,7 @@ final class PaletteModel: ObservableObject {
             waitingLine = nil
             launchBeats.run([StepSequencer.Beat(at: LaunchFeedbackTiming.showDelay) { [weak self] in
                 guard let self, summonGeneration == gen, launchInFlight, !isDismissing,
-                      status == nil else { return }
+                      !launchExitHeld, isFrontmost(), status == nil else { return }
                 showWaitingLine("Creating worktree…")
             }])
             DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -1122,6 +1147,7 @@ final class PaletteModel: ObservableObject {
                     Task { @MainActor [weak self] in
                         guard let self, summonGeneration == gen else { return }
                         launchBeats.cancel()
+                        waitingLine = nil
                         launchInFlight = false
                         status = "⚠ \(error)"
                     }
@@ -1834,15 +1860,10 @@ struct PaletteView: View {
             .frame(height: chipH)
             .background {
                 if selected && role != .measuring {
-                    selectionChip(for: repo, slides: role == .strip)
+                    selectionChip(for: repo, slides: role == .strip,
+                                  dimmed: role == .strip && model.acknowledgesLaunch(of: repo))
                 }
             }
-            // The strip's white chip is Return's wordless acknowledgement
-            // until the launch's line (if it needs one) has something to say.
-            // Only the launch's own repo: ⌘0 resumes a repo that may not be
-            // the selection.
-            .opacity(selected && role == .strip && model.launchBusy
-                     && (model.launchRepo == nil || model.launchRepo?.id == repo.id) ? 0.7 : 1)
             .contentShape(Rectangle())
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(label)
@@ -1891,9 +1912,15 @@ struct PaletteView: View {
 
     /// The chip's fill. Supporters may spend one drop of color here: the
     /// chip in the repo's own bleached hue. Everyone else, pure white.
-    @ViewBuilder private func selectionChip(for repo: Repo, slides: Bool) -> some View {
+    ///
+    /// `dimmed` is Return's wordless acknowledgement, and lives on the fill
+    /// itself, inside the `matchedGeometryEffect`: an opacity on the token
+    /// around it was seen live not to dim the chip, so the dim no longer
+    /// depends on an ancestor modifier reaching a geometry-matched view.
+    @ViewBuilder private func selectionChip(for repo: Repo, slides: Bool, dimmed: Bool = false) -> some View {
         let chip = Capsule(style: .continuous)
             .fill(model.tintedChips ? RepoTint.chip(for: repo.name) : Color(white: 0.96))
+            .opacity(dimmed ? 0.7 : 1)
         if slides {
             chip.matchedGeometryEffect(id: "selection", in: selectionNS)
         } else {

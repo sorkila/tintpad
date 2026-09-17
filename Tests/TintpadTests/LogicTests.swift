@@ -1421,40 +1421,43 @@ final class LaunchFeedbackTimingTests: XCTestCase {
     typealias T = LaunchFeedbackTiming
 
     func testTheNumbers() {
-        XCTAssertEqual(T.showDelay, 0.35)
+        XCTAssertEqual(T.showDelay, 0.7)
         XCTAssertEqual(T.minVisible, 0.6)
         XCTAssertEqual(T.stillOpening, 4)
         XCTAssertEqual(LaunchStatusCopy.stillOpeningAfter, T.stillOpening)
     }
 
-    func testLineIsDueAfterTheDelayFromStart() {
-        XCTAssertEqual(T.lineDelay(start: 10, now: 10), 0.35, accuracy: 1e-9)
+    func testAWarmHandoffStealsFocusBeforeTheLineIsDue() {
+        // Ghostty warm: focus taken at ~450ms, the answer at ~800ms.
+        XCTAssertGreaterThan(T.showDelay, 0.45)
+        XCTAssertEqual(T.lineDelay(start: 10, now: 10), 0.7, accuracy: 1e-9)
+    }
+
+    func testAContinuedWaitCountsFromReturn() {
         // A worktree launch continues a wait that began at Return.
-        XCTAssertEqual(T.lineDelay(start: 10, now: 10.2), 0.15, accuracy: 1e-9)
+        XCTAssertEqual(T.lineDelay(start: 10, now: 10.5), 0.2, accuracy: 1e-9)
         XCTAssertEqual(T.lineDelay(start: 10, now: 11), 0)
     }
 
-    func testAWarmLaunchThatNeverShowedTheLineExitsAtOnce() {
-        XCTAssertEqual(T.exitDelay(start: 0, lineShownAt: nil, completedAt: 0.1), 0)
-        // Past the delay but the line never made it on (the answer won the race).
-        XCTAssertEqual(T.exitDelay(start: 0, lineShownAt: nil, completedAt: 0.36), 0)
+    func testNoLineNoHold() {
+        XCTAssertEqual(T.exitDelay(lineShownAt: nil, requestedAt: 0.45), 0)
+        XCTAssertEqual(T.exitDelay(lineShownAt: nil, requestedAt: 5), 0)
     }
 
-    func testAShownLineHoldsTheExitUntilItsMinimum() {
-        XCTAssertEqual(T.exitDelay(start: 0, lineShownAt: 0.35, completedAt: 0.4), 0.55, accuracy: 1e-9)
-        XCTAssertEqual(T.exitDelay(start: 0, lineShownAt: 0.35, completedAt: 0.95), 0, accuracy: 1e-9)
+    func testTheHoldIsMeasuredFromTheLineWhateverAskedForTheExit() {
+        // The terminal takes focus 100ms after the line appeared, launch still running.
+        XCTAssertEqual(T.exitDelay(lineShownAt: 0.7, requestedAt: 0.8), 0.5, accuracy: 1e-9)
+        // A second request later in the hold (the answer after the focus loss)
+        // lands on the same moment.
+        XCTAssertEqual(0.8 + T.exitDelay(lineShownAt: 0.7, requestedAt: 0.8),
+                       1.1 + T.exitDelay(lineShownAt: 0.7, requestedAt: 1.1), accuracy: 1e-9)
+        // A line that appeared late (the beat ran late) holds from when it appeared.
+        XCTAssertEqual(T.exitDelay(lineShownAt: 0.9, requestedAt: 1.0), 0.5, accuracy: 1e-9)
     }
 
     func testALineShownLongEnoughNeverHolds() {
-        XCTAssertEqual(T.exitDelay(start: 0, lineShownAt: 0.35, completedAt: 2), 0)
-        XCTAssertEqual(T.exitDelay(start: 0, lineShownAt: 0.35, completedAt: 5), 0)
-    }
-
-    func testTheHoldCountsFromWhenTheLineWasDueAtTheEarliest() {
-        // A stamp before the line could have been due is read as the due time.
-        XCTAssertEqual(T.exitDelay(start: 1, lineShownAt: 1, completedAt: 1.4), 0.55, accuracy: 1e-9)
-        // A line that appeared late (the beat ran late) holds from when it appeared.
-        XCTAssertEqual(T.exitDelay(start: 0, lineShownAt: 0.5, completedAt: 0.6), 0.5, accuracy: 1e-9)
+        XCTAssertEqual(T.exitDelay(lineShownAt: 0.7, requestedAt: 1.3), 0, accuracy: 1e-9)
+        XCTAssertEqual(T.exitDelay(lineShownAt: 0.7, requestedAt: 5), 0)
     }
 }
 

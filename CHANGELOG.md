@@ -24,8 +24,8 @@ All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepac
 
 ### Changed
 - **A quick launch no longer flashes a line.** Return dims the repo's chip at
-  once, and "Opening Ghostty…" appears only if the launch is still going 350ms
-  later, so a warm launch just leaves. Once the line has appeared it stays at
+  once, and "Opening Ghostty…" appears only if the launch is still going 700ms
+  later and the drop is still in front, so a warm launch just leaves. Once the line has appeared it stays at
   least 600ms before the drop leaves, which holds only the drop, never the
   terminal. The same goes for the editor on ⌘⏎, for ⌘0 and for "Creating
   worktree…". Errors, permission lines and notes still show at once.

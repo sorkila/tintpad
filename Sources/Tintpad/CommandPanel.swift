@@ -88,6 +88,7 @@ final class CommandPanelController: NSObject {
             onClose: { [weak self] in self?.hide() },
             onOpenSettings: { [weak self] in self?.openSettings() })
         model.isPresented = { [weak self] in self?.panel?.isVisible == true }
+        model.isFrontmost = { [weak self] in self?.panel?.isKeyWindow == true && NSApp.isActive }
         return model
     }()
 
@@ -99,12 +100,14 @@ final class CommandPanelController: NSObject {
 
     /// A panel mid-dismissal (its exit playing, or blanked at alpha 0) is on
     /// its way out, so to the user it is gone and the hotkey summons it back
-    /// instead of hiding it. So is one holding its launch exit (the terminal
-    /// took focus while "Opening …" has its minimum time). Hiding plays the
-    /// Esc exit.
+    /// instead of hiding it. So is one holding its launch exit after losing
+    /// key (the terminal took focus while "Opening …" has its minimum time).
+    /// A hold on a drop that is still key is cut short like any other drop.
+    /// Hiding plays the Esc exit.
     func toggle() {
-        if panel?.isVisible == true && !dismissal.isDismissing && !model.isDismissing
-            && !model.launchExitHeld {
+        let leaving = dismissal.isDismissing || model.isDismissing
+            || (model.launchExitHeld && panel?.isKeyWindow != true)
+        if panel?.isVisible == true && !leaving {
             model.requestDismiss(.escape)
         } else {
             show()
