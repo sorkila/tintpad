@@ -7,7 +7,7 @@ Guidance for Claude Code (and contributors) working in this repo.
 floating palette → fuzzy-find a repo (frecency-ranked) → pick agent + run mode →
 your terminal opens at that repo with the agent (Claude Code, Codex, …) running.
 Hands off to *your* terminal, it isn't one. Accessory app (`LSUIElement`), local-only,
-no accounts. **Free & open source (MIT) + optional Supporter tip.**
+no accounts. **Free & open source (MIT), nothing to unlock.** Buy me a coffee link only.
 
 ## Status (shipped)
 **v0.4.0 is live** (2026-09-17): the polish
@@ -95,12 +95,11 @@ in `Resources/Info.plist` then run `./Scripts/release.sh` to cut the next one.
 ## Commands
 ```sh
 swift build              # debug build
-swift test               # 154 unit tests (pure logic, keep green)
+swift test               # 155 unit tests (pure logic, keep green)
 swift run                # run from source (dev; unsigned)
 ./Scripts/package.sh     # assemble + sign .app/DMG in a TMPDIR scratch (signs if SIGN_IDENTITY set)
 ./Scripts/dev-install.sh # build → Developer ID sign → install to /Applications (local dev)
 ./Scripts/release.sh     # one-command notarized release (needs SIGN_IDENTITY + NOTARY_PROFILE)
-./Scripts/sign-license.swift <email>  # sign a Supporter key (manual tint fulfillment)
 ./Scripts/uitest.sh      # synthetic-input GUI smoke test (needs Accessibility/Automation)
 ./Scripts/record-demo.sh # self-recording demo film: seeds portfolio repos, records the
                          # scripted take, cuts demo.mp4/poster/og/hero, restores the store
@@ -123,7 +122,7 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   hue + short name. **SingleInstance.swift**, flock guard.
 - **ShellEnvironment.swift**, login-shell PATH resolution. **Frecency.swift**, ranking. **FuzzyMatch.swift**,
   search tiers (exact → prefix → word boundary → infix → subsequence → path), ranked by (tier, frecency index).
-- **SettingsView.swift** (+ per-pane views), **OnboardingView.swift**, **LicenseManager.swift**, **Tokens.swift**.
+- **SettingsView.swift** (+ per-pane views), **OnboardingView.swift**, **Tokens.swift**.
 
 ## Conventions
 - All command building goes through `CommandTemplate`, every interpolated value is
@@ -197,20 +196,17 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   past its own start, which resolves against a viewport that is still moving during
   arrival and settles on a stray offset nothing later corrects, shearing the leading
   chip flat against the clip (the 0.3.2 regression, fixed in 0.3.3).
-  ←/→ move through tokens only while the field is empty; ↑/↓, ⌘1–⌘9, ⌘0 unchanged. `RepoTint` hues survive in Settings and
-  the Supporter tint perk, not in the drop.
+  ←/→ move through tokens only while the field is empty; ↑/↓, ⌘1–⌘9, ⌘0 unchanged. `RepoTint` hues survive in Settings, never in the drop.
 - **Prose has no em dashes and no prose semicolons**, in markdown docs and website copy
   (a deliberate, enforced house style, use commas). Code, identifiers, and code comments
   are exempt, and third-party files (e.g. an upstream awesome-list with em-dash separators)
   match their own house style.
-- Monetization is a tip jar: `AppStore.allows()` returns true for everything except
-  `customTint`, which now gates **tinted chips** (the selected repo's chip in its own
-  bleached hue, `RepoTint.chip`, toggle in Settings → Appearance). Don't add
-  functional gates.
-- **Supporter unlock is manual fulfillment** (low volume): tipper emails their receipt,
-  you run `Scripts/sign-license.swift <email>` (Ed25519, self-verifies against the embedded
-  public key, prints a ready-to-send email), they paste the key in Settings → About.
-  No webhook/server yet. A one-tap unlock is a future feature.
+- **No monetization in the app** (0.4.1). The Supporter tip, its license keys
+  (`LicenseManager`, `sign-license.swift`), the `allows()` gate and tinted chips are gone,
+  and so is the Appearance pane that only held the tint toggle. The selected chip is white
+  for everyone. What's left is a Buy me a coffee link (Settings → About, the site footer,
+  README). `tintedChips` and `licenseKey` survive only as retired decode fields. Don't add
+  gates, keys or perks back.
 - Match surrounding style, keep `swift test` green, add a test when fixing logic.
 
 ## Gotchas (hard-won, read before debugging)
@@ -388,19 +384,19 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
 - `Sources/Tintpad/`, app. `Tests/TintpadTests/`, unit tests. `Resources/`, Info.plist, icns,
   entitlements, and the icon sources (`appicon-raw.jpg` the raw render, `appicon-source.png`
   the masked 1024 build that `Scripts/make-icon.swift` consumes).
-- `web/`, marketing site: a single hand-written `index.html` (no build step, kept lean ~18KB,
+- `web/`, marketing site: a single hand-written `index.html` (no build step, kept lean ~16KB: hero + film, WHAT IT DOES, five QUESTIONS, a three-line footer, each fact said once,
   carries canonical + SoftwareApplication/FAQPage JSON-LD and a Lockpaw cross-link in the footer),
   `appcast.xml`, `robots.txt`, `sitemap.xml`, `llms.txt`, `.htaccess` (https + apex 301s, verify
   via Inleed if redirects misbehave), and `assets/` (demo.mp4, demo-poster.jpg, og.jpg, og.png).
   Uses umami analytics + full Open Graph / Twitter-card meta. og.jpg (progressive JPEG ~160KB) is
   the served share card, og.png stays as the pipeline source, `record-demo.sh` emits both (Pillow).
   Auto-deploys to tintpad.com via `.github/workflows/deploy-web.yml`.
-- `Scripts/`, package / dev-install / release / sign-license / uitest. `Casks/tintpad.rb`, Homebrew cask
+- `Scripts/`, package / dev-install / release / uitest. `Casks/tintpad.rb`, Homebrew cask
   (mirrored into the separate `sorkila/homebrew-tap` repo, which is what `brew` installs from).
 - `docs/`, ARCHITECTURE, AUDIT, RELEASE, HOMEBREW, DEMO, good-first-issues. `ROADMAP.md`, `CHANGELOG.md` at root.
-- `secrets/` (gitignored), Ed25519 license **private** key (`sign-license.swift` reads it). `private/` (gitignored),
+- `secrets/` (gitignored), the retired Ed25519 license private key. `private/` (gitignored),
   internal GTM/launch docs (launch-copy.md, launch-plan.md). **Never commit these.**
 
 ## Portfolio context (2026-08-25)
 
-Tintpad is a reputation piece in a portfolio plan targeting 100 000 kr/month in side income (Sorkila session artifacts: "The Demand Ledger"). Research verdict: free, MIT and the tip jar stay; a "Pro checkbox" on a free MIT app is resented and the agent-orchestration lane is nativised or VC-funded. If a paid product is ever built next to Tintpad it should be a *different* product sold once ($19–29) direct via r/macapps and Homebrew, not the Mac App Store. Measured candidates: (1) a **Claude Code transcript/session-history vault** (search, redact, encrypt `~/.claude`; the one rising unmet ask, 9→88 posts/month on r/ClaudeCode Jan→Jul 2026); (2) an **agent config/profile manager** (cc-switch: 129k stars, 2 421 open issues, 11k brew installs/30d, free and unloved); (3) a **Ghostty settings GUI** (Ghostty is brew cask #10, 32k installs/30d, "ghostty config" top autocomplete). Cross-agent status/notification is saturated by free tools. Tintpad's own brew installs were 5 in 30 days; distribution, not product, is its gap. Nothing decided.
+Tintpad is a reputation piece in a portfolio plan targeting 100 000 kr/month in side income (Sorkila session artifacts: "The Demand Ledger"). Research verdict: free, MIT and the tip jar stay (the tip perk was later dropped in 0.4.1, a coffee link remains); a "Pro checkbox" on a free MIT app is resented and the agent-orchestration lane is nativised or VC-funded. If a paid product is ever built next to Tintpad it should be a *different* product sold once ($19–29) direct via r/macapps and Homebrew, not the Mac App Store. Measured candidates: (1) a **Claude Code transcript/session-history vault** (search, redact, encrypt `~/.claude`; the one rising unmet ask, 9→88 posts/month on r/ClaudeCode Jan→Jul 2026); (2) an **agent config/profile manager** (cc-switch: 129k stars, 2 421 open issues, 11k brew installs/30d, free and unloved); (3) a **Ghostty settings GUI** (Ghostty is brew cask #10, 32k installs/30d, "ghostty config" top autocomplete). Cross-agent status/notification is saturated by free tools. Tintpad's own brew installs were 5 in 30 days; distribution, not product, is its gap. Nothing decided.

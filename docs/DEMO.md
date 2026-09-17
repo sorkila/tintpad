@@ -62,7 +62,6 @@ set for its notch geometry.
 ## Taste notes
 
 - End the clip at rest, the loop point must be calm.
-- The demo store pins `tintedChips` off, so the film stays monochrome.
 - Desktop copies for posting: `~/Desktop/tintpad-demo.mp4` (native wide),
   `tintpad-demo-16x9.mp4` (letterboxed for platforms that crop),
   `tintpad-demo.gif` (0.6MB, for comments).

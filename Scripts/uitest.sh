@@ -18,7 +18,6 @@ BK="/tmp/tp_uitest_store_backup.json"
 REPO="/tmp/tintpad-uitest"
 REPO2="/tmp/tintpad-zzother"
 MARKERS="/tmp/tp_A /tmp/tp_B /tmp/tp_A_flags /tmp/tp_B_flags"
-KEY=$(grep -A1 "Working sample Pro key" secrets/license-private-key.txt 2>/dev/null | tail -1)
 
 [ -d "$APP" ] || { echo "Build first: ./Scripts/package.sh"; exit 1; }
 
@@ -62,7 +61,7 @@ r2 = repo("/tmp/tintpad-zzother", "tintpad-zzother", b["id"], False)
 json.dump({"version": 1, "repos": [r1, r2], "agents": [a, b], "prompts": [], "sessions": [],
            "settings": {"rootScanFolders": [], "frecencyHalfLifeDays": 30,
                         "confirmDangerousModes": False,
-                        "alsoOpenEditor": False, "licenseKey": key, "hasOnboarded": True,
+                        "alsoOpenEditor": False, "hasOnboarded": True,
                         "preferredTerminalBundleID": "com.apple.Terminal"}}, open(store, "w"))
 PY
 

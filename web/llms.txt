@@ -11,7 +11,7 @@ Tintpad hands off to your terminal, it isn't one. It is not a terminal replaceme
 ## App Details
 
 - **Platform:** macOS 14 (Sonoma) or later. Native Swift/SwiftUI, menu-bar app.
-- **Price:** Free. The whole app, no functional gates. Optional pay-what-you-want Supporter tip unlocks a cosmetic tinted-chip perk.
+- **Price:** Free. The whole app, nothing to unlock, no Pro version.
 - **License:** MIT, fully open source: https://github.com/sorkila/tintpad
 - **Distribution:** Signed and notarized by Apple.
 - **Privacy:** Local-only. Your repo list is a JSON file on your Mac. No accounts, no telemetry, nothing leaves your machine.

@@ -17,4 +17,4 @@ That's it. No accounts, no config.
 
 A full TypeScript Raycast extension could come later (search repos, recents, project-aware actions). For now a script command does the one job that matters: get the palette on screen.
 
-Tintpad is free and MIT. If it earns a spot in your workflow, the tip jar is at [buymeacoffee.com/eriknielsen](https://buymeacoffee.com/eriknielsen).
+Tintpad is free and MIT. If it earns a spot in your workflow, you can buy me a coffee at [buymeacoffee.com/eriknielsen](https://buymeacoffee.com/eriknielsen).

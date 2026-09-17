@@ -13,7 +13,7 @@ struct SettingsView: View {
             // ink, matching the drop. Color survives in Settings only where
             // it is content (repo hues, agent tints, danger red).
             List(selection: $selection) {
-                Section { rows([.general, .appearance, .hotkeys]) }
+                Section { rows([.general, .hotkeys]) }
                 Section { rows([.repos, .agents, .prompts, .github]) } header: { sectionHeader("Workspace") }
                 Section { rows([.recents]) } header: { sectionHeader("Activity") }
                 Section { rows([.about]) }
@@ -84,21 +84,20 @@ struct SettingsView: View {
         case .prompts:    PromptsSettingsView(store: store)
         case .recents:    RecentsSettingsView(store: store)
         case .github:     GitHubSettingsView(store: store)
-        case .appearance: AppearanceSettingsView(store: store)
         case .about:      AboutSettingsView(store: store)
         }
     }
 }
 
 enum SettingsTab: String, CaseIterable, Identifiable {
-    case general, hotkeys, repos, agents, prompts, recents, github, appearance, about
+    case general, hotkeys, repos, agents, prompts, recents, github, about
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .general: "General"; case .hotkeys: "Hotkeys"; case .repos: "Repos"
         case .agents: "Agents"; case .prompts: "Prompts"; case .recents: "Recents"
-        case .github: "GitHub"; case .appearance: "Appearance"; case .about: "About"
+        case .github: "GitHub"; case .about: "About"
         }
     }
 
@@ -111,16 +110,14 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .prompts:    "Reusable starting prompts"
         case .recents:    "Recent sessions and quick-resume"
         case .github:     "Import repositories from GitHub"
-        case .appearance: "Chip tints"
-        case .about:      "Version, license, and updates"
+        case .about:      "Version and updates"
         }
     }
 }
 
 // MARK: - General
 
-/// Mirrors the working Appearance tab's structure (Form/Section + store.bind),
-/// but uses AppKit `PopUpPicker` for the dropdowns — two SwiftUI `Picker`s in
+/// A Form/Section + store.bind pane, but uses AppKit `PopUpPicker` for the dropdowns — two SwiftUI `Picker`s in
 /// one Form reliably cycled AttributeGraph and crashed on this SDK.
 struct GeneralSettingsView: View {
     @ObservedObject var store: AppStore
@@ -221,40 +218,11 @@ struct GeneralSettingsView: View {
     }
 }
 
-// MARK: - Appearance
-
-struct AppearanceSettingsView: View {
-    @ObservedObject var store: AppStore
-
-    var body: some View {
-        Form {
-            Section("Tint") {
-                Toggle("Selected repo's chip in its own hue", isOn: store.bind(\.tintedChips))
-                    .disabled(!store.isSupporter)
-                Text(store.isSupporter
-                     ? "One drop of color in the black: the white chip blooms in the repo's hue. Off keeps the drop pure black and white."
-                     : "The Supporter perk. Tip, email your receipt to erik@sorkila.com, get a hand-signed key, and the chip blooms in each repo's own hue.")
-                    .font(.caption).foregroundStyle(.secondary)
-                    .withInlineLink()
-            }
-
-            // No theme picker: the drop, Settings, and onboarding each pin
-            // darkAqua on their own window, so Light and System selected
-            // nothing a user could see. One black world, no control for it.
-            // Ranking moved to Repos, next to the list it orders.
-        }
-        .formStyle(.grouped)
-        .padding(20)
-    }
-}
-
 // MARK: - About
 
 struct AboutSettingsView: View {
     @ObservedObject var store: AppStore
     @ObservedObject private var updater = UpdaterController.shared
-    @State private var keyInput = ""
-    @State private var feedback: String?
     // Display-size mark: no text style is this large, so scale the size itself.
     @ScaledMetric(relativeTo: .largeTitle) private var markSize: CGFloat = 72
 
@@ -264,21 +232,9 @@ struct AboutSettingsView: View {
             Image(nsImage: NSApp.applicationIconImage)
                 .resizable().interpolation(.high)
                 .frame(width: markSize, height: markSize)
-            HStack(spacing: 8) {
-                Text("Tintpad").font(.title.bold())
-                if store.isSupporter {
-                    Label("Supporter", systemImage: "heart.fill").font(.caption2.bold())
-                        .padding(.horizontal, 7).padding(.vertical, 2)
-                        .background(.primary, in: Capsule())
-                        .foregroundStyle(.background)
-                }
-            }
-            Text("Free & open source. Local-only, no accounts.")
+            Text("Tintpad").font(.title.bold())
+            Text("Free and open source, the whole thing. Local-only, no accounts.")
                 .font(.callout).foregroundStyle(.secondary)
-
-            Spacer().frame(height: 8)
-
-            licenseSection
 
             Spacer().frame(height: 8)
 
@@ -315,42 +271,6 @@ struct AboutSettingsView: View {
         .padding(30)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-
-    @ViewBuilder private var licenseSection: some View {
-        if let info = store.licenseInfo {
-            VStack(spacing: 6) {
-                Label("Supporter, thank you ♥", systemImage: "checkmark.seal.fill")
-                    .foregroundStyle(.green)
-                Text(info.email).font(.monoStyle(.callout)).foregroundStyle(.secondary)
-                Button("Remove key") { store.clearLicense(); keyInput = ""; feedback = nil }
-                    .controlSize(.small)
-            }
-        } else {
-            VStack(spacing: 8) {
-                Text("Everything's free. If Tintpad saves you time, chip in. Supporters get tinted chips, the selected repo's chip in its own hue: tip, email your receipt to erik@sorkila.com, and I'll send a key to paste below.")
-                    .font(.callout).foregroundStyle(.secondary)
-                    .withInlineLink()
-                    .multilineTextAlignment(.center).frame(maxWidth: 460)
-                HStack {
-                    TextField("Paste supporter key", text: $keyInput)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.monoStyle(.callout))
-                    Button("Activate") {
-                        if store.applyLicense(keyInput) {
-                            feedback = nil
-                        } else {
-                            feedback = "That key didn't check out."
-                        }
-                    }
-                    .disabled(keyInput.isEmpty)
-                }
-                .frame(maxWidth: 460)
-                if let feedback {
-                    Text(feedback).font(.caption).foregroundStyle(.red)
-                }
-            }
-        }
-    }
 }
 
 /// Link styling for the monochrome world.
@@ -366,11 +286,4 @@ extension View {
     func linkStyle() -> some View {
         self.buttonStyle(.plain).foregroundStyle(.primary).underline()
     }
-}
-
-/// For prose that carries a bare address SwiftUI turns into a link (the
-/// Supporter email). The surrounding caption is secondary, so lifting just the
-/// link to primary is what separates it from the sentence around it.
-extension Text {
-    func withInlineLink() -> some View { self.tint(.primary) }
 }

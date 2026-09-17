@@ -166,10 +166,6 @@ struct Settings: Codable {
     var openInNewTab: Bool = false
     /// Optional root folder where new worktrees are created (nil = sibling of repo).
     var worktreeRoot: String?
-    /// Supporter perk: the selected repo's chip blooms in its own hue.
-    var tintedChips: Bool = true
-    /// Pro license key (Ed25519-signed); nil = free tier.
-    var licenseKey: String?
     /// First-run onboarding completed.
     var hasOnboarded: Bool = false
 
@@ -187,6 +183,11 @@ struct Settings: Codable {
     /// Retired with the palette-width slider. The drop sizes itself from the
     /// notch and its own type scale, so there is nothing left to set.
     var panelWidth: Double = 640
+    /// Retired with the Supporter tip. The drop is black and white for
+    /// everyone, and Tintpad has nothing left to unlock.
+    var tintedChips: Bool = true
+    /// Retired with the Supporter tip, see `tintedChips`.
+    var licenseKey: String?
 
     init() {}
 
@@ -198,18 +199,18 @@ struct Settings: Codable {
         preferredTerminalBundleID = try? c.decode(String.self, forKey: .preferredTerminalBundleID)
         preferredEditorID = try? c.decode(String.self, forKey: .preferredEditorID)
         worktreeRoot = try? c.decode(String.self, forKey: .worktreeRoot)
-        licenseKey = try? c.decode(String.self, forKey: .licenseKey)
         rootScanFolders = g(.rootScanFolders, [])
         frecencyHalfLifeDays = g(.frecencyHalfLifeDays, 30)
         confirmDangerousModes = g(.confirmDangerousModes, false)
         alsoOpenEditor = g(.alsoOpenEditor, false)
         openInNewTab = g(.openInNewTab, false)
-        tintedChips = g(.tintedChips, true)
         hasOnboarded = g(.hasOnboarded, false)
         // Retired, read only so they survive the round-trip.
         tintAccent = g(.tintAccent, .orange)
         appearance = g(.appearance, .dark)
         panelWidth = g(.panelWidth, 640)
+        tintedChips = g(.tintedChips, true)
+        licenseKey = try? c.decode(String.self, forKey: .licenseKey)
     }
 
     static func defaults() -> Settings {

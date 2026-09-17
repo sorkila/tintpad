@@ -351,32 +351,6 @@ final class ErrorMessageTests: XCTestCase {
     }
 }
 
-final class LicenseTests: XCTestCase {
-    // The sample Pro key signed by the embedded public key (see secrets/).
-    private let validKey = "eyJlbWFpbCI6ImVyaWtAc29ya2lsYS5jb20iLCJwbGFuIjoicHJvIiwiaWF0IjoxNzUwMDAwMDAwfQ==.HqALR7nuRgB6AeUq7daHFd33+ESLZn2qdMbMaKk1FwoIAACRxgs5rSXdkG2A2bxPXGJ4g1jRCNrQJ2LS08DeCQ=="
-
-    func testValidKeyAccepted() {
-        let info = LicenseManager.verify(validKey)
-        XCTAssertEqual(info?.plan, "pro")
-        XCTAssertEqual(info?.email, "erik@sorkila.com")
-    }
-
-    func testNilAndGarbageRejected() {
-        XCTAssertNil(LicenseManager.verify(nil))
-        XCTAssertNil(LicenseManager.verify(""))
-        XCTAssertNil(LicenseManager.verify("not-a-key"))
-        XCTAssertNil(LicenseManager.verify("a.b"))
-    }
-
-    func testTamperedSignatureRejected() {
-        var bad = validKey
-        let dot = bad.firstIndex(of: ".")!
-        let after = bad.index(after: dot)
-        bad.replaceSubrange(after...after, with: bad[after] == "H" ? "I" : "H")
-        XCTAssertNil(LicenseManager.verify(bad))
-    }
-}
-
 final class GitInfoTests: XCTestCase {
     func testParsesBranchAndRemote() throws {
         let dir = NSTemporaryDirectory() + "tintpad-gittest-\(UUID().uuidString)"
@@ -750,7 +724,7 @@ final class UITestHarnessContractTests: XCTestCase {
 
 /// The tolerant decoder is load-bearing doctrine: a store that fails to decode
 /// is a store that gets reseeded, which silently throws away the user's repos,
-/// agents, and license. It had no coverage, so these pin the three ways a real
+/// agents, and settings. It had no coverage, so these pin the three ways a real
 /// store.json drifts from the current struct.
 final class SettingsDecodeTests: XCTestCase {
     private func decode(_ json: String) throws -> Settings {

@@ -6,7 +6,7 @@ Erik can supply (Apple Developer, signing/notarization, Buy Me a Coffee, the
 hosting that serves `appcast.xml`), so a PR alone can't land them.
 
 Tintpad is free and MIT, local-only, no accounts, no telemetry. None of that
-changes. The tip jar stays a tip jar.
+changes. There is nothing to unlock and never will be.
 
 ## Near-term
 
@@ -82,5 +82,5 @@ Wishlist. No promises, no dates.
 
 Found a sharp edge or want to own one of these? PRs welcome, terminal adapters
 especially. [`CONTRIBUTING.md`](CONTRIBUTING.md) has the lay of the land. If
-Tintpad earns a spot in your day, the tip jar is at
+Tintpad earns a spot in your day, you can buy me a coffee at
 [buymeacoffee.com/eriknielsen](https://www.buymeacoffee.com/eriknielsen).

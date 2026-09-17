@@ -111,7 +111,7 @@ final class AppStore: ObservableObject {
             try data.write(to: fileURL, options: .atomic)
         } catch {
             // A failed save must at least leave a trace — silent loss of
-            // repos/sessions/license on disk-full is worse than a log line.
+            // repos/sessions/settings on disk-full is worse than a log line.
             NSLog("Tintpad: failed to save store.json: \(error.localizedDescription)")
         }
     }
@@ -183,37 +183,6 @@ final class AppStore: ObservableObject {
         // (⏎ and ⇥ silently no-op) until the next launch reseeds.
         guard agents.count > 1 else { return }
         agents.removeAll { $0.id == id }
-        save()
-    }
-
-    // MARK: - Licensing / entitlements
-
-    var licenseInfo: LicenseManager.LicenseInfo? { LicenseManager.verify(settings.licenseKey) }
-    /// Has the user bought the optional Supporter unlock. (Tintpad is MIT and
-    /// fully free; this only ever unlocks a cosmetic thank-you.)
-    var isSupporter: Bool { licenseInfo != nil }
-
-    /// Tip-jar model: every functional feature is free. The only thing the
-    /// Supporter tip unlocks is tinted chips — the selected repo's chip in its
-    /// own bleached hue, a small thank-you, never a wall.
-    func allows(_ feature: ProFeature) -> Bool {
-        switch feature {
-        case .customTint: return isSupporter
-        }
-    }
-
-    /// Validates and stores a license key. Returns true if accepted.
-    @discardableResult
-    func applyLicense(_ key: String) -> Bool {
-        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard LicenseManager.verify(trimmed) != nil else { return false }
-        settings.licenseKey = trimmed
-        save()
-        return true
-    }
-
-    func clearLicense() {
-        settings.licenseKey = nil
         save()
     }
 

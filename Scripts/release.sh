@@ -72,8 +72,7 @@ source.
   presets, GitHub import.
 - 7 terminals: Ghostty, iTerm2, kitty, WezTerm, Alacritty, Terminal.app, Warp.
 - Local-only: no accounts, no telemetry, nothing leaves your Mac.
-- Free and MIT, the whole app. The optional Supporter tip only unlocks tinted chips (the
-  selected repo's chip blooms in its own hue).
+- Free and MIT, the whole app. Nothing to unlock, no Pro version.
 
 Full notes: [CHANGELOG.md](https://github.com/${REPO}/blob/main/CHANGELOG.md) · sha256 \`${SHA}\`
 EOF

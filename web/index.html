@@ -31,7 +31,7 @@
   :root{
     --bg:#050506; --panel:#101013; --line:rgba(255,255,255,.07);
     --text:#f5f5f3; --dim:#9a9a9f; --faint:#6e6e73;
-    --danger:#e5484d; --danger-soft:rgba(229,72,77,.10);
+    --danger:#e5484d;
     --mono:"SF Mono",ui-monospace,Menlo,monospace;
     --sans:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;
   }
@@ -41,11 +41,6 @@
     -webkit-font-smoothing:antialiased;overflow-x:hidden}
   .wrap{max-width:720px;margin:0 auto;padding:0 28px}
   a{color:var(--text);text-decoration:none}
-  .mono{font-family:var(--mono)}
-
-  /* The notch, drawn once, at the very top of the page. */
-  .notch{width:150px;height:26px;margin:0 auto;background:#000;border-radius:0 0 12px 12px;
-    border:1px solid var(--line);border-top:0}
 
   nav{display:flex;justify-content:space-between;align-items:center;padding:22px 0;font-size:14px}
   .logo{display:flex;align-items:center;gap:10px;font-weight:550;letter-spacing:-.01em}
@@ -53,8 +48,6 @@
   .logo .mark{width:27px;height:27px;border-radius:8px;background:#16161a;
     border:1px solid rgba(255,255,255,.14);display:grid;place-items:center}
   .logo .mark img{width:21px;height:21px;border-radius:5px;display:block}
-  nav .links a{color:var(--dim);margin-left:22px;transition:color .15s}
-  nav .links a:hover{color:var(--text)}
 
   .hero{text-align:left;padding:60px 0 0}
   h1{font-size:clamp(38px,6.4vw,60px);font-weight:600;letter-spacing:-.035em;line-height:1.05;color:var(--text)}
@@ -70,21 +63,11 @@
   .meta{margin-top:16px;color:var(--faint);font-size:12.5px;font-family:var(--mono);letter-spacing:.01em}
   .meta code{color:var(--dim);user-select:all}
 
-  /* Keystrokes, the way the app teaches them. */
-  .keyrow{display:grid;grid-template-columns:210px 1fr;gap:18px;align-items:baseline;
-    padding:14px 0;border-top:1px solid var(--line)}
-  .keyrow:first-of-type{border-top:0}
-  .keyrow .d{font-size:14.5px;color:var(--dim)}
-  .keyrow .d b{color:var(--text);font-weight:500}
-  kbd{display:inline-block;font-family:var(--mono);font-size:12.5px;color:var(--text);
-    background:#151519;border:1px solid rgba(255,255,255,.15);border-bottom-width:2px;
-    border-radius:7px;padding:3px 9px;margin-right:5px;white-space:nowrap}
-
   /* The film is the star: it breaks out of the text column to a wide stage. */
   .shot{width:min(1120px,calc(100vw - 40px));margin:56px 0 0 calc(50% - min(560px,calc(50vw - 20px)));
     animation:fall .5s cubic-bezier(.2,.9,.3,1) both}
   @keyframes fall{from{opacity:0;transform:translateY(-14px)}to{opacity:1;transform:none}}
-  .demo{display:block;width:100%;background:#000;border-radius:16px;overflow:hidden;
+  .demo{display:block;width:100%;height:auto;background:#000;border-radius:16px;overflow:hidden;
     border:1px solid var(--line);
     box-shadow:0 30px 80px -20px rgba(0,0,0,.9)}
 
@@ -92,7 +75,6 @@
   section + section{border-top:1px solid var(--line)}
   h2{font-size:12px;font-weight:600;color:var(--faint);font-family:var(--mono);
     letter-spacing:.09em;margin-bottom:18px}
-  .lede{color:var(--dim);font-size:16.5px;max-width:560px;letter-spacing:-.01em}
   .list{margin-top:24px;display:flex;flex-direction:column}
   .item{display:grid;grid-template-columns:160px 1fr;gap:18px;align-items:baseline;padding:13px 0;border-top:1px solid var(--line)}
   .item:first-child{border-top:0}
@@ -101,34 +83,12 @@
   .item.red .h{color:var(--danger)}
   @media(max-width:520px){.item{grid-template-columns:1fr;gap:3px}}
 
-
-  .price{display:flex;gap:48px;margin-top:8px;flex-wrap:wrap}
-  .price .t{font-size:12px;color:var(--faint);font-family:var(--mono);letter-spacing:.08em}
-  .price .amt{font-size:26px;font-weight:600;margin:6px 0;letter-spacing:-.02em}
-  .price .amt small{font-size:13px;color:var(--faint);font-weight:400}
-  .price ul{list-style:none;margin-top:10px}
-  .price li{color:var(--dim);font-size:14px;padding:3px 0}
-  .coffee{display:inline-flex;align-items:center;gap:8px;margin-top:15px;
+  .coffee{display:inline-flex;align-items:center;gap:8px;align-self:flex-start;margin-top:14px;font-family:var(--sans);
     color:var(--text);border:1px solid var(--line);
     border-radius:99px;padding:9px 16px;font-size:14px;font-weight:550;
     transition:transform .15s,border-color .15s}
   .coffee:hover{transform:translateY(-1px);border-color:rgba(255,255,255,.22)}
-  .tipwrap{position:relative;display:inline-flex;align-items:center;gap:7px;cursor:help;outline:none}
-  .tipwrap .hint{font-size:10.5px;font-weight:600;letter-spacing:.02em;color:var(--dim);
-    border:1px solid var(--line);border-radius:99px;padding:1px 8px;transition:color .15s,border-color .15s}
-  .tipwrap:hover .hint,.tipwrap:focus-visible .hint{color:var(--text);border-color:rgba(255,255,255,.22)}
-  .tipwrap .bubble{position:absolute;bottom:calc(100% + 12px);left:-4px;width:268px;
-    background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:13px 15px;
-    font-size:12.5px;color:var(--dim);line-height:1.55;text-align:left;font-weight:400;
-    box-shadow:0 14px 40px rgba(0,0,0,.55);
-    opacity:0;transform:translateY(7px) scale(.97);transform-origin:24px bottom;pointer-events:none;
-    transition:opacity .2s cubic-bezier(.16,1,.3,1),transform .2s cubic-bezier(.16,1,.3,1);z-index:6}
-  .tipwrap:hover .bubble,.tipwrap:focus .bubble,.tipwrap:focus-within .bubble{opacity:1;transform:none;pointer-events:auto}
-  .tipwrap .bubble strong{color:var(--text);font-weight:600}
-  .tipwrap .bubble a{color:var(--text);text-decoration:underline}
-  .tipwrap .bubble::after{content:"";position:absolute;top:100%;left:22px;
-    border:7px solid transparent;border-top-color:var(--panel)}
-
+  .coffee svg{width:15px;height:15px}
   details{padding:15px 0;border-top:1px solid var(--line)}
   details:first-of-type{border-top:0}
   summary{cursor:pointer;list-style:none;font-size:15px;color:var(--text);display:flex;justify-content:space-between;align-items:center}
@@ -137,11 +97,6 @@
   details[open] summary::after{content:"−"}
   details p{margin-top:11px;font-size:14.5px;color:var(--dim);max-width:560px}
 
-  #get .actions{margin-top:26px;justify-content:flex-start}
-  .dl{margin-top:22px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-  .dl .lbl{color:var(--faint);font-size:12.5px;font-family:var(--mono)}
-  .dl code{background:var(--panel);border:1px solid var(--line);border-radius:9px;
-    padding:9px 13px;color:var(--dim);font-size:13.5px;user-select:all}
   footer{padding:40px 0 64px;color:var(--faint);font-size:12.5px;font-family:var(--mono);border-top:1px solid var(--line)}
   footer .wrap{display:flex;flex-direction:column;gap:7px}
   footer a{color:var(--dim);transition:color .15s}
@@ -152,7 +107,7 @@
   @media (prefers-reduced-motion: reduce){
     .shot{animation:none}
     html{scroll-behavior:auto}
-    .chip-cta,.coffee,.tipwrap .bubble{transition:none}
+    .chip-cta,.coffee{transition:none}
     .chip-cta:hover,.coffee:hover{transform:none}
   }
 
@@ -160,7 +115,6 @@
     body{font-size:15px}
     .wrap{padding:0 20px}
     nav{padding:16px 0;font-size:13px}
-    nav .links a{margin-left:15px}
     h1{font-size:clamp(30px,9vw,40px);line-height:1.1}
     .hero p{font-size:16px}
     .actions{flex-direction:column;align-items:stretch;gap:12px;margin-top:28px}
@@ -168,10 +122,7 @@
     .actions .ghost{text-align:center}
     .shot{margin-top:36px}
     section{padding:38px 0}
-    .price{gap:32px}
-    .dl code{font-size:12px;word-break:break-all}
-    #get .actions{align-items:stretch}
-    .notch{width:120px;height:22px}
+    .meta code{word-break:break-all}
   }
   a:focus-visible,button:focus-visible,summary:focus-visible,video:focus-visible{
     outline:2px solid var(--text);outline-offset:3px;border-radius:6px}
@@ -212,27 +163,17 @@
         {
           "@type": "Question",
           "name": "Why not Raycast?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Raycast runs things inside Raycast. This opens your real terminal, and it's built around the agent loop specifically. Free, local-only, native." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Raycast runs things inside Raycast. This opens your real terminal, and it's built around the agent loop specifically." }
         },
         {
           "@type": "Question",
           "name": "Is it really free?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Yes. The whole app is MIT-licensed and open source, and everything works without paying. The Supporter tip is optional, and only unlocks tinted chips plus my thanks." }
-        },
-        {
-          "@type": "Question",
-          "name": "Does it phone home?",
-          "acceptedAnswer": { "@type": "Answer", "text": "No accounts, no telemetry, nothing leaves your Mac. It's open source, so you can check." }
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes, the whole thing. MIT and open source, nothing to unlock, no account, and nothing leaves your Mac. If it earns a spot in your day, you can buy me a coffee." }
         },
         {
           "@type": "Question",
           "name": "Why does macOS ask for permissions?",
-          "acceptedAnswer": { "@type": "Answer", "text": "It depends on your terminal. Ghostty can't be told to open a window with a command any other way on macOS, so Tintpad types it, and typing needs Accessibility. Terminal and iTerm2 are driven by AppleScript, so macOS asks for Automation instead, and Terminal also needs Accessibility if you switch on open-in-tab. kitty, Alacritty, and WezTerm need neither." }
-        },
-        {
-          "@type": "Question",
-          "name": "Return does nothing, or no terminal opens?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Launch problems show inside the palette as a red line, and pressing Return on that line opens the System Settings pane that fixes it. One macOS quirk is worth knowing: permission grants are keyed to the app's signature, so Accessibility can show Tintpad as enabled yet no longer apply. If that happens, remove Tintpad from the list with the minus button, add it back, and relaunch the app." }
+          "acceptedAnswer": { "@type": "Answer", "text": "It depends on your terminal. Ghostty can't be told to open a window with a command any other way on macOS, so Tintpad types it, and typing needs Accessibility. Terminal and iTerm2 are driven by AppleScript, so macOS asks for Automation instead. kitty, Alacritty, and WezTerm need neither. Warp has no command API at all, so it opens at the repo and the command lands on your clipboard." }
         }
       ]
     }
@@ -241,11 +182,9 @@
 </script>
 </head>
 <body>
-<div class="notch" aria-hidden="true"></div>
 <div class="wrap">
   <nav>
     <span class="logo"><span class="mark"><img src="assets/icon.png?v=3" alt=""/></span>tintpad</span>
-    <span class="links"><a href="#how">How</a><a href="#price">Price</a><a href="#faq">FAQ</a><a href="https://github.com/sorkila/tintpad">Source</a></span>
   </nav>
 
   <div class="hero">
@@ -256,12 +195,11 @@
       <a class="chip-cta" href="https://github.com/sorkila/tintpad/releases/latest/download/Tintpad.dmg">Download for macOS</a>
       <a class="ghost" href="https://github.com/sorkila/tintpad">view source ›</a>
     </div>
-    <div class="meta">macOS 14+ · signed &amp; notarized · MIT · <code>brew install --cask sorkila/tap/tintpad</code></div>
+    <div class="meta">macOS 14+ · signed &amp; notarized · free &amp; MIT · <code>brew install --cask sorkila/tap/tintpad</code></div>
 
     <div class="shot">
       <video class="demo" autoplay loop muted playsinline preload="metadata"
              poster="assets/demo-poster.jpg?v=5" width="1600" height="396"
-             style="display:block;width:100%;height:auto"
              aria-label="Demo: a black drop hangs from the Mac notch holding repo names. Keycaps show each shortcut as it is pressed: option command space summons it, the right arrow walks a white chip through the repos, tab switches the agent, and shift tab turns the MODE chip red for the mode that skips permissions">
         <source src="assets/demo.mp4?v=5" type="video/mp4" />
       </video>
@@ -269,47 +207,15 @@
   </div>
 </div>
 
-<section id="how">
-  <div class="wrap">
-    <h2>HOW</h2>
-    <div class="keys">
-      <div class="keyrow"><span><kbd>⌥⌘Space</kbd></span><span class="d">The drop hangs from the notch. <b>Your repos</b>, most-used first.</span></div>
-      <div class="keyrow"><span><kbd>←</kbd><kbd>→</kbd> or type</span><span class="d">Walk the row, or fuzzy-find it. The chips say <b>exactly what Return runs</b>.</span></div>
-      <div class="keyrow"><span><kbd>tab</kbd><kbd>⇧tab</kbd></span><span class="d">Switch the agent, or the mode. A mode that skips permissions <b>turns red</b> before you launch.</span></div>
-      <div class="keyrow"><span><kbd>⏎</kbd></span><span class="d">Your terminal opens at the repo, <b>agent already running</b>. The drop drains home.</span></div>
-    </div>
-  </div>
-</section>
-
 <section id="features">
   <div class="wrap">
     <h2>WHAT IT DOES</h2>
     <div class="list">
-      <div class="item"><div class="h">The drop</div><div class="d">Black on black, it grows out of the housing. No window, no glass. Macs without a notch get the same drop below the menu bar.</div></div>
-      <div class="item"><div class="h">Hands off to your terminal</div><div class="d">Ghostty, iTerm2, kitty, WezTerm, Alacritty, Terminal, Warp. Opened at the repo, command running. Warp is the exception: it has no command API, so it opens at the repo and the command lands on your clipboard.</div></div>
-      <div class="item red"><div class="h">The contract</div><div class="d">Two chips say what Return runs: the agent and the mode. The one that skips permissions is red, and can be set to ask first, on every path including background dispatch.</div>
-      </div>
-      <div class="item"><div class="h">Frecency</div><div class="d">Your most-used repos float up, and each reopens with the agent and mode it had last. ⌘0 replays the last session.</div></div>
-      <div class="item"><div class="h">Worktrees</div><div class="d">One keystroke: an isolated branch checkout with the agent launched in it.</div></div>
-      <div class="item"><div class="h">Local only</div><div class="d">A JSON file on your Mac. No accounts, no telemetry.</div></div>
-    </div>
-  </div>
-</section>
-
-<section id="price">
-  <div class="wrap">
-    <h2>PRICE</h2>
-    <p class="lede">Free and open source. The whole thing. If it earns a spot in your day, leave a tip.</p>
-    <div class="price">
-      <div>
-        <div class="t">EVERYTHING</div><div class="amt">$0</div>
-        <ul><li>Every repo, agent, terminal</li><li>Frecency, all run modes, worktrees</li><li>Dispatch, prompts, GitHub import</li><li>MIT, build it yourself if you like</li></ul>
-      </div>
-      <div>
-        <div class="t">SUPPORTER</div><div class="amt">tip <small>· pay what you want</small></div>
-        <ul><li>Funds the work, keeps it free</li><li><span class="tipwrap" tabindex="0" role="note" aria-label="How to unlock tinted chips"><span>Tinted chips <em class="hint">how?</em></span><span class="bubble"><strong>One drop of color in the black.</strong> The selected repo's chip blooms in its own hue. Unlock is manual for now: tip, email the receipt to <a href="mailto:erik@sorkila.com">erik@sorkila.com</a>, and I hand-sign you a key. Like it's 1998.</span></span></li><li>A little heart in the About box ♥</li></ul>
-        <a class="coffee" href="https://www.buymeacoffee.com/eriknielsen" target="_blank" rel="noopener">☕ Buy me a coffee</a>
-      </div>
+      <div class="item"><div class="h">The drop</div><div class="d">Black on black, it grows out of the housing. Macs without a notch get the same drop below the menu bar.</div></div>
+      <div class="item"><div class="h">Your terminal</div><div class="d">Ghostty, iTerm2, kitty, WezTerm, Alacritty, Terminal, or Warp, opened at the repo with the agent running.</div></div>
+      <div class="item red"><div class="h">The contract</div><div class="d">Two chips say what Return runs, the agent and the mode. The mode that skips permissions turns red, and can ask first.</div></div>
+      <div class="item"><div class="h">Frecency</div><div class="d">Your most-used repos float up, and each reopens with its last agent and mode. ⌘0 replays the last session.</div></div>
+      <div class="item"><div class="h">Worktrees</div><div class="d">One keystroke, an isolated branch checkout with the agent running in it.</div></div>
     </div>
   </div>
 </section>
@@ -319,33 +225,15 @@
     <h2>QUESTIONS</h2>
     <details><summary>What if my Mac has no notch?</summary><p>The same drop falls from under the menu bar instead, a floating black pill, same everything. The notch just makes the trick look like the hardware did it.</p></details>
     <details><summary>Isn't this a shell alias?</summary><p>For the simple case, basically. The difference is frecency, run-mode safety, worktrees, seven terminals, and no config. It's open source, so read it or keep your alias.</p></details>
-    <details><summary>Why not Raycast?</summary><p>Raycast runs things inside Raycast. This opens your real terminal, and it's built around the agent loop specifically. Free, local-only, native.</p></details>
-    <details><summary>Is it really free?</summary><p>Yes. The whole app is MIT-licensed and open source, and everything works without paying. The Supporter tip is optional, and only unlocks tinted chips plus my thanks.</p></details>
-    <details><summary>Does it phone home?</summary><p>No accounts, no telemetry, nothing leaves your Mac. It's open source, so you can check.</p></details>
-    <details><summary>Why does macOS ask for permissions?</summary><p>It depends on your terminal. Ghostty can't be told to open a window with a command any other way on macOS, so Tintpad types it, and typing needs Accessibility. Terminal and iTerm2 are driven by AppleScript, so macOS asks for Automation instead, and Terminal also needs Accessibility if you switch on open-in-tab. kitty, Alacritty, and WezTerm need neither.</p></details>
-    <details><summary>Return does nothing, or no terminal opens?</summary><p>Launch problems show inside the palette as a red line, and pressing Return on that line opens the System Settings pane that fixes it. One macOS quirk is worth knowing: permission grants are keyed to the app's signature, so Accessibility can show Tintpad as enabled yet no longer apply. If that happens, remove Tintpad from the list with the minus button, add it back, and relaunch the app.</p></details>
-  </div>
-</section>
-
-<section id="get">
-  <div class="wrap">
-    <h2>GET TINTPAD</h2>
-    <p class="lede">macOS 14 or later. Free, MIT, no account.</p>
-    <div class="actions">
-      <a class="chip-cta" href="https://github.com/sorkila/tintpad/releases/latest/download/Tintpad.dmg">Download for macOS</a>
-      <a class="ghost" href="https://github.com/sorkila/tintpad">view source ›</a>
-    </div>
-    <div class="dl">
-      <span class="lbl">Homebrew</span>
-      <code class="mono">brew install --cask sorkila/tap/tintpad</code>
-    </div>
+    <details><summary>Why not Raycast?</summary><p>Raycast runs things inside Raycast. This opens your real terminal, and it's built around the agent loop specifically.</p></details>
+    <details><summary>Is it really free?</summary><p>Yes, the whole thing. MIT and open source, nothing to unlock, no account, and nothing leaves your Mac. If it earns a spot in your day, you can buy me a coffee.</p></details>
+    <details><summary>Why does macOS ask for permissions?</summary><p>It depends on your terminal. Ghostty can't be told to open a window with a command any other way on macOS, so Tintpad types it, and typing needs Accessibility. Terminal and iTerm2 are driven by AppleScript, so macOS asks for Automation instead. kitty, Alacritty, and WezTerm need neither. Warp has no command API at all, so it opens at the repo and the command lands on your clipboard.</p></details>
   </div>
 </section>
 
 <footer><div class="wrap">
-  <span>The app is local-only. No accounts, no telemetry, nothing leaves your Mac.</span>
-  <span>tintpad · free &amp; open source (MIT) · <a href="https://github.com/sorkila/tintpad">GitHub</a> · made by <a href="https://sorkila.com" target="_blank" rel="noopener">Erik Nielsen (sorkila.com)</a> · © 2026</span>
-  <span>also by sorkila: <a href="https://getlockpaw.com" target="_blank" rel="noopener">Lockpaw</a>, covers your screen while agents run and glows when one needs you</span>
+  <span>tintpad · <a href="https://github.com/sorkila/tintpad">GitHub</a> · made by <a href="https://sorkila.com" target="_blank" rel="noopener">Erik Nielsen</a> · also by sorkila: <a href="https://getlockpaw.com" target="_blank" rel="noopener">Lockpaw</a></span>
+  <a class="coffee" href="https://www.buymeacoffee.com/eriknielsen" target="_blank" rel="noopener" aria-label="Buy me a coffee (opens in new tab)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>Buy me a coffee</a>
   <span class="fine">This site uses <a href="https://umami.is" target="_blank" rel="noopener">umami</a> for light, cookieless analytics. No personal data, no third-party tracking.</span>
 </div></footer>
 <script>

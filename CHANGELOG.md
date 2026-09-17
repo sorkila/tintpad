@@ -4,6 +4,12 @@ All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepac
 
 ## [0.4.1] - Unreleased
 
+### Removed
+- **The Supporter tip and its tinted chips.** Tintpad is free with nothing to
+  unlock: the license key field, the Supporter badge, and the Appearance pane
+  (which held only the tint toggle) are gone, and the drop's selected chip is
+  white for everyone. Buy me a coffee stays in Settings, About, and on the site.
+
 ### Fixed
 - **The strip's left fade appears when the row is scrolled, and only then.** The
   scroll measurement was overwritten by nodes that never measured, so the left

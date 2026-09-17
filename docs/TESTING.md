@@ -71,7 +71,7 @@ TestA carries two modes, a `Default` with no flags and a permission-skipping
 `Skip permissions` with `--test-danger`. Both agents' templates write the
 resolved flags to a marker (`echo "[{mode}]" > /tmp/tp_A_flags`), so a journey
 can assert on *what ran*, not merely that something did. Terminal.app is the
-handoff, onboarding is marked done, and a license key is injected.
+handoff and onboarding is marked done.
 
 The brackets in that template are load-bearing: they keep `{mode}` off a space
 boundary, where `CommandTemplate`'s empty-slot cleanup would otherwise eat the

@@ -553,8 +553,6 @@ final class PaletteModel: ObservableObject {
 
     // MARK: - Derived state
 
-    /// Supporter perk: tinted selection chip (cosmetic only, like every gate).
-    var tintedChips: Bool { store.allows(.customTint) && store.settings.tintedChips }
     var prompts: [PromptTemplate] { store.prompts }
     var allRepos: [Repo] { store.repos }
 
@@ -1948,8 +1946,7 @@ struct PaletteView: View {
         return text
     }
 
-    /// The chip's fill. Supporters may spend one drop of color here: the
-    /// chip in the repo's own bleached hue. Everyone else, pure white.
+    /// The chip's fill, white for every repo: the drop is black and white only.
     ///
     /// `dimmed` is Return's wordless acknowledgement, and lives on the fill
     /// itself, inside the `matchedGeometryEffect`: an opacity on the token
@@ -1957,7 +1954,7 @@ struct PaletteView: View {
     /// depends on an ancestor modifier reaching a geometry-matched view.
     @ViewBuilder private func selectionChip(for repo: Repo, slides: Bool, dimmed: Bool = false) -> some View {
         let chip = Capsule(style: .continuous)
-            .fill(model.tintedChips ? RepoTint.chip(for: repo.name) : Color(white: 0.96))
+            .fill(Color(white: 0.96))
             .opacity(dimmed ? 0.7 : 1)
         if slides {
             chip.matchedGeometryEffect(id: "selection", in: selectionNS)

@@ -63,6 +63,14 @@ swift run                  # dev run
 ./Scripts/package.sh       # build Tintpad.app into .build/release
 ```
 
+### If Return does nothing
+
+Launch problems show inside the drop as a red line, and Return on that line opens the
+System Settings pane that fixes it. One macOS quirk is worth knowing: permission grants
+are keyed to the app's signature, so Accessibility can show Tintpad as enabled yet no
+longer apply. Remove Tintpad from the list with the minus button, add it back, and
+relaunch.
+
 ## Features
 
 - **Frecency repo search**, your most-used repos rise to the top, zoxide-style, and
@@ -132,12 +140,8 @@ struct. See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/ARCHITECTURE.md](docs/A
 
 ## Support
 
-Tintpad is **free and MIT**, the whole thing. If it earns a spot in your day, leave a tip:
-[**Buy me a coffee →**](https://www.buymeacoffee.com/eriknielsen). Supporters get custom
-tinted chips (the selected repo's chip blooms in its own hue) and my thanks, that's the
-only difference. To claim it, tip then email
-your receipt to [erik@sorkila.com](mailto:erik@sorkila.com) and I'll send you an unlock key
-(it verifies offline, no account).
+Tintpad is **free and MIT**, the whole thing. Nothing to unlock, no Pro version. If it
+earns a spot in your day, [**buy me a coffee →**](https://www.buymeacoffee.com/eriknielsen)
 
 ## License
 
