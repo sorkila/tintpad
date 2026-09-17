@@ -1447,9 +1447,13 @@ struct PaletteView: View {
     static func scrollsToStripStart(_ index: Int) -> Bool { index == 0 }
 
     /// Whether the strip is holding a scroll offset, from the padded row's
-    /// minX in the viewport's space. At rest that minX is exactly 0, so the
-    /// half-point slack only absorbs rounding, never the padding.
-    static func stripIsScrolled(contentMinX: CGFloat) -> Bool { contentMinX < -0.5 }
+    /// minX in the viewport's space. Measured live, a strip at rest does not
+    /// report 0: it drifts around -1 to -1.5pt while the drop settles, and a
+    /// half-point threshold read that as scrolled and laid the left fade over
+    /// the first chip. A real scroll moves the row by tens of points, so the
+    /// threshold sits above the drift and well below any real offset.
+    static let stripScrollThreshold: CGFloat = 4
+    static func stripIsScrolled(contentMinX: CGFloat) -> Bool { contentMinX < -stripScrollThreshold }
 
     /// Scroll the strip so `index` is in view. Index 0 lands on the strip's
     /// start (offset 0, padding intact), every other token keeps

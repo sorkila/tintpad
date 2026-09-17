@@ -16,12 +16,13 @@ final class TokenStripScrollTests: XCTestCase {
 
     func testRestingStripIsNotScrolled() {
         XCTAssertFalse(PaletteView.stripIsScrolled(contentMinX: 0))
-        XCTAssertFalse(PaletteView.stripIsScrolled(contentMinX: -0.4))
+        // The live resting drift, measured on screen while the drop settles.
+        XCTAssertFalse(PaletteView.stripIsScrolled(contentMinX: -1.5))
+        XCTAssertFalse(PaletteView.stripIsScrolled(contentMinX: -PaletteView.stripLeadingPad))
     }
 
-    func testScrollingByTheLeadingPadIsAScroll() {
-        // The old rest state: token 0 aligned to the edge, content moved by the pad.
-        XCTAssertTrue(PaletteView.stripIsScrolled(contentMinX: -PaletteView.stripLeadingPad))
+    func testARealScrollIsAScroll() {
+        XCTAssertTrue(PaletteView.stripIsScrolled(contentMinX: -(PaletteView.stripScrollThreshold + 1)))
         XCTAssertTrue(PaletteView.stripIsScrolled(contentMinX: -120))
     }
 }
