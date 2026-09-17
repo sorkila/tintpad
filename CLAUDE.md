@@ -279,6 +279,14 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   trips an AppKit assertion (`NSCGSizeApplyInverseAffineTransform`) and aborts the app on
   summon. The bead rests at `PaletteView.minScale` (0.001), invisible and invertible.
   Unit tests can't see this, only a live summon does.
+- **A measuring `PreferenceKey` must reduce with `max`, never last-wins.** SwiftUI
+  calls `reduce` for every node under the reading modifier, and nodes that never set
+  the key contribute the default. `value = nextValue()` let those zeros overwrite the
+  hidden measuring copy's real width, so the capsule sat at its minimum with the token
+  strip crushed to nothing and the MODE chip clipped (caught live after 0.4.0 WP6,
+  invisible to unit tests). `StripScrolledKey` still reduces last-wins, which is why
+  the left fade never appears; making it honest showed a fade on the resting strip, a
+  separate issue to fix before switching it.
 - **Frecency comparator must be transitive**, no epsilon "≈ tie" band, it breaks strict
   weak ordering and makes `sort()` reshuffle the list every render.
 - **New-SDK symbols need a compiler gate, not just `#available`.** Liquid Glass APIs

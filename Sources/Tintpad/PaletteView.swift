@@ -2035,7 +2035,10 @@ private struct StripScrolledKey: PreferenceKey {
 /// The natural width of the drop's content, from the hidden measuring copy.
 private struct ContentWidthKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+    // max, never last-wins: SwiftUI reduces every node under the modifier,
+    // and the ones that don't set the key report the default 0, which
+    // overwrote the real measurement and pinned the capsule at its minimum.
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
 /// Content arriving in the drop: fade in, rise 4pt, sharpen out of a 4pt
