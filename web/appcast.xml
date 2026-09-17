@@ -4,11 +4,11 @@
     <title>Tintpad</title>
     <link>https://tintpad.com/appcast.xml</link>
     <item>
-      <title>0.4.0</title>
-      <sparkle:version>11</sparkle:version>
-      <sparkle:shortVersionString>0.4.0</sparkle:shortVersionString>
+      <title>0.4.1</title>
+      <sparkle:version>12</sparkle:version>
+      <sparkle:shortVersionString>0.4.1</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-      <enclosure url="https://github.com/sorkila/tintpad/releases/download/v0.4.0/Tintpad.dmg" sparkle:edSignature="dOamyN+rbSxi0LfI7qaKwl5mhbV2S4vfaz2Nk15PpE1ZSky8il0YnFiO2ia0Ok6qXHFFJqJo8qXFURtJnrD0Aw==" length="4127057" type="application/octet-stream"/>
+      <enclosure url="https://github.com/sorkila/tintpad/releases/download/v0.4.1/Tintpad.dmg" sparkle:edSignature="JiZFHpnT0LZbmDhawm1/dvrhFkHDVuUMhhc7iaMOf+HAfHWoN4mmf9O2zvH5cpXS8No5/nB+T3fqk/9qQPNUAQ==" length="4951114" type="application/octet-stream"/>
     </item>
   </channel>
 </rss>
