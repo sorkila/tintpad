@@ -1416,6 +1416,48 @@ final class LaunchStatusCopyTests: XCTestCase {
     }
 }
 
+/// The waiting line's timing: silent for a quick launch, readable once shown.
+final class LaunchFeedbackTimingTests: XCTestCase {
+    typealias T = LaunchFeedbackTiming
+
+    func testTheNumbers() {
+        XCTAssertEqual(T.showDelay, 0.35)
+        XCTAssertEqual(T.minVisible, 0.6)
+        XCTAssertEqual(T.stillOpening, 4)
+        XCTAssertEqual(LaunchStatusCopy.stillOpeningAfter, T.stillOpening)
+    }
+
+    func testLineIsDueAfterTheDelayFromStart() {
+        XCTAssertEqual(T.lineDelay(start: 10, now: 10), 0.35, accuracy: 1e-9)
+        // A worktree launch continues a wait that began at Return.
+        XCTAssertEqual(T.lineDelay(start: 10, now: 10.2), 0.15, accuracy: 1e-9)
+        XCTAssertEqual(T.lineDelay(start: 10, now: 11), 0)
+    }
+
+    func testAWarmLaunchThatNeverShowedTheLineExitsAtOnce() {
+        XCTAssertEqual(T.exitDelay(start: 0, lineShownAt: nil, completedAt: 0.1), 0)
+        // Past the delay but the line never made it on (the answer won the race).
+        XCTAssertEqual(T.exitDelay(start: 0, lineShownAt: nil, completedAt: 0.36), 0)
+    }
+
+    func testAShownLineHoldsTheExitUntilItsMinimum() {
+        XCTAssertEqual(T.exitDelay(start: 0, lineShownAt: 0.35, completedAt: 0.4), 0.55, accuracy: 1e-9)
+        XCTAssertEqual(T.exitDelay(start: 0, lineShownAt: 0.35, completedAt: 0.95), 0, accuracy: 1e-9)
+    }
+
+    func testALineShownLongEnoughNeverHolds() {
+        XCTAssertEqual(T.exitDelay(start: 0, lineShownAt: 0.35, completedAt: 2), 0)
+        XCTAssertEqual(T.exitDelay(start: 0, lineShownAt: 0.35, completedAt: 5), 0)
+    }
+
+    func testTheHoldCountsFromWhenTheLineWasDueAtTheEarliest() {
+        // A stamp before the line could have been due is read as the due time.
+        XCTAssertEqual(T.exitDelay(start: 1, lineShownAt: 1, completedAt: 1.4), 0.55, accuracy: 1e-9)
+        // A line that appeared late (the beat ran late) holds from when it appeared.
+        XCTAssertEqual(T.exitDelay(start: 0, lineShownAt: 0.5, completedAt: 0.6), 0.5, accuracy: 1e-9)
+    }
+}
+
 final class LaunchAnswerPolicyTests: XCTestCase {
     private func d(_ succeeded: Bool, own: Bool, present: Bool, busy: Bool = false) -> LaunchAnswerPolicy.Disposition {
         LaunchAnswerPolicy.disposition(succeeded: succeeded, ownDrop: own, dropPresent: present, dropBusy: busy)

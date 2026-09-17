@@ -84,7 +84,7 @@ in `Resources/Info.plist` then run `./Scripts/release.sh` to cut the next one.
 ## Commands
 ```sh
 swift build              # debug build
-swift test               # 148 unit tests (pure logic, keep green)
+swift test               # 154 unit tests (pure logic, keep green)
 swift run                # run from source (dev; unsigned)
 ./Scripts/package.sh     # assemble + sign .app/DMG in a TMPDIR scratch (signs if SIGN_IDENTITY set)
 ./Scripts/dev-install.sh # build → Developer ID sign → install to /Applications (local dev)
@@ -167,7 +167,10 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   (the contract: AGENT and MODE as labeled instrument fields with baseline-aligned
   micro-eyebrows), red-etched chip (skips permissions). A contract never truncates
   (`fixedSize`), never hides, and holds no branch (where you launch from is the tile's
-  business). Fully mute at rest: tokens only, the query materializes as you type,
+  business). Return dims the subject chip wordlessly, and the gray waiting line
+  ("Opening …", "Creating worktree…") appears only after 350ms in flight and holds
+  600ms once shown before the launch exit (`LaunchFeedbackTiming`, the drop waits,
+  the handoff never does). Fully mute at rest: tokens only, the query materializes as you type,
   and keys and digits appear only while ⌘ is held (past the 150ms beat, the ⌘1–⌘9
   digit on strip tokens, the key on each chip via `ContractPreview.Chip.key`).
   `PaletteKeys` (the menu bar's Palette keys menu) mirrors the README Keys table,

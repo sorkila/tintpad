@@ -177,12 +177,61 @@ final class PaletteModel: ObservableObject {
     /// free to launch while an older handoff finishes on its own.
     @Published private(set) var launchInFlight = false
 
+    /// True while the launch exit waits out its waiting line's minimum hold
+    /// (`LaunchFeedbackTiming.minVisible`). Only the drop waits: the handoff
+    /// has answered or runs on regardless. Esc, the hotkey or a summon cut
+    /// the hold short, a focus loss joins it.
+    @Published private(set) var launchExitHeld = false
+    /// Plays the hold's one beat, so anything that moves on cancels it.
+    private let exitHold = StepSequencer()
+
+    /// A launch is running or its exit is being held. What the gate, the
+    /// focus-loss upgrade, the dimmed subject chip and the frozen hug read.
+    var launchBusy: Bool { launchInFlight || launchExitHeld }
+
     /// Bumped by every launch. Only the latest launch's answer is acted on,
     /// an older one was superseded by a launch the user made since.
     private var launchGeneration = 0
     private var launchContext: LaunchContext?
-    /// Plays the "Still opening …" beat, cancelled when the handoff answers.
+    /// Plays the waiting line's beats (it appears, it admits the launch is
+    /// slow), cancelled when the handoff answers.
     private let launchBeats = StepSequencer()
+
+    /// A gray waiting line that actually appeared, and when.
+    private struct WaitingLine {
+        var text: String
+        let shownAt: TimeInterval
+    }
+    /// When the current wait began: the Return, for a worktree launch too.
+    private var waitStartedAt: TimeInterval = 0
+    private var waitingLine: WaitingLine?
+    /// Monotonic seconds, for the waiting line's stamps.
+    private func clock() -> TimeInterval { ProcessInfo.processInfo.systemUptime }
+
+    /// The waiting line VoiceOver was already told on Return, so its
+    /// appearance (if it comes) is not announced twice.
+    private(set) var preannouncedLine: String?
+
+    /// Whether the view should announce `line` when it appears.
+    func announces(_ line: String) -> Bool { line != preannouncedLine }
+
+    /// When the waiting line showing now appeared, nil when none is showing.
+    /// Derived from `status`, so anything that replaced the line ends it.
+    private var waitingLineShownAt: TimeInterval? {
+        guard let waitingLine, status == waitingLine.text else { return nil }
+        return waitingLine.shownAt
+    }
+
+    private func showWaitingLine(_ text: String) {
+        status = text
+        waitingLine = WaitingLine(text: text, shownAt: clock())
+    }
+
+    /// Reword the waiting line in place, keeping when it first appeared.
+    private func rewordWaitingLine(_ text: String) {
+        status = text
+        waitingLine?.text = text
+    }
     private var failedLaunch: FailedLaunch?
     private var deferredFailure: DeferredFailure?
 
@@ -254,9 +303,39 @@ final class PaletteModel: ObservableObject {
     /// `DropTimeline`) and calls `exitDidFinish()` on its close beat. The
     /// first request wins (`DismissPolicy`), and the flag it sets is what
     /// `LaunchGate` reads to ignore a Return while the drop is leaving.
+    ///
+    /// A launch exit asked for while a waiting line has not yet had its
+    /// minimum time is held until it has (`LaunchFeedbackTiming.exitDelay`).
     func requestDismiss(_ reason: DismissReason) {
-        let next = DismissPolicy.next(current: dismissal, requested: reason, inFlight: launchInFlight)
+        let next = DismissPolicy.next(current: dismissal, requested: reason, inFlight: launchBusy)
         guard next != dismissal else { return }
+        if next == .launch {
+            let wait = LaunchFeedbackTiming.exitDelay(
+                start: waitStartedAt, lineShownAt: waitingLineShownAt, completedAt: clock())
+            if wait > 0 { holdLaunchExit(for: wait); return }
+        }
+        beginExit(next)
+    }
+
+    /// Wait out the waiting line's hold, then play the launch exit. A second
+    /// request during the hold (the success after a focus loss, or the focus
+    /// loss after the success) joins the one already queued: the line's
+    /// stamp is fixed, so it would land at the same moment anyway.
+    private func holdLaunchExit(for wait: TimeInterval) {
+        guard !launchExitHeld else { return }
+        launchExitHeld = true
+        exitHold.run([StepSequencer.Beat(at: wait) { [weak self] in
+            guard let self else { return }
+            launchExitHeld = false
+            guard dismissal == nil else { return }
+            beginExit(.launch)
+        }])
+    }
+
+    private func beginExit(_ next: DismissReason) {
+        // Whatever exit plays now supersedes a held launch exit.
+        exitHold.cancel()
+        launchExitHeld = false
         dismissal = next
         exitClosed = false
         disarmCommandHold()
@@ -281,6 +360,8 @@ final class PaletteModel: ObservableObject {
 
     /// A summon landed mid-exit: nothing still queued may close the new drop.
     func cancelDismissal() {
+        exitHold.cancel()
+        if launchExitHeld { launchExitHeld = false }
         dismissRequestGeneration += 1
         exitClosed = false
         if dismissal != nil { dismissal = nil }
@@ -290,7 +371,7 @@ final class PaletteModel: ObservableObject {
     /// gesture may go on to launch.
     private func admitLaunchGesture() -> Bool {
         switch LaunchGate.returnDisposition(
-            inFlight: launchInFlight, dismissing: isDismissing, noteShown: noteShown) {
+            inFlight: launchBusy, dismissing: isDismissing, noteShown: noteShown) {
         case .launch: return true
         case .ignore: return false
         case .closeOnly: requestDismiss(.launch); return false
@@ -300,12 +381,28 @@ final class PaletteModel: ObservableObject {
     /// Say where the launch is going and start it. `start` kicks off the
     /// handoff and must answer through the completion it is given, on main
     /// (synchronously for a preflight error, later for the handoff itself).
-    /// After `stillOpeningAfter` seconds without an answer, the line admits
-    /// the launch is slow.
+    ///
+    /// Return is acknowledged wordlessly (the subject chip dims while
+    /// `launchBusy`). The "Opening …" line appears only if the launch is still
+    /// in flight `LaunchFeedbackTiming.showDelay` after it started, so a warm
+    /// launch just leaves, and after `stillOpeningAfter` seconds without an
+    /// answer the line admits the launch is slow.
     private func beginLaunch(opening target: String?, repo: Repo?, held: HeldLaunch? = nil,
                              retry: (() -> Void)?,
                              failureLine: ((Error) -> String)? = nil,
                              _ start: (@escaping LaunchService.Completion) -> Void) {
+        // A created worktree hands over with the flight flag still up: its
+        // launch continues the same wait (started at Return, maybe already
+        // speaking) rather than starting a new one.
+        let continuing = launchInFlight
+        let now = clock()
+        if !continuing {
+            waitStartedAt = now
+            waitingLine = nil
+            // Whatever the drop was saying (an error being retried, a scan
+            // result) has had its turn. The line, if any, comes later.
+            status = nil
+        }
         launchGeneration += 1
         let gen = launchGeneration
         launchContext = LaunchContext(generation: gen, summonGeneration: summonGeneration,
@@ -320,14 +417,36 @@ final class PaletteModel: ObservableObject {
         launchInFlight = true
         launchRepo = repo
         launchBeats.cancel()
+        preannouncedLine = nil
         if let target {
             let opening = LaunchStatusCopy.opening(target)
-            status = opening
-            launchBeats.run([StepSequencer.Beat(at: LaunchStatusCopy.stillOpeningAfter) { [weak self] in
+            // VoiceOver hears where the launch is going on Return, whether
+            // or not the line ever appears (a warm launch shows none).
+            if NSWorkspace.shared.isVoiceOverEnabled {
+                preannouncedLine = opening
+                AccessibilityNotification.Announcement(opening).post()
+            }
+            var beats: [StepSequencer.Beat] = []
+            if waitingLineShownAt != nil {
+                // Already speaking ("Creating worktree…"): the line becomes
+                // the launch's at once, and keeps its stamp for the hold.
+                rewordWaitingLine(opening)
+            } else {
+                let due = LaunchFeedbackTiming.lineDelay(start: waitStartedAt, now: now)
+                beats.append(StepSequencer.Beat(at: due) { [weak self] in
+                    // Never over another line, and never onto a leaving drop.
+                    guard let self, launchGeneration == gen, launchInFlight, !isDismissing,
+                          status == nil else { return }
+                    showWaitingLine(opening)
+                })
+            }
+            beats.append(StepSequencer.Beat(at: LaunchStatusCopy.stillOpeningAfter) { [weak self] in
                 // Only over its own line: typing or moving replaced it.
-                guard let self, launchGeneration == gen, launchInFlight, status == opening else { return }
-                status = LaunchStatusCopy.stillOpening(target)
-            }])
+                guard let self, launchGeneration == gen, launchInFlight,
+                      waitingLineShownAt != nil else { return }
+                rewordWaitingLine(LaunchStatusCopy.stillOpening(target))
+            })
+            launchBeats.run(beats)
         }
         start { [weak self] result in self?.launchDidFinish(result, generation: gen) }
     }
@@ -357,7 +476,11 @@ final class PaletteModel: ObservableObject {
         }
         let disposition = LaunchAnswerPolicy.disposition(
             succeeded: succeeded, ownDrop: ownDrop,
-            dropPresent: isPresented() && !isDismissing,
+            // A held launch exit means the drop has lost key (a focus loss
+            // joined the hold). An error line saying Return retries would
+            // strand a non-key status-bar panel no key can reach, so the
+            // failure waits for the next summon instead.
+            dropPresent: isPresented() && !isDismissing && !launchExitHeld,
             dropBusy: pendingDangerous != nil || pendingPermission != nil || resumeOffer != nil
                 || worktreeRepo != nil || promptRepo != nil)
         switch (disposition, result) {
@@ -543,7 +666,7 @@ final class PaletteModel: ObservableObject {
         let gen = commandGeneration
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.commandHoldDelay) { [weak self] in
             // Never reveal onto a launch or an exit (the ⌘1 chord's own ⌘).
-            guard let self, commandGeneration == gen, !isDismissing, !launchInFlight else { return }
+            guard let self, commandGeneration == gen, !isDismissing, !launchBusy else { return }
             heldEditorName = EditorRegistry.preferred(settings: store.settings)?.name
             setCommandHeld(true)
         }
@@ -575,6 +698,8 @@ final class PaletteModel: ObservableObject {
         summonGeneration += 1
         launchInFlight = false
         launchBeats.cancel()
+        waitingLine = nil
+        preannouncedLine = nil
         failedLaunch = nil
         launchNote = nil
         launchRepo = nil
@@ -961,13 +1086,23 @@ final class PaletteModel: ObservableObject {
             guard let self else { return }
             // The git work runs off the main actor (a worktree add on a big
             // repo can take a while); the terminal handoff hops back to main.
-            launchInFlight = true
-            status = "Creating worktree…"
             // A worktree add can take minutes on a stalled mount. If the user
             // has since dismissed and re-summoned, the result belongs to a
             // drop that no longer exists: stand down, never launch into the
             // new one.
             let gen = summonGeneration
+            // The same waiting rules as a launch: a quick add says nothing
+            // (the subject chip dims), a slow one says so after the delay,
+            // and the launch that follows continues this wait.
+            launchInFlight = true
+            status = nil
+            waitStartedAt = clock()
+            waitingLine = nil
+            launchBeats.run([StepSequencer.Beat(at: LaunchFeedbackTiming.showDelay) { [weak self] in
+                guard let self, summonGeneration == gen, launchInFlight, !isDismissing,
+                      status == nil else { return }
+                showWaitingLine("Creating worktree…")
+            }])
             DispatchQueue.global(qos: .userInitiated).async { [weak self] in
                 do {
                     try WorktreeService.create(repoPath: repo.path, branch: branch, at: worktreePath)
@@ -986,6 +1121,7 @@ final class PaletteModel: ObservableObject {
                 } catch {
                     Task { @MainActor [weak self] in
                         guard let self, summonGeneration == gen else { return }
+                        launchBeats.cancel()
                         launchInFlight = false
                         status = "⚠ \(error)"
                     }
@@ -1329,7 +1465,7 @@ struct PaletteView: View {
         // An emptied field releases the ratchet even when the content's
         // natural width happens not to change.
         .onChange(of: model.query.isEmpty) { _, _ in rehug(animated: true) }
-        .onChange(of: model.launchInFlight) { _, _ in rehug(animated: true) }
+        .onChange(of: model.launchBusy) { _, _ in rehug(animated: true) }
         .onChange(of: middleToken) { _, _ in rehug(animated: true) }
         .onChange(of: drop) { _, _ in rehug(animated: false) }
         // Nothing behind the camera, structurally: whatever a spring's
@@ -1357,7 +1493,7 @@ struct PaletteView: View {
             }
         }
         .onChange(of: model.status) { _, s in
-            if let s { AccessibilityNotification.Announcement(s).post() }
+            if let s, model.announces(s) { AccessibilityNotification.Announcement(s).post() }
         }
         .onChange(of: model.isPendingDangerous) { _, pending in
             if pending, let d = model.pendingDangerousDescription {
@@ -1528,7 +1664,9 @@ struct PaletteView: View {
                     token(repo, index: model.selection, selected: true,
                           role: measuring ? .measuring : .subject)
                         .fixedSize()
-                        .opacity(model.launchInFlight ? 0.7 : 1)
+                        // Return acknowledged, wordlessly: dimmed while the
+                        // launch runs, before any line has anything to say.
+                        .opacity(model.launchBusy ? 0.7 : 1)
                         // The line names what matters, the token is its picture.
                         .accessibilityHidden(true)
                 }
@@ -1699,6 +1837,12 @@ struct PaletteView: View {
                     selectionChip(for: repo, slides: role == .strip)
                 }
             }
+            // The strip's white chip is Return's wordless acknowledgement
+            // until the launch's line (if it needs one) has something to say.
+            // Only the launch's own repo: ⌘0 resumes a repo that may not be
+            // the selection.
+            .opacity(selected && role == .strip && model.launchBusy
+                     && (model.launchRepo == nil || model.launchRepo?.id == repo.id) ? 0.7 : 1)
             .contentShape(Rectangle())
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(label)
@@ -1810,7 +1954,7 @@ struct PaletteView: View {
     /// arrived, so the strip's viewport is static through the arrival's
     /// re-scroll (the 0.3.2 shear fix depends on that).
     private func rehug(animated: Bool, fresh: Bool = false) {
-        guard fresh || (!model.isDismissing && !model.launchInFlight) else { return }
+        guard fresh || (!model.isDismissing && !model.launchBusy) else { return }
         let proposed = DropGeometry.hugWidth(
             natural: model.naturalContentWidth + 2 * drop.chipInsetResolved,
             min: drop.minWidth, max: drop.maxWidth)

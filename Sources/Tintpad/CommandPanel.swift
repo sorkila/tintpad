@@ -99,9 +99,12 @@ final class CommandPanelController: NSObject {
 
     /// A panel mid-dismissal (its exit playing, or blanked at alpha 0) is on
     /// its way out, so to the user it is gone and the hotkey summons it back
-    /// instead of hiding it. Hiding plays the Esc exit.
+    /// instead of hiding it. So is one holding its launch exit (the terminal
+    /// took focus while "Opening …" has its minimum time). Hiding plays the
+    /// Esc exit.
     func toggle() {
-        if panel?.isVisible == true && !dismissal.isDismissing && !model.isDismissing {
+        if panel?.isVisible == true && !dismissal.isDismissing && !model.isDismissing
+            && !model.launchExitHeld {
             model.requestDismiss(.escape)
         } else {
             show()

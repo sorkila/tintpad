@@ -5,7 +5,7 @@ import Foundation
 /// always says what Return and Esc do, so an error is never a dead end.
 enum LaunchStatusCopy {
     /// How long a launch may stay quiet before the line admits it is slow.
-    static let stillOpeningAfter: TimeInterval = 4
+    static let stillOpeningAfter: TimeInterval = LaunchFeedbackTiming.stillOpening
 
     static func opening(_ name: String) -> String { "Opening \(name)…" }
 
