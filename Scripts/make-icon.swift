@@ -8,7 +8,7 @@
 // Writes Resources/appicon-source.png (the art on Apple's 824-in-1024 macOS
 // grid), Resources/Tintpad.icns, Sources/Tintpad/Resources/appicon.png (the
 // unbundled `swift run` fallback), docs/assets/icon.png (512), the web family
-// (icon 64, apple-touch-icon 180, favicon-16, favicon-32) and the GitHub
+// (icon 64, apple-touch-icon 180, favicon-16, favicon-32, favicon.ico) and the GitHub
 // social card (docs/assets/social-card.png, upload it in the repo settings)
 // plus the site's share card (web/assets/og.png, og.jpg).
 
@@ -75,29 +75,61 @@ save(render(px: 180) { r in
     export.draw(in: r)
 }, to: "web/assets/apple-touch-icon.png")
 
-// Favicons are redrawn as the icon's silhouette, not shrunk: at 16px the glass
-// and lighting turn to mud, and a dark tile vanishes into a dark tab bar. The
-// rim keeps the tile's edge, the white pill is the one thing that must survive.
+// Favicons are redrawn from the icon, not shrunk: at 16px the glass and
+// lighting turn to mud. Same composition as the export (dark tile, the pad
+// flaring edge to edge across the lower half, the glass capsule's lit ring
+// around the white light), flattened to solid fills. A faint rim keeps the
+// dark tile from vanishing into a dark tab bar.
 func favicon(_ px: Int) -> NSBitmapImageRep {
     render(px: px) { r in
         let n = r.width
-        func pill(_ x0: CGFloat, _ y0: CGFloat, _ x1: CGFloat, _ y1: CGFloat, _ radius: CGFloat, _ rgb: (CGFloat, CGFloat, CGFloat)) {
+        func rect(_ x0: CGFloat, _ y0: CGFloat, _ x1: CGFloat, _ y1: CGFloat) -> NSRect {
             // Proportions are measured top-down, AppKit draws bottom-up.
-            let rect = NSRect(x: n * x0, y: n * (1 - y1), width: n * (x1 - x0), height: n * (y1 - y0))
-            NSColor(srgbRed: rgb.0 / 255, green: rgb.1 / 255, blue: rgb.2 / 255, alpha: 1).setFill()
-            NSBezierPath(roundedRect: rect, xRadius: n * radius, yRadius: n * radius).fill()
+            NSRect(x: n * x0, y: n * (1 - y1), width: n * (x1 - x0), height: n * (y1 - y0))
         }
-        let rim = max(1, n * 0.045) / n
-        // Colors sampled from the export: graphite tile, navy pad, white light.
-        pill(0, 0, 1, 1, 0.24, (92, 100, 110))
-        pill(rim, rim, 1 - rim, 1 - rim, 0.24 - rim, (22, 23, 25))
-        pill(0.10, 0.56, 0.90, 0.93, 0.17, (44, 68, 94))
-        pill(0.20, 0.17, 0.80, 0.48, 0.155, (118, 122, 128))
-        pill(0.31, 0.25, 0.69, 0.40, 0.075, (255, 255, 255))
+        func fill(_ path: NSBezierPath, _ rgb: (CGFloat, CGFloat, CGFloat)) {
+            NSColor(srgbRed: rgb.0 / 255, green: rgb.1 / 255, blue: rgb.2 / 255, alpha: 1).setFill()
+            path.fill()
+        }
+        func pill(_ x0: CGFloat, _ y0: CGFloat, _ x1: CGFloat, _ y1: CGFloat, _ radius: CGFloat) -> NSBezierPath {
+            NSBezierPath(roundedRect: rect(x0, y0, x1, y1), xRadius: n * radius, yRadius: n * radius)
+        }
+        let px1 = 1 / n
+        // Colors sampled from the export: graphite tile, navy pad, lit ring, white light.
+        let tile = pill(0, 0, 1, 1, 0.23)
+        fill(tile, (74, 80, 88))
+        let inner = pill(px1, px1, 1 - px1, 1 - px1, 0.23 - px1)
+        fill(inner, (30, 32, 35))
+        NSGraphicsContext.saveGraphicsState()
+        inner.addClip()
+        fill(pill(0.02, 0.50, 0.98, 1.4, 0.2), (44, 70, 94))
+        NSGraphicsContext.restoreGraphicsState()
+        let ring = max(1, n * 0.05) / n
+        fill(pill(0.18, 0.13, 0.82, 0.44, 0.155), (150, 156, 164))
+        fill(pill(0.18 + ring, 0.13 + ring, 0.82 - ring, 0.44 - ring, 0.155 - ring), (34, 37, 42))
+        fill(pill(0.31, 0.22, 0.69, 0.36, 0.07), (255, 255, 255))
     }
 }
 save(favicon(16), to: "web/assets/favicon-16.png")
 save(favicon(32), to: "web/assets/favicon-32.png")
+
+// /favicon.ico for whatever asks the root before reading the page's links:
+// an ICO that wraps the 16, 32 and 48 PNGs (Vista-style PNG entries).
+do {
+    let pngs = [16, 32, 48].map { ($0, favicon($0).representation(using: .png, properties: [:])!) }
+    var ico = Data()
+    func u16(_ v: Int) { ico.append(contentsOf: [UInt8(v & 0xff), UInt8(v >> 8 & 0xff)]) }
+    func u32(_ v: Int) { u16(v & 0xffff); u16(v >> 16) }
+    u16(0); u16(1); u16(pngs.count)
+    var offset = 6 + 16 * pngs.count
+    for (px, png) in pngs {
+        ico.append(contentsOf: [UInt8(px), UInt8(px), 0, 0])
+        u16(1); u16(32); u32(png.count); u32(offset)
+        offset += png.count
+    }
+    for (_, png) in pngs { ico.append(png) }
+    try! ico.write(to: path("web/favicon.ico"))
+}
 
 // GitHub social card, 2x of the 1280x640 GitHub asks for.
 let card = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 2560, pixelsHigh: 1280,

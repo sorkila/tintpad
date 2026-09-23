@@ -375,7 +375,7 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   by hand in the repo's Settings, GitHub has no API for it). Tahoe composites its rim onto
   every icns, and a full-bleed tile makes that rim land half off the corners, so keep the grid.
   **Favicons are redrawn, never shrunk**: at 16px the glass turns to mud and a dark tile
-  vanishes into a dark tab bar, so `favicon-16/32` are the silhouette with a light rim. Bump
+  vanishes into a dark tab bar, so `favicon-16/32` (and the root `web/favicon.ico` that wraps them) are the icon flattened to solid fills with a faint rim. Bump
   the `?v=` on the icon links in `web/index.html` when the icon changes. Icon caches outlive
   `killall Dock`: also `lsregister -f` the installed app, delete
   `$(getconf DARWIN_USER_CACHE_DIR)com.apple.iconservices`, and `killall iconservicesagent`.
