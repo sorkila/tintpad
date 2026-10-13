@@ -3,6 +3,9 @@ contact_links:
   - name: Security report
     url: https://github.com/sorkila/tintpad/security/advisories/new
     about: Report a vulnerability privately (see SECURITY.md). Please don't file a public issue.
-  - name: Support / say thanks
+  - name: Sponsor
+    url: https://github.com/sponsors/sorkila
+    about: Tintpad is free. Sponsors keep it going.
+  - name: Say thanks
     url: https://www.buymeacoffee.com/eriknielsen
-    about: Tintpad is free, tips keep it going.
+    about: Or buy me a coffee, once.
