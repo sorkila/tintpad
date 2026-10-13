@@ -1129,25 +1129,28 @@ final class PaletteModel: ObservableObject {
             DispatchQueue.global(qos: .userInitiated).async { [weak self] in
                 do {
                     try WorktreeService.create(repoPath: repo.path, branch: branch, at: worktreePath)
+                    // Explicit `self.` in both Tasks: CI's Swift 6.1 (macos-15)
+                    // won't infer it inside a closure nested in another
+                    // `[weak self]` closure, though newer compilers do.
                     Task { @MainActor [weak self] in
                         guard let self else { return }
                         // A stale answer leaves the flag alone: `reset()`
                         // already cleared it, and it may belong to a launch
                         // from the newer summon now.
-                        guard summonGeneration == gen else { return }
+                        guard self.summonGeneration == gen else { return }
                         // `launch` keeps the flight flag up across the hop,
                         // so there is no gap for a second Return. A retry
                         // relaunches into the worktree, never re-creates it.
-                        launch(repo: repo, agent: agent, mode: mode,
-                               prompt: promptText, worktreePath: worktreePath)
+                        self.launch(repo: repo, agent: agent, mode: mode,
+                                    prompt: promptText, worktreePath: worktreePath)
                     }
                 } catch {
                     Task { @MainActor [weak self] in
-                        guard let self, summonGeneration == gen else { return }
-                        launchBeats.cancel()
-                        waitingLine = nil
-                        launchInFlight = false
-                        status = "⚠ \(error)"
+                        guard let self, self.summonGeneration == gen else { return }
+                        self.launchBeats.cancel()
+                        self.waitingLine = nil
+                        self.launchInFlight = false
+                        self.status = "⚠ \(error)"
                     }
                 }
             }
