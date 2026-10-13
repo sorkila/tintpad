@@ -107,7 +107,8 @@ Lockpaw covers your screen while they run and glows when one needs you. Also fre
 ## Support
 
 Free and MIT, the whole thing. Nothing to unlock, no Pro version. If it saves you a
-morning, [**buy me a coffee →**](https://www.buymeacoffee.com/eriknielsen)
+morning, [**sponsor it on GitHub →**](https://github.com/sponsors/sorkila) or
+[buy me a coffee](https://www.buymeacoffee.com/eriknielsen).
 
 ## License
 
