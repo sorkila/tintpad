@@ -7,7 +7,7 @@ Guidance for Claude Code (and contributors) working in this repo.
 floating palette → fuzzy-find a repo (frecency-ranked) → pick agent + run mode →
 your terminal opens at that repo with the agent (Claude Code, Codex, …) running.
 Hands off to *your* terminal, it isn't one. Accessory app (`LSUIElement`), local-only,
-no accounts. **Free & open source (MIT), nothing to unlock.** Buy me a coffee link only.
+no accounts. **Free & open source (MIT), nothing to unlock.** A GitHub Sponsors link only (Buy me a coffee until 2026-10-13).
 
 ## Status (shipped)
 **v0.4.1 is live** (2026-09-17): the new Icon Composer icon (glass capsule above a navy
@@ -207,8 +207,8 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
 - **No monetization in the app** (0.4.1). The Supporter tip, its license keys
   (`LicenseManager`, `sign-license.swift`), the `allows()` gate and tinted chips are gone,
   and so is the Appearance pane that only held the tint toggle. The selected chip is white
-  for everyone. What's left is a Buy me a coffee link (Settings → About, the site footer,
-  README). `tintedChips` and `licenseKey` survive only as retired decode fields. Don't add
+  for everyone. What's left is a Sponsor on GitHub link (Settings → About, the site footer,
+  README; it was Buy me a coffee until 2026-10-13, and sponsor tiers are thanks only). `tintedChips` and `licenseKey` survive only as retired decode fields. Don't add
   gates, keys or perks back.
 - Match surrounding style, keep `swift test` green, add a test when fixing logic.
 

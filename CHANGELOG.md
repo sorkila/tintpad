@@ -2,6 +2,11 @@
 
 All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepachangelog.com), this project aims for [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+
+### Changed
+- Settings → About links GitHub Sponsors instead of Buy me a coffee.
+
 ## [0.4.1] - 2026-09-17
 
 ### Changed

@@ -254,10 +254,10 @@ struct AboutSettingsView: View {
                 Link("sorkila.com", destination: URL(string: "https://sorkila.com")!).linkStyle()
             }
 
-            Link(destination: URL(string: "https://www.buymeacoffee.com/eriknielsen")!) {
+            Link(destination: URL(string: "https://github.com/sponsors/sorkila")!) {
                 // The one filled control on the pane: white chip, black ink in
                 // dark mode (and the inverse in light) — the drop's chip.
-                Label("Buy me a coffee", systemImage: "cup.and.saucer.fill")
+                Label("Sponsor on GitHub", systemImage: "heart.fill")
                     .font(.callout.weight(.medium))
                     .foregroundStyle(.background)
                     .padding(.horizontal, 14).padding(.vertical, 7)
