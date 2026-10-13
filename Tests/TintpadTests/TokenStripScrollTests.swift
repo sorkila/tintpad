@@ -2,6 +2,7 @@ import XCTest
 import SwiftUI
 @testable import Tintpad
 
+@MainActor
 final class TokenStripScrollTests: XCTestCase {
     func testIndexZeroTargetsTheStripStartNotTheToken() {
         XCTAssertTrue(PaletteView.scrollsToStripStart(0))
