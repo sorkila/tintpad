@@ -12,7 +12,7 @@ Native Swift/SwiftUI menu-bar (accessory) app. SPM executable, no external app f
 - `GitInfo.swift`, parses `.git/HEAD` + `.git/config` directly (no subprocess).
 - `CommandTemplate.swift`, variable substitution + login-shell binary resolution. **All interpolated values are sanitized (control chars stripped) and single-quoted**, the injection surface, unit-tested.
 - `RepoDiscovery.swift`, scans root folders 1–2 levels deep for `.git`.
-- `ShellEnvironment.swift`, resolves the interactive login-shell PATH (with a timeout, off the main thread) so a GUI-launched app finds `claude`/`codex`/… (the #1 footgun).
+- `ShellEnvironment.swift`, resolves the interactive login-shell PATH (through `ProcessRunner` with a timeout, pre-warmed off the main thread) so a GUI-launched app finds `claude`/`codex`/… (the #1 footgun). The probe brackets the PATH in begin and end marker lines, so whatever the user's rc prints is ignored, and the pure `extractPath` reads both colon (POSIX) and one-per-line (fish) output.
 - `ProcessRunner.swift`, the one way subprocesses run: hard timeout, concurrently drained pipes (no 64KB deadlock), SIGTERM then SIGKILL, plus `spawnDetached` for processes that *are* the thing being opened. Backs the terminal-adapter helper, `osascript` (its `input` writes the script to stdin), worktree git, and the async GitHub clone.
 - `GitStatus.swift`, "is this working tree dirty" via a bounded `git status --porcelain` (first-byte read, never takes the index lock). `RepoTint.swift`, every repo's stable identity hue and short name.
 - `WorktreeService.swift`, `DispatchService.swift`, `GitHubService.swift`, `Keychain.swift`, `LaunchService.swift`.
