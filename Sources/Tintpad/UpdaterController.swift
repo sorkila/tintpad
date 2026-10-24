@@ -42,37 +42,49 @@ final class UpdaterController: NSObject, ObservableObject {
             startingUpdater: true, updaterDelegate: nil, userDriverDelegate: self)
         controller = c
         c.updater.publisher(for: \.canCheckForUpdates).assign(to: &$canCheckForUpdates)
-        // Sparkle doesn't end every session the user walks away from (Install
-        // on Quit leaves the installer waiting), so the Dock presence is also
-        // let go once the last of Sparkle's windows has closed.
+        // Every session end reaches `standardUserDriverWillFinishUpdateSession`
+        // except one: Install on Quit closes the status window and leaves the
+        // session alive, waiting for the quit. So a status window closing is
+        // the fallback release. Not an alert closing: the alert closes before
+        // Sparkle opens the download's status window, and releasing in that
+        // gap would drop the Dock icon the moment the user says Install.
         NotificationCenter.default.addObserver(
             self, selector: #selector(windowWillClose(_:)),
             name: NSWindow.willCloseNotification, object: nil)
     }
 
     @objc private func windowWillClose(_ note: Notification) {
-        guard let window = note.object as? NSWindow, Self.isSparkleWindow(window) else { return }
+        guard let window = note.object as? NSWindow,
+              Self.controllerName(of: window) == "SUStatusController" else { return }
         // A turn later, so the closing window no longer counts as visible.
         DispatchQueue.main.async { self.releaseIfNoAlertShows() }
     }
 
     private func releaseIfNoAlertShows() {
-        guard !NSApp.windows.contains(where: { $0.isVisible && Self.isSparkleWindow($0) }) else { return }
+        // A modal "up to date" or error alert follows some status closes, and
+        // the session's end releases after it.
+        guard NSApp.modalWindow == nil,
+              !NSApp.windows.contains(where: { $0.isVisible && Self.isUpdateWindow($0) }) else { return }
         AppPresence.release(.update)
     }
 
     /// Sparkle's alert, status and permission windows (`SUUpdateAlert`,
     /// `SUStatusController`, `SUUpdatePermissionPrompt`).
-    private static func isSparkleWindow(_ window: NSWindow) -> Bool {
-        guard let controller = window.windowController else { return false }
-        let name = String(describing: type(of: controller))
+    static func isUpdateWindow(_ window: NSWindow) -> Bool {
+        guard let name = controllerName(of: window) else { return false }
         return name.hasPrefix("SU") || name.hasPrefix("SPU")
+    }
+
+    private static func controllerName(of window: NSWindow) -> String? {
+        window.windowController.map { String(describing: type(of: $0)) }
     }
 
     /// Also brings a pending update's alert into focus: Sparkle answers a
     /// check made during an open session by showing that session.
     func checkForUpdates() {
-        guard let controller else { return }
+        // Sparkle ignores a check while a scheduled one is mid-flight, and a
+        // claim made then would never be released.
+        guard let controller, controller.updater.canCheckForUpdates else { return }
         AppPresence.claim(.update)
         controller.updater.checkForUpdates()
     }

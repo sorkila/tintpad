@@ -260,7 +260,12 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   last one lets go), never a raw `setActivationPolicy`. Sparkle runs with
   gentle reminders: a scheduled update outside immediate focus waits in the menu
   (`UpdaterController.pendingVersion`, a dot on the caret) instead of an alert
-  behind the user's windows.
+  behind the user's windows. The `.update` claim is released by
+  `standardUserDriverWillFinishUpdateSession`, plus one fallback for Install on
+  Quit (the only path that ends without it): a `SUStatusController` window
+  closing with no modal up. **Never release on an alert closing**, Sparkle
+  closes the alert before it opens the download's status window. An update
+  alert promoted to key when the drop orders out also skips the app hide.
 - **Arrival and exit are one generation-counted `StepSequencer` timeline**, never nested
   `asyncAfter`, so a re-summon cancels stale beats. The beat times live only in
   `DropTimeline`. Everything user-facing asks `PaletteModel.requestDismiss(_:)` (Esc,

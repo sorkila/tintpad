@@ -229,8 +229,14 @@ final class CommandPanelController: NSObject {
                 // turn so the order-out has reached the window server, and
                 // skipped if a summon landed in between (the hotkey pressed
                 // twice), or the app would hide under the drop.
+                // Also skipped when the order-out promoted an update alert to
+                // key (summoned over it, then Esc): the alert is waiting for a
+                // click, and hiding the app would take it away again. Settings
+                // promoted the same way still hides, focus goes back to the
+                // app the summon came from.
                 DispatchQueue.main.async { [weak panel = self.panel] in
                     guard panel?.isVisible != true else { return }
+                    if let key = NSApp.keyWindow, key.isVisible, UpdaterController.isUpdateWindow(key) { return }
                     NSApp.hide(nil)
                 }
             case .restoreAndOrderIn:
