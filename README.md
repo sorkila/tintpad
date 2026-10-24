@@ -26,13 +26,8 @@ Hotkey, repo, Return. Your terminal opens at that repo with the agent already ru
 ## Install
 
 **[Download Tintpad.dmg](https://github.com/sorkila/tintpad/releases/latest/download/Tintpad.dmg)**
-(signed and notarized, macOS 14+), or:
-
-```sh
-brew install --cask sorkila/tap/tintpad
-```
-
-Homebrew asks once to trust the tap (`brew trust sorkila/tap` does it up front).
+(signed and notarized, macOS 14+), or the brew command above. Homebrew asks once to trust
+the tap, say yes (`brew trust sorkila/tap` does it up front).
 
 Or build it yourself (Swift 6, Xcode 16+):
 
@@ -46,7 +41,7 @@ swift run                  # dev run
 
 1. Launch Tintpad. Setup asks where your repos live and which terminal is yours.
 2. Press <kbd>⌥⌘Space</kbd> anywhere. The drop falls out of the notch with your repos inside.
-3. Type a few letters, press <kbd>⏎</kbd>. Your terminal opens at that repo with the agent running.
+3. Type a few letters, press <kbd>⏎</kbd>. Your terminal opens at that repo running what the two chips say.
 
 You bring the agent: install `claude`, `codex` or any other agent CLI first.
 
