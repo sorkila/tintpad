@@ -4,6 +4,8 @@ All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-10-24
+
 ### Changed
 - **⌘0 and the new ⌃R continue the conversation instead of starting it
   again.** ⌘0 picks up the last session in the repo or worktree it ran in,
