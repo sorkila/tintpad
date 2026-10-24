@@ -6,13 +6,16 @@
 
 **It falls out of your notch.**
 
-Hotkey, repo, Return. Your terminal opens at that repo with Claude Code, Codex,
-or whichever agent you're into this week, already running.
+A free, open source macOS launcher for Claude Code and Codex.<br/>
+Hotkey, repo, Return. Your terminal opens at that repo with the agent already running.
+
+**[Download for macOS](https://github.com/sorkila/tintpad/releases/latest/download/Tintpad.dmg)**
+&nbsp;·&nbsp; `brew install --cask sorkila/tap/tintpad`
 
 [![CI](https://github.com/sorkila/tintpad/actions/workflows/ci.yml/badge.svg)](https://github.com/sorkila/tintpad/actions/workflows/ci.yml)
+&nbsp;[![Latest release](https://img.shields.io/github/v/release/sorkila/tintpad?label=release&color=000)](https://github.com/sorkila/tintpad/releases/latest)
 &nbsp;![macOS 14+](https://img.shields.io/badge/macOS-14%2B-000)
-&nbsp;![Swift 6](https://img.shields.io/badge/Swift-6-orange)
-&nbsp;![License: MIT](https://img.shields.io/badge/license-MIT-blue)
+&nbsp;![License: MIT](https://img.shields.io/badge/license-MIT-000)
 
 <a href="https://tintpad.com"><img src="docs/assets/demo.gif" alt="Tintpad demo: a black drop hangs from the MacBook notch with repo names inside. Keycaps show each shortcut as it is pressed: ⌥⌘Space summons it, → walks a white chip through the repos, tab switches the agent between Claude Code and Codex, and ⇧tab turns the MODE chip red for Skip permissions" width="100%" /></a>
 
@@ -29,6 +32,8 @@ or whichever agent you're into this week, already running.
 brew install --cask sorkila/tap/tintpad
 ```
 
+Homebrew asks once to trust the tap (`brew trust sorkila/tap` does it up front).
+
 Or build it yourself (Swift 6, Xcode 16+):
 
 ```sh
@@ -36,6 +41,14 @@ git clone https://github.com/sorkila/tintpad.git && cd tintpad
 swift run                  # dev run
 ./Scripts/package.sh       # Tintpad.app into .build/release
 ```
+
+## Thirty seconds
+
+1. Launch Tintpad. Setup asks where your repos live and which terminal is yours.
+2. Press <kbd>⌥⌘Space</kbd> anywhere. The drop falls out of the notch with your repos inside.
+3. Type a few letters, press <kbd>⏎</kbd>. Your terminal opens at that repo with the agent running.
+
+You bring the agent: install `claude`, `codex` or any other agent CLI first.
 
 ## What it does
 
@@ -48,6 +61,8 @@ swift run                  # dev run
 - **Frecency.** The repos you actually use float up, with the agent and mode you used last.
 - **Worktrees and dispatch.** <kbd>⌃W</kbd> for a fresh branch checkout with an agent inside,
   <kbd>⌃⏎</kbd> to run one in the background and get pinged when it's done.
+- **Any agent.** Claude Code and Codex come set up. Anything else with a CLI is one line, see
+  [Configure](#configure).
 - **The rest.** Prompt library, per-repo presets, GitHub import, open in editor.
 - **Polite.** Dynamic Type, VoiceOver, Reduce Motion. Local-only, no account, no telemetry.
 
@@ -107,8 +122,7 @@ Lockpaw covers your screen while they run and glows when one needs you. Also fre
 ## Support
 
 Free and MIT, the whole thing. Nothing to unlock, no Pro version. If it saves you a
-morning, [**sponsor it on GitHub →**](https://github.com/sponsors/sorkila) or
-[buy me a coffee](https://www.buymeacoffee.com/eriknielsen).
+morning, [**sponsor it on GitHub →**](https://github.com/sponsors/sorkila)
 
 ## License
 
