@@ -108,7 +108,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .repos:      "Repositories, scan roots, and ranking"
         case .agents:     "Agents, command templates, and run modes"
         case .prompts:    "Reusable starting prompts"
-        case .recents:    "Recent sessions and quick-resume"
+        case .recents:    "Recent sessions, continue any of them"
         case .github:     "Import repositories from GitHub"
         case .about:      "Version and updates"
         }
@@ -162,7 +162,7 @@ struct GeneralSettingsView: View {
             Section("Safety") {
                 Toggle("Confirm before launching a mode that skips permissions",
                        isOn: store.bind(\.confirmDangerousModes))
-                Text("Return once arms the confirm line, Return again launches. Every path passes the gate, including ⌥⏎, ⌘1 to ⌘9, ⌃⏎ dispatch, and resume.")
+                Text("Return once arms the confirm line, Return again launches. Every path passes the gate, including ⌥⏎, ⌘1 to ⌘9, ⌃⏎ dispatch, ⌃R and ⌘0.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 

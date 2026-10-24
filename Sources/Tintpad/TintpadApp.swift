@@ -43,15 +43,11 @@ struct TintpadApp: App {
             // and goes quiet while a recorder is active), never a literal.
             Button("Summon palette") { delegate.panelController.show() }
                 .globalKeyboardShortcut(.summon)
-            // The resume affordance lives here, not as palette chrome. Menus
+            // The continue affordance lives here, not as palette chrome. Menus
             // are where macOS teaches shortcuts (⌘0 also works in the palette).
-            Button("Resume last session") {
-                LaunchService.continueLast(store: store) { result in
-                    if case .failure(let error) = result, !LaunchService.isInFlight(error) { NSSound.beep() }
-                }
-            }
-            .globalKeyboardShortcut(.resumeLast)
-            .disabled(!LaunchService.canContinueLast(store: store))
+            Button("Continue last session") { delegate.continueSession(nil) }
+                .globalKeyboardShortcut(.continueLast)
+                .disabled(!LaunchService.canContinueLast(store: store))
             Divider()
             // Every key the palette answers to, where macOS teaches shortcuts.
             // Rows are text, not commands: they only work inside the drop.
@@ -111,20 +107,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         HotkeyManager.onSummon { [weak self] in
             self?.panelController.toggle()
         }
-        HotkeyManager.onResumeLast { [weak self] in
-            let store = AppStore.shared
-            // A dangerous last session must not relaunch blind from a global
-            // hotkey when confirmation is on — route it through the palette,
-            // where the confirm banner has a surface (AUDIT 2026-07 #8).
-            if store.settings.confirmDangerousModes,
-               let s = store.lastSession, let agent = store.agent(s.agentID),
-               agent.modes.first(where: { $0.id == s.modeID })?.isDangerous == true {
-                self?.panelController.show()
-                DispatchQueue.main.async { self?.panelController.model.continueLastSession() }
-                return
-            }
-            LaunchService.continueLast(store: store) { result in
-                if case .failure(let error) = result, !LaunchService.isInFlight(error) { NSSound.beep() }
+        HotkeyManager.onContinueLast { [weak self] in self?.continueSession(nil) }
+        // Settings → Recents asks for a stored session the same way.
+        NotificationCenter.default.addObserver(
+            forName: .tintpadContinueSession, object: nil, queue: .main
+        ) { [weak self] note in
+            let id = note.object as? UUID
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                guard let id, let session = AppStore.shared.sessions.first(where: { $0.id == id }) else {
+                    NSSound.beep()
+                    return
+                }
+                self.continueSession(session)
             }
         }
 
@@ -205,6 +200,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.messageText = failure.alertCopy.message
         alert.informativeText = failure.alertCopy.informative
         alert.runModal()
+    }
+
+    /// Every continue from outside the drop (the hotkey, the menu, a Recents
+    /// row) lands here, `nil` meaning the last session. A dangerous session
+    /// must not continue blind when confirmation is on, so it goes through
+    /// the palette, where the confirm banner has a surface (AUDIT 2026-07 #8).
+    /// Anything else continues at once and beeps if it can't.
+    func continueSession(_ session: Session?) {
+        let store = AppStore.shared
+        if store.settings.confirmDangerousModes,
+           let s = session ?? store.lastSession, let agent = store.agent(s.agentID),
+           agent.modes.first(where: { $0.id == s.modeID })?.isDangerous == true {
+            panelController.show()
+            let id = session?.id
+            DispatchQueue.main.async { [weak self] in self?.panelController.model.continueSession(id) }
+            return
+        }
+        let done: LaunchService.Completion = { result in
+            if case .failure(let error) = result, !LaunchService.isInFlight(error) { NSSound.beep() }
+        }
+        if let session {
+            LaunchService.continueSession(session, store: store, completion: done)
+        } else {
+            LaunchService.continueLast(store: store, completion: done)
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {

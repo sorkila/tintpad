@@ -4,8 +4,10 @@ import KeyboardShortcuts
 extension KeyboardShortcuts.Name {
     /// The primary "summon Tintpad" shortcut.
     static let summon = Self("summon")
-    /// Instant quick-resume of the most recent session (no palette).
-    static let resumeLast = Self("resumeLast")
+    /// Continue the most recent session's conversation (no palette unless
+    /// the gate needs one). Stored under its old name, so a chord recorded
+    /// before the rename keeps working.
+    static let continueLast = Self("resumeLast")
 }
 
 /// Registers the global summon hotkey. ⌥⌘Space is seeded when nothing is set,
@@ -23,7 +25,7 @@ enum HotkeyManager {
         KeyboardShortcuts.onKeyDown(for: .summon, action: handler)
     }
 
-    static func onResumeLast(_ handler: @escaping () -> Void) {
-        KeyboardShortcuts.onKeyDown(for: .resumeLast, action: handler)
+    static func onContinueLast(_ handler: @escaping () -> Void) {
+        KeyboardShortcuts.onKeyDown(for: .continueLast, action: handler)
     }
 }

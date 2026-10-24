@@ -913,11 +913,20 @@ final class PaletteModel: ObservableObject {
     /// confirm banner as any other dangerous launch. Nothing to continue is
     /// said, and nothing launches in its place.
     @discardableResult
-    func continueLastSession() -> Bool {
+    func continueLastSession() -> Bool { continueSession(nil) }
+
+    /// ⌘0's work for any stored session, by ID, nil for the last one. The
+    /// hotkey, the menu and Settings → Recents come here when the session is
+    /// dangerous, so it meets the same gate.
+    @discardableResult
+    func continueSession(_ id: UUID?) -> Bool {
         guard worktreeRepo == nil, promptRepo == nil else { return false }
         guard admitLaunchGesture() else { return true }
         clearTransient()
-        guard let session = store.lastSession else { status = DropCopy.noSessionToContinue; return true }
+        guard let session = id.map({ id in store.sessions.first { $0.id == id } }) ?? store.lastSession else {
+            status = id == nil ? DropCopy.noSessionToContinue : DropCopy.sessionGone
+            return true
+        }
         if let blocker = LaunchService.continueBlocker(for: session, store: store) {
             status = "\(blocker)"
             return true
@@ -927,9 +936,9 @@ final class PaletteModel: ObservableObject {
               let mode = agent.modes.first(where: { $0.id == session.modeID }) else { return true }
         fireOrConfirm(repo: repo, agent: agent, mode: mode) { [weak self] in
             guard let self else { return }
-            // A retry continues "the last session" as it is at retry time,
-            // the same as pressing ⌘0 again.
-            let retry: () -> Void = { [weak self] in _ = self?.continueLastSession() }
+            // A retry continues "the last session" (or this one, by ID) as it
+            // is at retry time, the same as pressing ⌘0 again.
+            let retry: () -> Void = { [weak self] in _ = self?.continueSession(id) }
             // Held after a permission failure as this session's concrete
             // continue, so the offer runs what it names even if another
             // session has become the last one since.

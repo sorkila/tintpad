@@ -89,7 +89,7 @@ struct RecentsSettingsView: View {
                     }
                 }
             }
-            Label("Quick-resume the most recent with the Resume-last hotkey (Settings → Keys).",
+            Label("Continue the most recent with the Continue last session hotkey (Settings → Keys).",
                   systemImage: "bolt.fill")
                 .font(.caption).foregroundStyle(.secondary)
         }
@@ -113,16 +113,16 @@ struct RecentsSettingsView: View {
                 .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
-            Button("Resume") { resume(s) }.controlSize(.small)
+            Button("Continue") { continueSession(s) }.controlSize(.small)
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
     }
 
-    private func resume(_ s: Session) {
-        // Beeps when the session can't be reconstructed or the launch fails,
-        // stays quiet on a double press while it is already opening.
-        LaunchService.continueSession(s, store: store) { result in
-            if case .failure(let error) = result, !LaunchService.isInFlight(error) { NSSound.beep() }
-        }
+    /// Continues the row's conversation the way the hotkey does: through the
+    /// drop's gate when it is dangerous, otherwise at once. Beeps when the
+    /// session can't be continued or the launch fails, stays quiet on a
+    /// double press while it is already opening.
+    private func continueSession(_ s: Session) {
+        NotificationCenter.default.post(name: .tintpadContinueSession, object: s.id)
     }
 }

@@ -7,6 +7,9 @@ extension Notification.Name {
     static let tintpadPanelDidShow = Notification.Name("tintpadPanelDidShow")
     /// Posted to request the palette be summoned (e.g. right after onboarding).
     static let tintpadSummonPalette = Notification.Name("tintpadSummonPalette")
+    /// Continue a stored session (its ID is the object) the way the continue
+    /// hotkey does, through the palette's gate when it is dangerous.
+    static let tintpadContinueSession = Notification.Name("tintpadContinueSession")
 }
 
 /// The floating command palette window.

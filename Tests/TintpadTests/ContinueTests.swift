@@ -1,3 +1,4 @@
+import KeyboardShortcuts
 import XCTest
 @testable import Tintpad
 
@@ -475,6 +476,38 @@ final class ContinueDropTests: XCTestCase {
         XCTAssertTrue(terminal.launches.isEmpty)
         model.handleReturn(modifiers: [])
         XCTAssertEqual(lastCommand, CommandTemplate.inFreshSession("/bin/echo --continue --skip"))
+    }
+
+    // Settings → Recents routes a dangerous row here, which need not be the last session.
+    func testARecentsSessionByIDMeetsTheGate() {
+        store.recordSession(repo: store.repos[0], agent: store.agents[0], mode: skip, prompt: nil)
+        let older = store.sessions[0].id
+        store.recordSession(repo: store.repos[0], agent: store.agents[0], mode: safe, prompt: nil)
+        XCTAssertTrue(model.continueSession(older))
+        XCTAssertTrue(model.isPendingDangerous, "the row's own mode, not the last session's")
+        model.handleReturn(modifiers: [])
+        XCTAssertEqual(lastCommand, CommandTemplate.inFreshSession("/bin/echo --continue --skip"))
+    }
+
+    func testAGoneSessionIDSaysSo() {
+        XCTAssertTrue(model.continueSession(UUID()))
+        XCTAssertEqual(model.status, DropCopy.sessionGone)
+        XCTAssertTrue(terminal.launches.isEmpty)
+    }
+}
+
+final class ContinueSurfaceTests: XCTestCase {
+    // Renamed in code, never on disk: a chord recorded for "Resume last
+    // session" must still answer as "Continue last session".
+    func testHotkeyKeepsItsStoredName() {
+        XCTAssertEqual(KeyboardShortcuts.Name.continueLast.rawValue, "resumeLast")
+    }
+
+    func testSettingsCopyKeepsHouseStyle() {
+        for text in [SettingsTab.recents.subtitle, DropCopy.noContinueForm(agent: "Codex")] {
+            XCTAssertFalse(text.contains("—"), text)
+            XCTAssertFalse(text.contains(";"), text)
+        }
     }
 }
 

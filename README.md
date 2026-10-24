@@ -54,8 +54,9 @@ You bring the agent: install `claude`, `codex` or any other agent CLI first.
 - **The contract.** Two chips say exactly what Return runs, in the agent's own words. A mode
   that skips permissions turns red first and can ask before it fires, on every path.
 - **Frecency.** The repos you actually use float up, with the agent and mode you used last.
-- **Worktrees and dispatch.** <kbd>⌃W</kbd> for a fresh branch checkout with an agent inside,
-  <kbd>⌃⏎</kbd> to run one in the background and get pinged when it's done.
+- **Worktrees and dispatch.** <kbd>⌃W</kbd> for a fresh branch checkout with an agent inside
+  (<kbd>⌘0</kbd> continues its conversation there), <kbd>⌃⏎</kbd> to run one in the background
+  and get pinged when it's done.
 - **Any agent.** Claude Code and Codex come set up. Anything else with a CLI is one line, see
   [Configure](#configure).
 - **The rest.** Prompt library, per-repo presets, GitHub import, open in editor.
@@ -103,8 +104,14 @@ Agents are just command templates with variables, set them in **Settings → Age
 claude {mode} {prompt}
 ```
 
-Variables: `{repoPath}` `{repoName}` `{branch}` `{remote}` `{prompt}` `{mode}` `{shell}` `{worktreePath}`.
+Variables: `{repoPath}` `{repoName}` `{branch}` `{remote}` `{prompt}` `{mode}` `{shell}` `{worktreePath}` `{continue}`.
 Every interpolated value is sanitized and shell-quoted before it runs.
+
+<kbd>⌃R</kbd> and <kbd>⌘0</kbd> run the agent's **Continue** form (`--continue` for Claude Code,
+`resume --last` for Codex) at `{continue}`, or right after the binary when the template has no
+slot. An agent without one says so and launches nothing. Agents keep conversations per
+directory, so a session launched into a worktree continues there, and one held in a
+`claude -w` worktree is out of Tintpad's sight.
 
 ## Contributing
 

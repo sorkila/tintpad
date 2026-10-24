@@ -127,10 +127,20 @@ private struct AgentEditor: View {
                     .font(.monoStyle(.caption))
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
+                // The continue form, a fragment like a mode's flags. Empty
+                // means this agent can't continue, and ⌃R and ⌘0 say so.
+                TextField("Continue", text: continueFlags, prompt: Text("--continue"))
+                    .font(.monoStyle(.body))
+                if let preview = previewContinueCommand {
+                    Text(preview)
+                        .font(.monoStyle(.caption))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
             } header: {
                 Text("Command")
             } footer: {
-                Text("Variables: {repoPath} {repoName} {branch} {remote} {prompt} {mode} {shell}")
+                Text("Variables: {repoPath} {repoName} {branch} {remote} {prompt} {mode} {shell} {continue}. ⌃R and ⌘0 run the continue form at {continue}, or right after the binary.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 
@@ -150,15 +160,31 @@ private struct AgentEditor: View {
         .padding(20)
     }
 
-    private var previewCommand: String {
+    private var previewCommand: String { preview(continueFlags: nil) }
+
+    /// The same command as ⌃R runs it, nil while there is no continue form.
+    private var previewContinueCommand: String? {
+        agent.continueForm.map { preview(continueFlags: $0) }
+    }
+
+    private func preview(continueFlags: String?) -> String {
         let sample = Repo(path: "/Users/you/repos/\(slug)", name: slug)
         return "cd \(slug) && " + CommandTemplate.preview(
             agent.commandTemplate,
             context: .init(
                 repo: sample, mode: agent.defaultMode,
                 prompt: agent.acceptsPrompt ? "fix the failing test" : nil,
-                branch: "main", remote: nil
+                branch: "main", remote: nil, continueFlags: continueFlags
             )
+        )
+    }
+
+    /// Never set reads as empty. Only a real edit writes, so opening the pane
+    /// never turns "never set" into "cleared", and a cleared form stays "".
+    private var continueFlags: Binding<String> {
+        Binding(
+            get: { agent.continueFlags ?? "" },
+            set: { if $0 != (agent.continueFlags ?? "") { agent.continueFlags = $0 } }
         )
     }
 
