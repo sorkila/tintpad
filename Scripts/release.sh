@@ -1,81 +1,175 @@
 #!/usr/bin/env bash
-# One-command release. Build → sign → notarize → DMG → GitHub Release →
-# Sparkle appcast → Homebrew cask. The only thing you provide is your cert.
+# One-command release. Preflight → build, sign, notarize, DMG → Sparkle
+# signature → GitHub Release → appcast → Homebrew cask.
 #
 #   SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
 #   NOTARY_PROFILE="tintpad-notary" \
-#   ./Scripts/release.sh [version]
+#   SPARKLE_ED_KEY_FILE="$HOME/.config/sparkle/ed25519.key" \
+#   ./Scripts/release.sh [--dry-run] [--republish] [version]
+#
+# Version defaults to CFBundleShortVersionString. Before running: bump BOTH
+# CFBundleShortVersionString and CFBundleVersion in Resources/Info.plist, rename
+# CHANGELOG.md's [Unreleased] to "## [X.Y.Z] - YYYY-MM-DD", commit and push.
+# Scripts/check-release.sh checks all of that first.
+#
+#   --dry-run    preflight (a dirty tree only warns), render the release notes,
+#                show the signing path and the appcast item, then stop. Needs no
+#                credentials and builds nothing.
+#   --republish  the GitHub release already exists (a re-run after a failure
+#                past `gh release create`): re-upload the DMG and notes to it.
+#
+# Sparkle signing: with SPARKLE_ED_KEY_FILE set, sign_update reads the private
+# key from that file and never touches the keychain, so the run is headless.
+# Unset, it falls back to the login keychain, which shows a GUI approval prompt
+# (run from a real terminal and click Allow). docs/RELEASE.md has the one-time
+# export. The signature is checked against SUPublicEDKey before anything is
+# published, so a wrong key stops the release instead of every user's updater.
 #
 # Prereqs (one-time): `xcrun notarytool store-credentials tintpad-notary …`
-# and `gh auth login`. Version defaults to CFBundleShortVersionString.
+# and `gh auth login`.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# shellcheck source=Scripts/release-lib.sh
+. Scripts/release-lib.sh
 
-: "${SIGN_IDENTITY:?set SIGN_IDENTITY — \"Developer ID Application: Name (TEAMID)\"}"
-: "${NOTARY_PROFILE:?set NOTARY_PROFILE — your notarytool keychain profile name}"
+DRY_RUN=0 REPUBLISH=0 VERSION=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --dry-run) DRY_RUN=1 ;;
+    --republish) REPUBLISH=1 ;;
+    -h|--help) sed -n '2,/^set -euo/p' "$0" | sed -e '$d' -e 's/^# \{0,1\}//'; exit 0 ;;
+    -*) echo "release: unknown option $1" >&2; exit 2 ;;
+    *) VERSION="$1" ;;
+  esac
+  shift
+done
 
-VERSION="${1:-$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Resources/Info.plist)}"
-BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' Resources/Info.plist)"
+PLIST="Resources/Info.plist"
+VERSION="${VERSION:-$(plist_get "$PLIST" CFBundleShortVersionString)}"
+BUILD="$(plist_get "$PLIST" CFBundleVersion)"
+PUBLIC_ED_KEY="$(plist_get "$PLIST" SUPublicEDKey)"
 TAG="v${VERSION}"
 REPO="sorkila/tintpad"
 DMG=".build/release/Tintpad.dmg"
-SIGN_UPDATE=".build/artifacts/sparkle/Sparkle/bin/sign_update"
 DL="https://github.com/${REPO}/releases/download/${TAG}/Tintpad.dmg"
 
-echo "▸ Releasing Tintpad ${VERSION} (${TAG})"
+die() { echo "✗ $*" >&2; exit 1; }
+
+if [[ "$DRY_RUN" -eq 1 ]]; then
+  echo "▸ Dry run for Tintpad ${VERSION} (${TAG}, build ${BUILD}). Nothing is built, signed or published."
+else
+  : "${SIGN_IDENTITY:?set SIGN_IDENTITY, \"Developer ID Application: Name (TEAMID)\"}"
+  : "${NOTARY_PROFILE:?set NOTARY_PROFILE, your notarytool keychain profile name}"
+  command -v gh >/dev/null || die "gh is not installed (brew install gh, then gh auth login)"
+  gh auth status -h github.com >/dev/null 2>&1 || die "gh is not logged in to github.com (gh auth login)"
+  echo "▸ Releasing Tintpad ${VERSION} (${TAG}, build ${BUILD})"
+fi
+[[ -n "$PUBLIC_ED_KEY" ]] || die "Info.plist has no SUPublicEDKey, nothing could verify the update"
+
+# 0. Preflight: versions against the live appcast, CHANGELOG, tree, tag.
+PREFLIGHT=()
+[[ "$DRY_RUN" -eq 1 ]] && PREFLIGHT+=(--allow-dirty)
+[[ "$REPUBLISH" -eq 1 ]] && PREFLIGHT+=(--allow-existing-tag)
+./Scripts/check-release.sh ${PREFLIGHT[@]+"${PREFLIGHT[@]}"} "$VERSION"
+
+# Which key signs the appcast entry. An explicit key file must be usable, it
+# never silently falls back to the keychain.
+if [[ -n "${SPARKLE_ED_KEY_FILE:-}" ]]; then
+  KEY_FILE="$SPARKLE_ED_KEY_FILE"
+  [[ -f "$KEY_FILE" && -r "$KEY_FILE" ]] || die "SPARKLE_ED_KEY_FILE=${KEY_FILE} is not a readable file"
+  KEY_DIR="$(cd "$(dirname "$KEY_FILE")" && pwd -P)"
+  case "$KEY_DIR/" in
+    "$(pwd -P)/"*)
+      git check-ignore -q "$KEY_DIR/$(basename "$KEY_FILE")" \
+        || die "the Sparkle key ${KEY_FILE} is inside the repo and not gitignored, move it out (see docs/RELEASE.md)"
+      echo "  ! the Sparkle key is inside the repo (gitignored). This repo syncs through iCloud Drive, keep the key outside it."
+      ;;
+  esac
+  MODE_BITS="$(stat -f '%Lp' "$KEY_FILE")"
+  [[ "$MODE_BITS" == 600 || "$MODE_BITS" == 400 ]] \
+    || echo "  ! ${KEY_FILE} is mode ${MODE_BITS}, run: chmod 600 \"${KEY_FILE}\""
+  SIGN_ARGS=(--ed-key-file "$KEY_FILE")
+  SIGN_DESC="key file ${KEY_FILE} (headless)"
+else
+  SIGN_ARGS=()
+  SIGN_DESC="login keychain (SPARKLE_ED_KEY_FILE unset, macOS will ask to allow access)"
+fi
+
+# Release notes: the CHANGELOG section for this version in the template.
+CHANGES_FILE="$(mktemp)"
+NOTES_FILE="$(mktemp)"
+trap 'rm -f "$CHANGES_FILE" "$NOTES_FILE"' EXIT
+changelog_section CHANGELOG.md "$VERSION" > "$CHANGES_FILE" \
+  || die "CHANGELOG.md has no section for ${VERSION}"
+
+if [[ "$DRY_RUN" -eq 1 ]]; then
+  render_release_notes Scripts/release-notes.md "$CHANGES_FILE" "$VERSION" "<sha256 of the notarized DMG>" > "$NOTES_FILE"
+  cat <<PLAN
+
+Would run, in order:
+  1. ./Scripts/package.sh            build, sign with SIGN_IDENTITY, notarize with NOTARY_PROFILE
+  2. sign_update ${SIGN_ARGS[*]+${SIGN_ARGS[*]} }${DMG}
+                                     signing key: ${SIGN_DESC}
+     verify-ed25519.swift            against SUPublicEDKey ${PUBLIC_ED_KEY}
+  3. gh release $([[ "$REPUBLISH" -eq 1 ]] && echo "upload --clobber + edit" || echo "create ${TAG} --target $(git rev-parse --short HEAD)") -R ${REPO}
+  4. web/appcast.xml                 ${VERSION} (build ${BUILD}) → ${DL}
+  5. Casks/tintpad.rb                version "${VERSION}", sha256 of the DMG
+
+sign_update: $(find_sign_update || echo "not fetched yet (package.sh's build fetches it)")
+SIGN_IDENTITY: $([[ -n "${SIGN_IDENTITY:-}" ]] && echo set || echo "unset, required for a real run")
+NOTARY_PROFILE: $([[ -n "${NOTARY_PROFILE:-}" ]] && echo set || echo "unset, required for a real run")
+
+Release notes (title "Tintpad ${VERSION}"):
+----------------------------------------------------------------
+PLAN
+  cat "$NOTES_FILE"
+  echo "----------------------------------------------------------------"
+  echo "✓ Dry run done. Nothing was built, signed or published."
+  exit 0
+fi
 
 # 1. Build, sign, notarize, staple, DMG.
 ./Scripts/package.sh
+[[ -f "$DMG" ]] || die "package.sh did not produce ${DMG}"
 SHA="$(shasum -a 256 "$DMG" | cut -d' ' -f1)"
-echo "▸ DMG sha256: ${SHA}"
+SIZE="$(stat -f '%z' "$DMG")"
+echo "▸ DMG sha256: ${SHA} (${SIZE} bytes)"
 
-# 2. GitHub Release with the DMG. Notes go via a temp file (a heredoc inside
-# $(...) trips bash on the parens/backticks in the body).
-NOTES_FILE="$(mktemp)"
-cat > "$NOTES_FILE" <<EOF
-**Tintpad**: press ⌥⌘Space and a black drop falls out of your Mac's notch with your repos
-inside. Return opens your terminal at that repo with your coding agent (Claude Code, Codex, …)
-already running. Hands off to the terminal you already use. Native, local-only, free and open
-source.
+# 2. Sparkle signature, before anything is public. A failure here leaves no
+# GitHub release behind.
+SIGN_UPDATE="$(find_sign_update)" || die "sign_update not found under .build/artifacts"
+echo "▸ Signing the update with the ${SIGN_DESC}"
+if [[ "${#SIGN_ARGS[@]}" -eq 0 ]]; then
+  echo "  ┌──────────────────────────────────────────────────────────────────┐"
+  echo "  │ macOS will ask to allow sign_update to use the Sparkle key.      │"
+  echo "  │ Approve the keychain prompt, it is waiting for you.              │"
+  echo "  │ Set SPARKLE_ED_KEY_FILE to skip it next time (docs/RELEASE.md).  │"
+  echo "  └──────────────────────────────────────────────────────────────────┘"
+fi
+SIG="$("$SIGN_UPDATE" ${SIGN_ARGS[@]+"${SIGN_ARGS[@]}"} "$DMG")"   # → sparkle:edSignature="…" length="…"
+ENCLOSURE="$(parse_enclosure "$SIG")" || die "sign_update printed something unexpected: ${SIG}"
+ED_SIGNATURE="${ENCLOSURE% *}"
+SIGNED_LENGTH="${ENCLOSURE#* }"
+[[ "$SIGNED_LENGTH" == "$SIZE" ]] || die "signed length ${SIGNED_LENGTH} does not match the DMG's ${SIZE} bytes"
+swift Scripts/verify-ed25519.swift "$PUBLIC_ED_KEY" "$ED_SIGNATURE" "$DMG" \
+  || die "the signature does not verify against SUPublicEDKey in Info.plist, wrong Sparkle key? Nothing was published."
+echo "▸ Signature verifies against SUPublicEDKey"
 
-### New in 0.4.1
-- **A new icon.** A lit glass capsule above a navy pad, built in Icon Composer.
-- **Free, with nothing to unlock.** The Supporter tip, its license key and the tinted chips are
-  gone. The drop is black and white for everyone, and Buy me a coffee stays in About.
-- **The left fade tells the truth.** The token strip fades its left edge only when repos are
-  actually scrolled out of view, and the first repo sits at its true start again.
-
-### Install
-- **Download \`Tintpad.dmg\` below**, drag to Applications, launch. macOS 14+.
-- or \`brew install --cask sorkila/tap/tintpad\`
-- The build is signed with a Developer ID and notarized, so it opens past Gatekeeper. Auto-updates via Sparkle.
-
-### What's inside
-- **The drop**: a pure-black capsule that falls from the camera housing (a floating pill below
-  the menu bar on notchless Macs). Stark black and white, springs all the way down, a crossfade
-  under Reduce Motion.
-- **The contract**: AGENT and MODE chips say exactly what Return runs, in each agent's own
-  words. The mode that skips permissions is a red-etched chip, and every permission-skipping
-  path shares one confirm gate.
-- Repos remember how you opened them last, ⌘0 replays your last session exactly.
-- Frecency search, git worktrees (⌃W), headless dispatch (⌃↵), prompt library, per-repo
-  presets, GitHub import.
-- 7 terminals: Ghostty, iTerm2, kitty, WezTerm, Alacritty, Terminal.app, Warp.
-- Local-only: no accounts, no telemetry, nothing leaves your Mac.
-- Free and MIT, the whole app. Nothing to unlock, no Pro version.
-
-Full notes: [CHANGELOG.md](https://github.com/${REPO}/blob/main/CHANGELOG.md) · sha256 \`${SHA}\`
-EOF
-if gh release view "$TAG" -R "$REPO" >/dev/null 2>&1; then
+# 3. GitHub Release with the DMG. Notes go via a file (a heredoc inside $(...)
+# trips bash on the parens/backticks in the body). --target pins the tag to the
+# commit this DMG was built from, not whatever main is on GitHub.
+render_release_notes Scripts/release-notes.md "$CHANGES_FILE" "$VERSION" "$SHA" > "$NOTES_FILE"
+if [[ "$REPUBLISH" -eq 1 ]]; then
+  gh release view "$TAG" -R "$REPO" >/dev/null 2>&1 || die "--republish, but there is no release ${TAG}"
   gh release upload "$TAG" "$DMG" --clobber -R "$REPO"
   gh release edit "$TAG" -R "$REPO" --title "Tintpad ${VERSION}" --notes-file "$NOTES_FILE"
 else
-  gh release create "$TAG" "$DMG" -R "$REPO" --title "Tintpad ${VERSION}" --notes-file "$NOTES_FILE"
+  gh release create "$TAG" "$DMG" -R "$REPO" --target "$(git rev-parse HEAD)" \
+    --title "Tintpad ${VERSION}" --notes-file "$NOTES_FILE"
 fi
-rm -f "$NOTES_FILE"
 
-# 3. Sparkle appcast (auto-deploys via web/ → tintpad.com/appcast.xml).
-SIG="$("$SIGN_UPDATE" "$DMG")"   # → sparkle:edSignature="…" length="…"
+# 4. Sparkle appcast (auto-deploys via web/ → tintpad.com/appcast.xml).
+PUB_DATE="$(LC_ALL=C date -u '+%a, %d %b %Y %H:%M:%S +0000')"
 cat > web/appcast.xml <<EOF
 <?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
@@ -84,6 +178,7 @@ cat > web/appcast.xml <<EOF
     <link>https://tintpad.com/appcast.xml</link>
     <item>
       <title>${VERSION}</title>
+      <pubDate>${PUB_DATE}</pubDate>
       <sparkle:version>${BUILD}</sparkle:version>
       <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
@@ -92,11 +187,14 @@ cat > web/appcast.xml <<EOF
   </channel>
 </rss>
 EOF
-echo "▸ Wrote web/appcast.xml — commit + push to deploy it."
+[[ "$(appcast_latest web/appcast.xml)" == "${BUILD} ${VERSION}" ]] || die "web/appcast.xml did not come out as ${VERSION} (build ${BUILD})"
+echo "▸ Wrote web/appcast.xml, commit and push to deploy it."
 
-# 4. Homebrew cask.
+# 5. Homebrew cask.
 sed -i '' -E "s/version \"[^\"]*\"/version \"${VERSION}\"/" Casks/tintpad.rb
 sed -i '' -E "s/sha256 \"[0-9a-f]*\"/sha256 \"${SHA}\"/" Casks/tintpad.rb
+grep -q "version \"${VERSION}\"" Casks/tintpad.rb && grep -q "sha256 \"${SHA}\"" Casks/tintpad.rb \
+  || die "Casks/tintpad.rb was not rewritten, set version ${VERSION} and sha256 ${SHA} by hand"
 echo "▸ Casks/tintpad.rb set to ${VERSION} / ${SHA}"
 
 # ---- site stamp (self-contained: needs only a version, run from the repo root) ----
