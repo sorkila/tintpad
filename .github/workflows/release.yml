@@ -18,24 +18,24 @@ name: Release
 on:
   workflow_dispatch:
 
+# Builds and uploads a workflow artifact, never writes to the repo or a release.
 permissions:
-  contents: write   # needed if a step later attaches assets to a GitHub release
+  contents: read
 
 jobs:
   release:
     runs-on: macos-15   # match CI; bump to macos-26 once available
-    # Secrets are mapped to job env so they can be used in `if:` conditions —
-    # the `secrets` context itself is NOT allowed in `if:` (it causes a workflow
-    # startup failure on every push).
+    # The `secrets` context is NOT allowed in `if:` (it causes a workflow
+    # startup failure on every push), so the job env carries what the `if:`s
+    # gate on: SIGN_IDENTITY and NOTARY_PROFILE (names, which package.sh also
+    # reads) and a true/false for each credential. The credentials themselves
+    # live in the env of the one step that uses them.
     env:
       SIGN_IDENTITY: ${{ secrets.SIGN_IDENTITY }}
-      SIGNING_CERT_P12: ${{ secrets.SIGNING_CERT_P12 }}
-      SIGNING_CERT_PWD: ${{ secrets.SIGNING_CERT_PWD }}
       NOTARY_PROFILE: ${{ secrets.NOTARY_PROFILE }}
-      NOTARY_KEY: ${{ secrets.NOTARY_KEY }}
-      NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
-      NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
-      SPARKLE_ED_KEY: ${{ secrets.SPARKLE_ED_KEY }}
+      HAS_SIGNING_CERT: ${{ secrets.SIGNING_CERT_P12 != '' }}
+      HAS_NOTARY_KEY: ${{ secrets.NOTARY_KEY != '' }}
+      HAS_SPARKLE_KEY: ${{ secrets.SPARKLE_ED_KEY != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -61,7 +61,10 @@ jobs:
       # produces an unsigned artifact.
 
       - name: Import signing certificate
-        if: ${{ env.SIGN_IDENTITY != '' && env.SIGNING_CERT_P12 != '' }}
+        if: ${{ env.SIGN_IDENTITY != '' && env.HAS_SIGNING_CERT == 'true' }}
+        env:
+          SIGNING_CERT_P12: ${{ secrets.SIGNING_CERT_P12 }}
+          SIGNING_CERT_PWD: ${{ secrets.SIGNING_CERT_PWD }}
         run: |
           set -euo pipefail
           KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
@@ -79,7 +82,11 @@ jobs:
           rm -f "$CERT"
 
       - name: Set up notary profile
-        if: ${{ env.SIGN_IDENTITY != '' && env.NOTARY_KEY != '' }}
+        if: ${{ env.SIGN_IDENTITY != '' && env.HAS_NOTARY_KEY == 'true' }}
+        env:
+          NOTARY_KEY: ${{ secrets.NOTARY_KEY }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
         run: |
           set -euo pipefail
           KEY="$RUNNER_TEMP/notary.p8"
@@ -100,7 +107,9 @@ jobs:
       # --- Sparkle appcast signature (signed builds only, optional) -----------
 
       - name: Sign appcast entry (Sparkle)
-        if: ${{ env.SIGN_IDENTITY != '' && env.SPARKLE_ED_KEY != '' }}
+        if: ${{ env.SIGN_IDENTITY != '' && env.HAS_SPARKLE_KEY == 'true' }}
+        env:
+          SPARKLE_ED_KEY: ${{ secrets.SPARKLE_ED_KEY }}
         # The key reaches sign_update on stdin (`--ed-key-file -`, as its --help
         # documents), and the signature is checked against SUPublicEDKey the way
         # release.sh checks it.
