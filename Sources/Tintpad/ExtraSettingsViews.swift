@@ -89,7 +89,7 @@ struct RecentsSettingsView: View {
                     }
                 }
             }
-            Label("Quick-resume the most recent with the Resume-last hotkey (Settings → Hotkeys).",
+            Label("Quick-resume the most recent with the Resume-last hotkey (Settings → Keys).",
                   systemImage: "bolt.fill")
                 .font(.caption).foregroundStyle(.secondary)
         }

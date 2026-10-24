@@ -195,6 +195,19 @@ final class ReshapeAndEmptyStateTests: XCTestCase {
     }
 }
 
+/// The Keys pane: the global shortcuts and the drop's keys in one place.
+final class KeysPaneTests: XCTestCase {
+    func testPaneIsKeysAndSaysWhatItHolds() {
+        XCTAssertEqual(SettingsTab.hotkeys.title, "Keys")
+        XCTAssertEqual(SettingsTab.hotkeys.subtitle, "The summon hotkey, and every key the drop answers to")
+    }
+
+    func testSettingsChromeHouseStyle() {
+        assertHouseStyle(SettingsTab.allCases.flatMap { [$0.title, $0.subtitle] })
+        assertHouseStyle(PaletteKeys.all.map(\.action))
+    }
+}
+
 /// An available update, said once in the menu and once in About.
 final class UpdateCopyTests: XCTestCase {
     func testMenuNamesThePendingVersion() {

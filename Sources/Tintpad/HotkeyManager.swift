@@ -11,7 +11,7 @@ extension KeyboardShortcuts.Name {
 /// Registers the global summon hotkey. ⌥⌘Space is seeded when nothing is set,
 /// before onboarding shows, so the hotkey works from the first launch and
 /// onboarding's last step (and its Done button) can name it. The Recorder
-/// there, or in Settings → Hotkeys, replaces it.
+/// there, or in Settings → Keys, replaces it.
 enum HotkeyManager {
     static func configureSpikeDefaultIfNeeded() {
         if KeyboardShortcuts.getShortcut(for: .summon) == nil {

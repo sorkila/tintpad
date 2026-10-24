@@ -95,7 +95,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .general: "General"; case .hotkeys: "Hotkeys"; case .repos: "Repos"
+        case .general: "General"; case .hotkeys: "Keys"; case .repos: "Repos"
         case .agents: "Agents"; case .prompts: "Prompts"; case .recents: "Recents"
         case .github: "GitHub"; case .about: "About"
         }
@@ -104,7 +104,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     var subtitle: String {
         switch self {
         case .general:    "Startup, terminal, and editor"
-        case .hotkeys:    "Global keyboard shortcuts"
+        case .hotkeys:    "The summon hotkey, and every key the drop answers to"
         case .repos:      "Repositories, scan roots, and ranking"
         case .agents:     "Agents, command templates, and run modes"
         case .prompts:    "Reusable starting prompts"

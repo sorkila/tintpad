@@ -65,7 +65,7 @@ relaunch.
 
 | Key | Action |
 |---|---|
-| <kbd>⌥⌘Space</kbd> | Summon (change in Settings → Hotkeys) |
+| <kbd>⌥⌘Space</kbd> | Summon (change in Settings → Keys) |
 | <kbd>↑</kbd> <kbd>↓</kbd> | Move through your repos |
 | <kbd>←</kbd> <kbd>→</kbd> | Move through your repos while the field is empty |
 | <kbd>⏎</kbd> | Launch what the chips say |
@@ -82,7 +82,7 @@ relaunch.
 | <kbd>⌘,</kbd> | Settings |
 
 Hold <kbd>⌘</kbd> for a beat and the drop shows each repo's number and each chip's key.
-The menu bar's **Palette keys** menu lists this table.
+The menu bar's **Palette keys** menu and **Settings → Keys** list this table.
 
 ## Configure
 
