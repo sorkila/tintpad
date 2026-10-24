@@ -2,7 +2,7 @@
 
 Where Tintpad is going. This is intent, not a contract, order shifts as reality
 does. Items tagged **[needs maintainer accounts]** are blocked on credentials only
-Erik can supply (Apple Developer, signing/notarization, Buy Me a Coffee, the
+Erik can supply (Apple Developer, signing/notarization, GitHub Sponsors, the
 hosting that serves `appcast.xml`), so a PR alone can't land them.
 
 Tintpad is free and MIT, local-only, no accounts, no telemetry. None of that
@@ -82,5 +82,5 @@ Wishlist. No promises, no dates.
 
 Found a sharp edge or want to own one of these? PRs welcome, terminal adapters
 especially. [`CONTRIBUTING.md`](CONTRIBUTING.md) has the lay of the land. If
-Tintpad earns a spot in your day, you can buy me a coffee at
-[buymeacoffee.com/eriknielsen](https://www.buymeacoffee.com/eriknielsen).
+Tintpad earns a spot in your day, you can
+[sponsor it on GitHub](https://github.com/sponsors/sorkila).
