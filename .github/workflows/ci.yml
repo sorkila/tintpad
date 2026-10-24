@@ -4,21 +4,74 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A new push to a pull request supersedes its running build. Pushes to main
+# each finish, so a red main always names its commit.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build-test:
-    runs-on: macos-15   # bump to macos-26 once available (the project targets the latest SDK)
+    name: ${{ matrix.os }}${{ matrix.experimental && ' (newer toolchain, may fail)' || '' }}
+    runs-on: ${{ matrix.os }}
+    # The newer leg previews the next Xcode: a new compiler diagnostic under
+    # warnings-as-errors can trip it before the code is wrong. It reports, it
+    # never blocks. macos-15 (Swift 6.1) is the floor and gates merges.
+    continue-on-error: ${{ matrix.experimental }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            experimental: false
+          - os: macos-26
+            experimental: true
     steps:
       - uses: actions/checkout@v4
 
-      - name: Swift version
-        run: swift --version
+      - name: Toolchain
+        run: |
+          swift --version
+          xcodebuild -version
 
-      - name: Build
-        run: swift build
+      # SwiftPM's shared cache holds the dependency clones and Sparkle's binary
+      # artifact. Package.resolved is gitignored, so the key follows Package.swift.
+      - name: Cache SwiftPM downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/org.swift.swiftpm
+          key: spm-${{ matrix.os }}-${{ hashFiles('Package.swift') }}
+          restore-keys: |
+            spm-${{ matrix.os }}-
+
+      - name: Build app and tests (warnings as errors)
+        run: swift build --build-tests -Xswiftc -warnings-as-errors
 
       - name: Test
-        run: swift test
+        run: swift test --skip-build
 
-  # GUI smoke test (Scripts/uitest.sh) is intentionally not run in CI — it needs
+      # Release configuration, warnings as errors, assembled into Tintpad.app and
+      # a DMG through the same script a release uses. SIGN_IDENTITY is unset, so
+      # nothing is signed or notarized.
+      - name: Package (release build, unsigned)
+        env:
+          SWIFT_BUILD_FLAGS: -Xswiftc -warnings-as-errors
+        run: ./Scripts/package.sh
+
+      - name: Check the bundle
+        run: ./Scripts/check-bundle.sh
+
+      - name: Release consistency
+        run: ./Scripts/check-release.sh --ci
+
+      - name: Release scripts self-test
+        run: ./Scripts/test-release.sh
+
+  # GUI smoke test (Scripts/uitest.sh) is intentionally not run in CI. It needs
   # Accessibility + Automation TCC grants that headless runners can't provide.

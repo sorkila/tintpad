@@ -99,12 +99,11 @@ final class CommandTemplateTests: XCTestCase {
 
     // S1: an adversarial repo/branch name cannot escape the single-quoted argument.
     func testInjectionViaRepoNameNeutralized() {
-        var repo = Repo(path: "/x", name: "$(rm -rf ~); echo pwned")
+        let repo = Repo(path: "/x", name: "$(rm -rf ~); echo pwned")
         let c = CommandTemplate.Context(repo: repo, mode: .defaultMode(), prompt: nil, branch: nil, remote: nil)
         let out = CommandTemplate.preview("claude {repoName}", context: c)
         XCTAssertEqual(out, "claude '$(rm -rf ~); echo pwned'")
         XCTAssertFalse(out.contains("') ") || out.contains("';"))  // no quote-break
-        _ = repo
     }
 
     func testSingleQuoteInValueEscaped() {

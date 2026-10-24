@@ -18,32 +18,42 @@ name: Release
 on:
   workflow_dispatch:
 
+# Builds and uploads a workflow artifact, never writes to the repo or a release.
 permissions:
-  contents: write   # needed if a step later attaches assets to a GitHub release
+  contents: read
 
 jobs:
   release:
     runs-on: macos-15   # match CI; bump to macos-26 once available
-    # Secrets are mapped to job env so they can be used in `if:` conditions —
-    # the `secrets` context itself is NOT allowed in `if:` (it causes a workflow
-    # startup failure on every push).
+    # The `secrets` context is NOT allowed in `if:` (it causes a workflow
+    # startup failure on every push), so the job env carries what the `if:`s
+    # gate on: SIGN_IDENTITY and NOTARY_PROFILE (names, which package.sh also
+    # reads) and a true/false for each credential. The credentials themselves
+    # live in the env of the one step that uses them.
     env:
       SIGN_IDENTITY: ${{ secrets.SIGN_IDENTITY }}
-      SIGNING_CERT_P12: ${{ secrets.SIGNING_CERT_P12 }}
-      SIGNING_CERT_PWD: ${{ secrets.SIGNING_CERT_PWD }}
       NOTARY_PROFILE: ${{ secrets.NOTARY_PROFILE }}
-      NOTARY_KEY: ${{ secrets.NOTARY_KEY }}
-      NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
-      NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
-      SPARKLE_ED_KEY: ${{ secrets.SPARKLE_ED_KEY }}
+      HAS_SIGNING_CERT: ${{ secrets.SIGNING_CERT_P12 != '' }}
+      HAS_NOTARY_KEY: ${{ secrets.NOTARY_KEY != '' }}
+      HAS_SPARKLE_KEY: ${{ secrets.SPARKLE_ED_KEY != '' }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Swift version
         run: swift --version
 
-      - name: Build release
-        run: swift build -c release
+      # Same cache as CI. package.sh does the release build, so there is no
+      # separate build step.
+      - name: Cache SwiftPM downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/org.swift.swiftpm
+          key: spm-macos-15-${{ hashFiles('Package.swift') }}
+          restore-keys: |
+            spm-macos-15-
+
+      - name: Release consistency
+        run: ./Scripts/check-release.sh --ci
 
       # --- Signing setup (only when SIGN_IDENTITY is present) -----------------
       # package.sh self-gates on SIGN_IDENTITY / NOTARY_PROFILE, so everything
@@ -51,7 +61,10 @@ jobs:
       # produces an unsigned artifact.
 
       - name: Import signing certificate
-        if: ${{ env.SIGN_IDENTITY != '' && env.SIGNING_CERT_P12 != '' }}
+        if: ${{ env.SIGN_IDENTITY != '' && env.HAS_SIGNING_CERT == 'true' }}
+        env:
+          SIGNING_CERT_P12: ${{ secrets.SIGNING_CERT_P12 }}
+          SIGNING_CERT_PWD: ${{ secrets.SIGNING_CERT_PWD }}
         run: |
           set -euo pipefail
           KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
@@ -69,7 +82,11 @@ jobs:
           rm -f "$CERT"
 
       - name: Set up notary profile
-        if: ${{ env.SIGN_IDENTITY != '' && env.NOTARY_KEY != '' }}
+        if: ${{ env.SIGN_IDENTITY != '' && env.HAS_NOTARY_KEY == 'true' }}
+        env:
+          NOTARY_KEY: ${{ secrets.NOTARY_KEY }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
         run: |
           set -euo pipefail
           KEY="$RUNNER_TEMP/notary.p8"
@@ -90,17 +107,23 @@ jobs:
       # --- Sparkle appcast signature (signed builds only, optional) -----------
 
       - name: Sign appcast entry (Sparkle)
-        if: ${{ env.SIGN_IDENTITY != '' && env.SPARKLE_ED_KEY != '' }}
+        if: ${{ env.SIGN_IDENTITY != '' && env.HAS_SPARKLE_KEY == 'true' }}
+        env:
+          SPARKLE_ED_KEY: ${{ secrets.SPARKLE_ED_KEY }}
+        # The key reaches sign_update on stdin (`--ed-key-file -`, as its --help
+        # documents), and the signature is checked against SUPublicEDKey the way
+        # release.sh checks it.
         run: |
           set -euo pipefail
+          . Scripts/release-lib.sh
           DMG=".build/release/Tintpad.dmg"
-          SIGN_TOOL="$(find .build -name sign_update -type f 2>/dev/null | head -n1 || true)"
-          if [[ -n "$SIGN_TOOL" && -f "$DMG" ]]; then
-            echo "EdDSA signature for $DMG:"
-            "$SIGN_TOOL" "$DMG" --ed-key-file <(printf '%s' "$SPARKLE_ED_KEY")
-          else
-            echo "sign_update tool or DMG not found — skipping appcast signature."
-          fi
+          SIGN_UPDATE="$(find_sign_update)"
+          SIG="$(printf '%s' "$SPARKLE_ED_KEY" | "$SIGN_UPDATE" --ed-key-file - "$DMG")"
+          ENCLOSURE="$(parse_enclosure "$SIG")"
+          swift Scripts/verify-ed25519.swift \
+            "$(plist_get Resources/Info.plist SUPublicEDKey)" "${ENCLOSURE% *}" "$DMG"
+          echo "Appcast enclosure attributes for $DMG (verified against SUPublicEDKey):"
+          echo "$SIG"
 
       # --- Zip + upload -------------------------------------------------------
 
