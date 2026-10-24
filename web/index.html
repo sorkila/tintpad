@@ -7,7 +7,9 @@
 <meta name="theme-color" content="#050506" />
 <title>Tintpad | macOS launcher for Claude Code, Codex &amp; coding agents</title>
 <meta name="description" content="Press a hotkey and a black drop falls out of your Mac's notch with your repos inside. Return opens your terminal at that repo with Claude Code, Codex, or any agent already running. Free and open source (MIT), local-only, native macOS." />
+<meta name="robots" content="index,follow,max-image-preview:large" />
 <link rel="canonical" href="https://tintpad.com/" />
+<link rel="alternate" type="application/atom+xml" title="Tintpad releases" href="https://github.com/sorkila/tintpad/releases.atom" />
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://tintpad.com/" />
 <meta property="og:site_name" content="Tintpad" />
@@ -137,55 +139,53 @@
 </style>
 <script type="application/ld+json">
 {
-  "@context": "https://schema.org",
-  "@graph": [
-    {
-      "@type": "SoftwareApplication",
-      "@id": "https://tintpad.com/#app",
-      "name": "Tintpad",
-      "url": "https://tintpad.com/",
-      "description": "A native macOS launcher. Press a hotkey and a black drop falls out of your Mac's notch with your repos inside. Return opens your terminal at that repo with Claude Code, Codex, or any coding agent already running. Also installable via Homebrew: brew install --cask sorkila/tap/tintpad",
-      "operatingSystem": "macOS 14 or later",
-      "applicationCategory": "DeveloperApplication",
-      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-      "downloadUrl": "https://github.com/sorkila/tintpad/releases/latest/download/Tintpad.dmg",
-      "license": "https://github.com/sorkila/tintpad/blob/main/LICENSE",
-      "image": "https://tintpad.com/assets/og.jpg",
-      "author": { "@type": "Person", "name": "Erik Nielsen", "url": "https://sorkila.com" },
-      "sameAs": ["https://github.com/sorkila/tintpad"]
-    },
-    {
-      "@type": "FAQPage",
-      "@id": "https://tintpad.com/#faq",
-      "mainEntity": [
-        {
-          "@type": "Question",
-          "name": "Which agents does it launch?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Claude Code and Codex come set up. Any other agent with a CLI is one line in Settings, the way Claude Code is just claude {mode} {prompt}." }
-        },
-        {
-          "@type": "Question",
-          "name": "What if my Mac has no notch?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Same drop, hanging just below the menu bar. The notch only makes it look like the hardware did it." }
-        },
-        {
-          "@type": "Question",
-          "name": "Isn't this a shell alias?",
-          "acceptedAnswer": { "@type": "Answer", "text": "For one repo and one agent, pretty much. Add frecency, worktrees, seven terminals, and a red chip that asks first, and your alias gets long. Keep it if you like, we won't tell." }
-        },
-        {
-          "@type": "Question",
-          "name": "Is it really free?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Yes. MIT, open source, no account, no Pro version, and nothing leaves your Mac. If it saves you a morning, sponsor it on GitHub." }
-        },
-        {
-          "@type": "Question",
-          "name": "Why does macOS ask for permissions?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Blame your terminal. Ghostty can't open a window with a command, so Tintpad types it, and typing needs Accessibility. Terminal and iTerm2 take AppleScript, which needs Automation. kitty, Alacritty, and WezTerm need nothing. Warp has no command API at all, so it opens at the repo and the command waits on your clipboard." }
-        }
-      ]
-    }
-  ]
+"@context": "https://schema.org",
+"@graph": [
+ {
+ "@type": "SoftwareApplication",
+ "@id": "https://tintpad.com/#app",
+ "name": "Tintpad",
+ "url": "https://tintpad.com/",
+ "description": "A native macOS launcher. Press a hotkey and a black drop falls out of your Mac's notch with your repos inside. Return opens your terminal at that repo with Claude Code, Codex, or any coding agent already running.",
+ "operatingSystem": "macOS 14 or later",
+ "applicationCategory": "DeveloperApplication",
+ "applicationSubCategory": "Developer launcher",
+ "softwareVersion": "0.4.1",
+ "datePublished": "2026-07-28",
+ "dateModified": "2026-09-17",
+ "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+ "downloadUrl": "https://github.com/sorkila/tintpad/releases/latest/download/Tintpad.dmg",
+ "releaseNotes": "https://github.com/sorkila/tintpad/blob/main/CHANGELOG.md",
+ "license": "https://github.com/sorkila/tintpad/blob/main/LICENSE",
+ "featureList": ["Repos ranked by frecency", "Seven terminals", "A red mode chip and a confirm before skipping permissions", "Git worktrees", "Headless dispatch"],
+ "image": "https://tintpad.com/assets/og.jpg",
+ "screenshot": "https://tintpad.com/assets/demo-poster.jpg",
+ "video": {"@id": "https://tintpad.com/#demo"},
+ "author": {"@type": "Person", "name": "Erik Nielsen", "url": "https://sorkila.com"},
+ "sameAs": ["https://github.com/sorkila/tintpad"]
+ },
+ {
+ "@type": "VideoObject",
+ "@id": "https://tintpad.com/#demo",
+ "name": "Tintpad in twelve seconds",
+ "description": "The drop falls from the Mac notch with repos inside. A white chip walks through them, tab switches the agent, and shift tab turns the MODE chip red for the mode that skips permissions.",
+ "thumbnailUrl": "https://tintpad.com/assets/demo-poster.jpg?v=5",
+ "contentUrl": "https://tintpad.com/assets/demo.mp4?v=5",
+ "uploadDate": "2026-09-17T14:07:06+02:00",
+ "duration": "PT12S"
+ },
+ {
+ "@type": "FAQPage",
+ "@id": "https://tintpad.com/#faq",
+ "mainEntity": [
+  {"@type": "Question", "name": "Which agents does it launch?", "acceptedAnswer": {"@type": "Answer", "text": "Claude Code and Codex come set up. Any other agent with a CLI is one line in Settings, the way Claude Code is just claude {mode} {prompt}."}},
+  {"@type": "Question", "name": "What if my Mac has no notch?", "acceptedAnswer": {"@type": "Answer", "text": "Same drop, hanging just below the menu bar. The notch only makes it look like the hardware did it."}},
+  {"@type": "Question", "name": "Isn't this a shell alias?", "acceptedAnswer": {"@type": "Answer", "text": "For one repo and one agent, pretty much. Add frecency, worktrees, seven terminals, and a red chip that asks first, and your alias gets long. Keep it if you like, we won't tell."}},
+  {"@type": "Question", "name": "Is it really free?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. MIT, open source, no account, no Pro version, and nothing leaves your Mac. If it saves you a morning, sponsor it on GitHub."}},
+  {"@type": "Question", "name": "Why does macOS ask for permissions?", "acceptedAnswer": {"@type": "Answer", "text": "Blame your terminal. Ghostty can't open a window with a command, so Tintpad types it, and typing needs Accessibility. Terminal and iTerm2 take AppleScript, which needs Automation. kitty, Alacritty, and WezTerm need nothing. Warp has no command API at all, so it opens at the repo and the command waits on your clipboard."}}
+ ]
+ }
+]
 }
 </script>
 </head>

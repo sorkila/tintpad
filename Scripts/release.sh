@@ -99,12 +99,25 @@ sed -i '' -E "s/version \"[^\"]*\"/version \"${VERSION}\"/" Casks/tintpad.rb
 sed -i '' -E "s/sha256 \"[0-9a-f]*\"/sha256 \"${SHA}\"/" Casks/tintpad.rb
 echo "▸ Casks/tintpad.rb set to ${VERSION} / ${SHA}"
 
+# 5. Stamp the site: the version line under the install command, the JSON-LD
+# softwareVersion/dateModified, and the sitemap's lastmod. Ships with the
+# appcast push, so the page always says when the last release was.
+TODAY="$(date +%F)"
+MONTH="$(LC_ALL=C date +'%b %Y')"
+sed -i '' -E \
+  -e "s/\"softwareVersion\": \"[^\"]*\"/\"softwareVersion\": \"${VERSION}\"/" \
+  -e "s/\"dateModified\": \"[^\"]*\"/\"dateModified\": \"${TODAY}\"/" \
+  -e "s/(class=\"ver\"[^>]*>)[^<]*/\1v${VERSION}, ${MONTH}/" \
+  web/index.html
+sed -i '' -E "s|<lastmod>[^<]*</lastmod>|<lastmod>${TODAY}</lastmod>|" web/sitemap.xml
+echo "▸ web/index.html and web/sitemap.xml stamped ${VERSION} / ${TODAY}"
+
 cat <<DONE
 
 ✓ Release ${TAG} is up: https://github.com/${REPO}/releases/tag/${TAG}
 Next:
-  1. git add web/appcast.xml Casks/tintpad.rb && git commit -m "release ${VERSION}" && git push
-     (push deploys appcast.xml to tintpad.com automatically)
+  1. git add web/appcast.xml web/index.html web/sitemap.xml Casks/tintpad.rb && git commit -m "release ${VERSION}" && git push
+     (push deploys appcast.xml and the stamped site to tintpad.com automatically)
   2. Copy Casks/tintpad.rb into the sorkila/homebrew-tap repo.
   3. Test: brew install --cask sorkila/tap/tintpad
 DONE
