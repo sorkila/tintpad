@@ -4,3 +4,35 @@ RewriteEngine On
 RewriteCond %{HTTPS} off [OR]
 RewriteCond %{HTTP_HOST} ^www\. [NC]
 RewriteRule ^ https://tintpad.com%{REQUEST_URI} [L,R=301]
+
+# Caching and three security headers. Only mod_headers: the rewrite above
+# already proves this host allows the FileInfo override that Header needs,
+# while mod_expires would also need Indexes, and a directive the host does not
+# allow in .htaccess is a 500 for the whole site. Verify with curl -sI after
+# deploy (nginx fronts Apache here and passes these headers through).
+<IfModule mod_headers.c>
+  # Every image and the film is linked with a ?v= token that is bumped when
+  # the file changes, so browsers may keep them for a year.
+  <FilesMatch "\.(jpe?g|png|mp4)$">
+    Header set Cache-Control "public, max-age=31536000"
+  </FilesMatch>
+  # favicon.ico is fetched at a fixed URL with no token, so a week.
+  <FilesMatch "\.ico$">
+    Header set Cache-Control "public, max-age=604800"
+  </FilesMatch>
+  # The page, appcast.xml, the sitemap and llms.txt revalidate on every load
+  # (a cheap 304 against the ETag), so a deploy or a release shows at once.
+  <FilesMatch "\.(html|xml|txt)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+  # HTTPS only, remembered for a year. The redirect above already makes plain
+  # http unusable, this stops the first insecure hop. No includeSubDomains.
+  Header always set Strict-Transport-Security "max-age=31536000"
+  # Browsers trust the served Content-Type and never guess. Every file here
+  # already has the right one (text/html, video/mp4, image/jpeg, ...).
+  Header always set X-Content-Type-Options "nosniff"
+  # Outbound links send only the origin to other sites. This is the modern
+  # browser default, said explicitly. umami reads the visitor's own referrer,
+  # which this does not touch.
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>

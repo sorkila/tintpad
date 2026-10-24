@@ -5,11 +5,71 @@ All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepac
 ## [Unreleased]
 
 ### Changed
+- **⌘0 and the new ⌃R continue the conversation instead of starting it
+  again.** ⌘0 picks up the last session in the repo or worktree it ran in,
+  with its agent and mode and without resending its first prompt. ⌃R
+  continues the selected repo's conversation in the mode the chips state,
+  sending the prompt chip, or the text typed after ⌘L, as the next turn.
+  Return starts fresh, ⌃R continues.
+- **Agents carry a continue form.** Claude Code (`--continue`) and Codex
+  (`resume --last`) come with theirs, and existing stores pick it up once. Any
+  agent can have one in Settings → Agents. An agent without one says so and
+  launches nothing.
+- **"Resume last session" is now "Continue last session"** in the menu,
+  Settings → Keys and Recents, and a dangerous session from the menu or
+  Recents now asks first, like the hotkey always did.
+- **The drop's lines fit.** Permission and error lines are written to fit one
+  storey, the stale-grant line now reads "Still no Accessibility, remove and
+  re-add Tintpad, Return opens the pane", and anything that still overflows
+  loses its keys at the end, not its reason.
+- **One motion for a keystroke.** The query field, the capsule and the middle
+  line move on one curve, and the contract fades out when nothing matches
+  instead of popping.
+- **No match says so.** "No repo matches “xyz”", with ⌘R offered only when
+  there are no repos yet. A rescan's line gives the strip back on its own.
+- **The menu shows your real shortcuts**, including Continue, and leads with
+  actions. Settings → Hotkeys is now **Keys** and lists every key the drop
+  answers to.
+- **Onboarding is monochrome and SF Pro**, success in ink rather than green,
+  one red for errors.
+- **Releases sign headless and say what changed.** `release.sh` signs the
+  update from a key file instead of a keychain prompt, checks the signature
+  against the app's public key before anything is published, builds the
+  GitHub release notes from this CHANGELOG, and refuses a release whose build
+  number Sparkle would never offer.
+- **CI builds what ships.** Warnings are errors, every push assembles and
+  checks an unsigned release bundle, and a macOS 26 leg previews the next Xcode.
+- **The site and README say what Tintpad is up front**, with the brew command
+  one click away, a version stamp, a closing download section, AA contrast,
+  and issue forms instead of markdown templates.
+- **An available update shows in Settings → About too**, as "Available X"
+  with an "Install X…" button.
+
+### Fixed
+- **Agents are found on your real PATH** even when your shell config prints a
+  greeting or notice, fish users get their full PATH, and a config that ends
+  in `exec tmux` or `exec fish` no longer hides your agents (Tintpad retries
+  once as a plain login shell).
+- **A chatty shell config no longer stalls PATH lookup** until the 4 second
+  timeout, and one non-UTF-8 byte in a greeting no longer loses the PATH.
+- **If Tintpad can't read its data at launch, it says so once** and skips
+  first-run setup. Your repos and settings stay safe on disk, and nothing is
+  saved over them that session.
+- **If the saved data is damaged, Tintpad keeps a copy**, names it in an
+  alert, and starts fresh.
+- Repo discovery saves once per scan instead of once per repo.
+- **A command template fills its slots in one pass.** A value that holds
+  another slot's name (a Continue form of `resume --last {prompt}`) is kept
+  literally, where it used to depend on a random per-run order.
+
+## [0.4.2] - 2026-10-24
+
+### Changed
 - Settings → About links GitHub Sponsors instead of Buy me a coffee.
 - **An update waits in the menu bar, not behind your windows.** A scheduled
   update found while you're working no longer opens an alert behind other
   apps. The menu bar caret gains a small dot and the menu offers "Update to
-  0.4.2…", which brings the alert up in front.
+  <version>…", which brings the alert up in front.
 
 ### Fixed
 - **The update alert takes clicks.** It only surfaced when a summon brought
@@ -18,6 +78,8 @@ All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepac
   dismissed. Focus that moves from the drop to another Tintpad window now
   leaves the app up, and an update alert comes forward with a Dock icon like
   Settings does.
+  On 0.4.1, if the alert for this update won't take clicks, open Settings
+  from the menu bar first, then click Install and Relaunch.
 
 ## [0.4.1] - 2026-09-17
 

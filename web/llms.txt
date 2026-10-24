@@ -34,8 +34,8 @@ Ghostty, iTerm2, kitty, WezTerm, Alacritty, Terminal.app, Warp. Tintpad opens th
 ## Key Differentiators
 
 - **Agent-native:** built around launching Claude Code, Codex, and other coding agent CLIs, not generic app launching. Each repo remembers the agent and run mode it last used.
-- **Run-mode safety:** two chips always state exactly what Return will run (the agent and the mode). A mode that skips permissions turns the mode chip red, and can optionally be set to require a confirm before it launches, on every path including background dispatch and resume.
-- **Frecency ranking:** your most-used repos float to the top. ⌘0 replays the last session.
+- **Run-mode safety:** two chips always state exactly what Return will run (the agent and the mode). A mode that skips permissions turns the mode chip red, and can optionally be set to require a confirm before it launches, on every path including background dispatch and continue.
+- **Frecency ranking:** your most-used repos float to the top. ⌘0 picks the last conversation back up, ⌃R a repo's.
 - **Worktrees:** one keystroke creates an isolated git branch checkout with the agent launched in it.
 - **Hands off to YOUR terminal:** unlike Raycast (which runs things inside Raycast), Tintpad opens your real terminal.
 - **No config:** works out of the box, imports repos from GitHub or a folder scan.

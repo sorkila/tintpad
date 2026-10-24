@@ -7,6 +7,8 @@
 #
 #   SIGN_IDENTITY   "Developer ID Application: Your Name (TEAMID)"
 #   NOTARY_PROFILE  notarytool keychain profile name (xcrun notarytool store-credentials)
+#   SWIFT_BUILD_FLAGS  extra flags for `swift build -c release`, split on spaces
+#                   (CI passes "-Xswiftc -warnings-as-errors")
 #
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -21,7 +23,8 @@ APP="${WORK}/${APP_NAME}.app"
 DMG_OUT="${BUILD_DIR}/${APP_NAME}.dmg"
 
 echo "▸ Building release…"
-swift build -c release
+# shellcheck disable=SC2086  # word splitting is the point
+swift build -c release ${SWIFT_BUILD_FLAGS:-}
 
 echo "▸ Assembling ${APP} (scratch: ${WORK})…"
 rm -rf "$WORK"; mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
@@ -105,7 +108,16 @@ fi
 # .build/release (where release.sh expects it).
 DMG_WORK="${WORK}/${APP_NAME}.dmg"
 echo "▸ Creating DMG…"
-hdiutil create -volname "$APP_NAME" -srcfolder "$APP" -ov -format UDZO "$DMG_WORK" >/dev/null
+# hdiutil now and then fails with "Resource busy" while a previous image is
+# still detaching (common on CI runners), so give it three bounded tries.
+for attempt in 1 2 3; do
+  if hdiutil create -volname "$APP_NAME" -srcfolder "$APP" -ov -format UDZO "$DMG_WORK" >/dev/null; then
+    break
+  fi
+  [[ "$attempt" -eq 3 ]] && { echo "✗ hdiutil create failed three times" >&2; exit 1; }
+  echo "▸ hdiutil create failed (attempt ${attempt}), retrying in 5s…"
+  sleep 5
+done
 
 if [[ -n "${NOTARY_PROFILE:-}" && -n "${SIGN_IDENTITY:-}" ]]; then
   echo "▸ Notarizing…"
