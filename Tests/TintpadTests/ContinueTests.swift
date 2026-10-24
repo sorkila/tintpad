@@ -188,3 +188,180 @@ final class ContinueStoreLoadTests: XCTestCase {
         XCTAssertEqual(AppStore(fileURL: url).writeCount, 0, "already backfilled")
     }
 }
+
+final class ContinueMakeLaunchTests: XCTestCase {
+    private func agent(_ flags: String?) -> Agent {
+        Agent(name: "Mycli", commandTemplate: "/bin/echo {mode} {prompt}", continueFlags: flags,
+              acceptsPrompt: true, tintHex: nil, symbol: "terminal", modes: [.defaultMode()], defaultModeID: nil)
+    }
+
+    func testContinuingSplicesWrapsAndKeepsTheWorktree() throws {
+        let mode = RunMode(name: "YOLO", flags: "--go", isDangerous: true, description: "")
+        let launch = try LaunchService.makeLaunch(
+            repo: Repo(path: "/tmp/acme", name: "acme"), agent: agent("--continue"),
+            mode: mode, prompt: "next turn", worktreePath: "/tmp/wt/feature",
+            settings: Settings(), continuing: true)
+        XCTAssertEqual(launch.workingDirectory, "/tmp/wt/feature")
+        XCTAssertEqual(launch.command, CommandTemplate.inFreshSession("/bin/echo --continue --go 'next turn'"))
+    }
+
+    func testFreshLaunchIgnoresTheForm() throws {
+        let launch = try LaunchService.makeLaunch(
+            repo: Repo(path: "/tmp/acme", name: "acme"), agent: agent("--continue"),
+            mode: .defaultMode(), prompt: nil, worktreePath: nil, settings: Settings())
+        XCTAssertEqual(launch.command, CommandTemplate.inFreshSession("/bin/echo"))
+    }
+
+    func testNoFormThrowsInsteadOfLaunchingFresh() {
+        for flags in [nil, "", "  "] as [String?] {
+            XCTAssertThrowsError(try LaunchService.makeLaunch(
+                repo: Repo(path: "/tmp/acme", name: "acme"), agent: agent(flags),
+                mode: .defaultMode(), prompt: nil, worktreePath: nil,
+                settings: Settings(), continuing: true)) { error in
+                XCTAssertEqual(error as? LaunchService.ContinueError, .noContinueForm("Mycli"))
+            }
+        }
+    }
+}
+
+/// A terminal that records what it was handed and opens nothing.
+private final class CapturingTerminal: TerminalAdapter, @unchecked Sendable {
+    var launches: [TerminalLaunch] = []
+    let displayName = "Fake"
+    let bundleID = "com.example.fake"
+    var isInstalled: Bool { true }
+    @MainActor func prepare(_ launch: TerminalLaunch) throws -> TerminalHandoff {
+        launches.append(launch)
+        return .done(LaunchOutcome())
+    }
+}
+
+@MainActor
+final class ContinueServiceTests: XCTestCase {
+    private var dir: URL!
+    private var store: AppStore!
+    private var terminal: CapturingTerminal!
+    private var savedResolver: (@MainActor (Settings) -> TerminalAdapter)!
+    private var repo: Repo!
+    private var agent: Agent!
+    private let mode = RunMode(name: "Go", flags: "--go", isDangerous: false, description: "")
+
+    override func setUp() async throws {
+        dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tintpad-continue-svc-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        store = AppStore(fileURL: dir.appendingPathComponent("store.json"))
+        terminal = CapturingTerminal()
+        savedResolver = LaunchService.resolveTerminal
+        let fake = terminal!
+        LaunchService.resolveTerminal = { _ in fake }
+
+        store.addRepo(path: dir.path)
+        repo = store.repos[0]
+        agent = Agent(name: "Echo", commandTemplate: "/bin/echo {mode} {prompt}", continueFlags: "--continue",
+                      acceptsPrompt: true, tintHex: nil, symbol: "terminal", modes: [mode], defaultModeID: mode.id)
+        store.agents = [agent]
+    }
+
+    override func tearDown() async throws {
+        LaunchService.resolveTerminal = savedResolver
+        try? FileManager.default.removeItem(at: dir)
+    }
+
+    private func record(prompt: String? = "the first message", worktree: String? = nil) {
+        store.recordSession(repo: repo, agent: agent, mode: mode, prompt: prompt, worktreePath: worktree)
+    }
+
+    private func continueLast() -> Result<LaunchOutcome, Error>? {
+        var answer: Result<LaunchOutcome, Error>?
+        // A `.done` handoff answers synchronously.
+        LaunchService.continueLast(store: store) { answer = $0 }
+        return answer
+    }
+
+    func testNothingToContinueWithoutASession() {
+        XCTAssertFalse(LaunchService.canContinueLast(store: store))
+        guard case .failure(let error)? = continueLast() else { return XCTFail("expected a failure") }
+        XCTAssertEqual(error as? LaunchService.ContinueError, .noSession)
+    }
+
+    func testCanContinueNeedsAForm() {
+        record()
+        XCTAssertTrue(LaunchService.canContinueLast(store: store))
+        store.agents[0].continueFlags = ""
+        XCTAssertFalse(LaunchService.canContinueLast(store: store))
+        XCTAssertEqual(LaunchService.continueBlocker(for: store.lastSession!, store: store),
+                       .noContinueForm("Echo"))
+    }
+
+    func testCanContinueNeedsTheWorktreeToExist() throws {
+        let worktree = dir.appendingPathComponent("wt", isDirectory: true)
+        try FileManager.default.createDirectory(at: worktree, withIntermediateDirectories: true)
+        record(worktree: worktree.path)
+        XCTAssertTrue(LaunchService.canContinueLast(store: store))
+        try FileManager.default.removeItem(at: worktree)
+        XCTAssertFalse(LaunchService.canContinueLast(store: store))
+        XCTAssertEqual(LaunchService.continueBlocker(for: store.lastSession!, store: store), .worktreeGone)
+    }
+
+    func testAGoneModeIsUnavailable() {
+        record()
+        store.agents[0].modes = [.defaultMode()]
+        XCTAssertEqual(LaunchService.continueBlocker(for: store.lastSession!, store: store), .unavailable)
+    }
+
+    func testContinueLastDropsThePromptAndRunsInTheWorktree() throws {
+        let worktree = dir.appendingPathComponent("wt", isDirectory: true)
+        try FileManager.default.createDirectory(at: worktree, withIntermediateDirectories: true)
+        record(worktree: worktree.path)
+
+        guard case .success? = continueLast() else { return XCTFail("expected the continue to land") }
+        XCTAssertEqual(terminal.launches.count, 1)
+        XCTAssertEqual(terminal.launches.first?.workingDirectory, worktree.path)
+        XCTAssertEqual(terminal.launches.first?.command,
+                       CommandTemplate.inFreshSession("/bin/echo --continue --go"))
+        // Recorded like any launch: collapsed onto the session it continued,
+        // still in its worktree, and free for the next continue.
+        XCTAssertEqual(store.sessions.count, 1)
+        XCTAssertEqual(store.lastSession?.worktreePath, worktree.path)
+        XCTAssertFalse(LaunchService.continueInFlight)
+    }
+
+    func testNoFormLaunchesNothing() {
+        record()
+        store.agents[0].continueFlags = nil
+        guard case .failure(let error)? = continueLast() else { return XCTFail("expected a failure") }
+        XCTAssertEqual(error as? LaunchService.ContinueError, .noContinueForm("Echo"))
+        XCTAssertTrue(terminal.launches.isEmpty, "a continue never falls back to a fresh launch")
+    }
+
+    func testAFreshLaunchStampsItsWorktree() {
+        var answer: Result<LaunchOutcome, Error>?
+        LaunchService.launchAgent(repo: repo, agent: agent, mode: mode, prompt: nil, store: store,
+                                  worktreePath: "/tmp/wt/x") { answer = $0 }
+        guard case .success? = answer else { return XCTFail("expected the launch to land") }
+        XCTAssertEqual(store.lastSession?.worktreePath, "/tmp/wt/x")
+        XCTAssertEqual(terminal.launches.first?.command, CommandTemplate.inFreshSession("/bin/echo --go"))
+    }
+}
+
+final class ContinueCopyTests: XCTestCase {
+    func testContinueLinesFitAndKeepHouseStyle() {
+        let lines = [
+            "\(LaunchService.ContinueError.noSession)",
+            "\(LaunchService.ContinueError.unavailable)",
+            "\(LaunchService.ContinueError.inFlight)",
+            "\(LaunchService.ContinueError.worktreeGone)",
+            "\(LaunchService.ContinueError.noContinueForm(AgentSeed.claudeCode.name))",
+            "\(LaunchService.ContinueError.noContinueForm(AgentSeed.codex.name))",
+        ]
+        for line in lines {
+            XCTAssertLessThanOrEqual(line.count, DropCopy.maxLineCharacters, line)
+            XCTAssertFalse(line.contains("—"), line)
+            XCTAssertFalse(line.contains(";"), line)
+            XCTAssertFalse(line.hasPrefix("⚠"), "continue lines are status, not errors: \(line)")
+        }
+        XCTAssertEqual(DropCopy.noContinueForm(agent: "Claude Code"),
+                       "Claude Code has no continue form, set one in Settings → Agents")
+    }
+}

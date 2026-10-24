@@ -150,6 +150,24 @@ enum DropCopy {
     /// ⌘⏎ with no editor to open.
     static let noEditor = "No editor detected, set one in Settings"
 
+    // Continue's lines. Status, not errors: nothing failed, there is just
+    // nothing to continue, so they wear no subject token and no red.
+
+    /// ⌘0 before any launch has been recorded.
+    static let noSessionToContinue = "No session to continue yet"
+
+    /// ⌃R or ⌘0 on an agent without a continue form. The agent's name is
+    /// the subject (the user set it), and nothing launches in its place.
+    static func noContinueForm(agent: String) -> String {
+        "\(agent) has no continue form, set one in Settings → Agents"
+    }
+
+    /// ⌘0 on a session whose repo, agent or mode has been removed.
+    static let sessionGone = "That session can't be continued, its repo, agent or mode is gone"
+
+    /// ⌘0 on a session whose worktree has been removed.
+    static let worktreeGone = "That session's worktree is gone, so there is nothing to continue"
+
     // The contract chips' tooltips, also their VoiceOver hints. The chip's
     // label already says what it is ("Mode, Safe"), so the help never opens
     // with that noun again: it says what the chip does, then how to change it.

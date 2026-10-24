@@ -114,8 +114,13 @@ final class MiddleLineBudgetTests: XCTestCase {
     func testOtherStatusLinesFit() {
         assertFits([
             DropCopy.noEditor,
-            "\(LaunchService.ResumeError.unavailable)",
-            "\(LaunchService.ResumeError.inFlight)",
+            DropCopy.noSessionToContinue,
+            DropCopy.sessionGone,
+            DropCopy.worktreeGone,
+            DropCopy.noContinueForm(agent: "Claude Code"),
+            DropCopy.noContinueForm(agent: "Codex"),
+            "\(LaunchService.ContinueError.unavailable)",
+            "\(LaunchService.ContinueError.inFlight)",
         ])
     }
 

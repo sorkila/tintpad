@@ -1,6 +1,6 @@
 import Foundation
 
-/// The single launch path used by both the palette and the quick-resume hotkey:
+/// The single launch path used by both the palette and the continue hotkey:
 /// resolve the command template, hand off to the terminal/editor, and record
 /// frecency + session history. Every launch answers through a completion on
 /// the main actor, there is no synchronous variant: the handoff itself runs
@@ -22,18 +22,31 @@ enum LaunchService {
     /// Pure: turn a launch request into the concrete `TerminalLaunch` (working
     /// directory + resolved command + tab preference). No side effects, no store —
     /// this is the decision logic, unit-tested in isolation.
+    ///
+    /// `continuing` runs the agent's continue form instead of a fresh session
+    /// (see `CommandTemplate`), in the same working directory a fresh launch
+    /// would use, since agents keep their conversations per directory. An
+    /// agent with no continue form throws `ContinueError.noContinueForm`: a
+    /// continue never quietly becomes a fresh launch.
     nonisolated static func makeLaunch(repo: Repo, agent: Agent, mode: RunMode,
                                        prompt: String?, worktreePath: String?,
-                                       settings: Settings) throws -> TerminalLaunch {
+                                       settings: Settings,
+                                       continuing: Bool = false) throws -> TerminalLaunch {
+        var continueFlags: String?
+        if continuing {
+            guard let form = agent.continueForm else { throw ContinueError.noContinueForm(agent.name) }
+            continueFlags = form
+        }
         let workingDir = worktreePath ?? repo.path
         let git = GitInfo.read(at: workingDir)
         let ctx = CommandTemplate.Context(
             repo: repo, mode: mode, prompt: prompt, branch: git.branch,
-            remote: git.remoteURL, worktreePath: worktreePath)
+            remote: git.remoteURL, worktreePath: worktreePath, continueFlags: continueFlags)
         let command = try CommandTemplate.resolved(agent.commandTemplate, context: ctx)
         // Launched sessions are always fresh and top-level — strip inherited
         // session markers so a polluted terminal env can't demote them (a
         // "child" Claude Code session silently stops saving transcripts).
+        // A continued conversation is still a top-level process, so it too.
         return TerminalLaunch(workingDirectory: workingDir,
                               command: CommandTemplate.inFreshSession(command),
                               openInTab: settings.openInNewTab)
@@ -96,14 +109,18 @@ enum LaunchService {
     /// Launch an agent in a repo. Never blocks the main thread: the handoff
     /// answers through `completion`, on main, after recording frecency and
     /// the session on success (so a launch whose drop has gone still counts).
+    /// A continue records like any launch, so it collapses onto the session
+    /// it continued (same repo, agent and mode) with its worktree stamped.
     static func launchAgent(repo: Repo, agent: Agent, mode: RunMode,
                             prompt: String?, store: AppStore,
                             worktreePath: String? = nil,
+                            continuing: Bool = false,
                             completion: @escaping Completion) {
         let launch: TerminalLaunch
         do {
             launch = try makeLaunch(repo: repo, agent: agent, mode: mode, prompt: prompt,
-                                    worktreePath: worktreePath, settings: store.settings)
+                                    worktreePath: worktreePath, settings: store.settings,
+                                    continuing: continuing)
         } catch {
             completion(.failure(error))
             return
@@ -120,7 +137,8 @@ enum LaunchService {
         handOff(launch, to: resolveTerminal(store.settings), before: before) { result in
             if case .success = result {
                 store.recordLaunch(repoID: repo.id)
-                store.recordSession(repo: repo, agent: agent, mode: mode, prompt: prompt)
+                store.recordSession(repo: repo, agent: agent, mode: mode, prompt: prompt,
+                                    worktreePath: worktreePath)
             }
             completion(result)
         }
@@ -143,17 +161,29 @@ enum LaunchService {
         }
     }
 
-    enum ResumeError: Error, CustomStringConvertible, LocalizedError {
+    /// Why a continue didn't start. Each is said as it is, in the drop's
+    /// own words (`DropCopy`), so "nothing to continue" never reads as a
+    /// launch that failed.
+    enum ContinueError: Error, Equatable, CustomStringConvertible, LocalizedError {
+        /// No session has been recorded yet.
+        case noSession
         /// The stored session references a repo, agent, or mode that no
         /// longer exists, a different problem than a launch failing.
         case unavailable
-        /// A resume is already opening. A double press on the menu item, the
-        /// hotkey or a Recents row must not launch the session twice.
+        /// A continue is already opening. A double press on the menu item,
+        /// the hotkey or a Recents row must not launch the session twice.
         case inFlight
+        /// The agent, named, has no continue form. Never a fresh fallback.
+        case noContinueForm(String)
+        /// The session ran in a worktree that has since been removed.
+        case worktreeGone
         var description: String {
             switch self {
-            case .unavailable: return "That session can't be resumed, its repo, agent, or mode is gone"
+            case .noSession: return DropCopy.noSessionToContinue
+            case .unavailable: return DropCopy.sessionGone
             case .inFlight: return "That session is already opening"
+            case .noContinueForm(let agent): return DropCopy.noContinueForm(agent: agent)
+            case .worktreeGone: return DropCopy.worktreeGone
             }
         }
         var errorDescription: String? { description }
@@ -161,55 +191,71 @@ enum LaunchService {
 
     /// A double press, not a failure: callers stay quiet.
     static func isInFlight(_ error: Error) -> Bool {
-        if case ResumeError.inFlight = error { return true }
+        if case ContinueError.inFlight = error { return true }
         return false
     }
 
-    /// True from a resume's start until its handoff answers. Shared by every
-    /// resume surface (⌘0, the menu, the hotkey, Recents), which have no
-    /// in-flight state of their own.
-    private(set) static var resumeInFlight = false
+    /// True from a continue's start until its handoff answers. Shared by
+    /// every continue surface (⌘0, the menu, the hotkey, Recents), which have
+    /// no in-flight state of their own.
+    private(set) static var continueInFlight = false
 
-    /// Can the most recent session still be reconstructed? Drives the ⌘0
-    /// affordance, so the palette never advertises a resume that can't work.
-    static func canResumeLast(store: AppStore) -> Bool {
-        guard let session = store.lastSession,
-              store.repos.contains(where: { $0.id == session.repoID }),
+    /// What stands between `session` and a continue, nil when nothing does.
+    /// One `fileExists` at most, since the menu asks on every render.
+    static func continueBlocker(for session: Session, store: AppStore) -> ContinueError? {
+        guard store.repos.contains(where: { $0.id == session.repoID }),
               let agent = store.agent(session.agentID),
               agent.modes.contains(where: { $0.id == session.modeID })
-        else { return false }
-        return true
+        else { return .unavailable }
+        guard agent.continueForm != nil else { return .noContinueForm(agent.name) }
+        if let worktree = session.worktreePath, !FileManager.default.fileExists(atPath: worktree) {
+            return .worktreeGone
+        }
+        return nil
     }
 
-    /// Re-run the most recent session exactly. A session that can't be
-    /// reconstructed fails with `ResumeError.unavailable` (synchronously), so
-    /// callers can tell "gone" from "failed" and say the true thing.
-    static func resumeLast(store: AppStore, completion: @escaping Completion) {
+    /// Can the most recent session's conversation be continued? Drives the
+    /// menu item, so nothing advertises a continue that can't work.
+    static func canContinueLast(store: AppStore) -> Bool {
+        guard let session = store.lastSession else { return false }
+        return continueBlocker(for: session, store: store) == nil
+    }
+
+    /// Continue the most recent session's conversation. Anything that stops
+    /// it fails with a `ContinueError` (synchronously), so callers can tell
+    /// "nothing to continue" from "failed" and say the true thing.
+    static func continueLast(store: AppStore, completion: @escaping Completion) {
         guard let session = store.lastSession else {
-            completion(.failure(ResumeError.unavailable))
+            completion(.failure(ContinueError.noSession))
             return
         }
-        resume(session, store: store, completion: completion)
+        continueSession(session, store: store, completion: completion)
     }
 
-    /// Re-run a stored session exactly. Fails with `ResumeError.inFlight`
-    /// while another resume is still opening.
-    static func resume(_ session: Session, store: AppStore, completion: @escaping Completion) {
-        guard !resumeInFlight else {
-            completion(.failure(ResumeError.inFlight))
+    /// Continue a stored session's conversation: its repo (or the worktree
+    /// it ran in), agent and mode, with no prompt, since the stored one was
+    /// the conversation's first message and continuing picks up after it.
+    /// Fails with `ContinueError.inFlight` while another continue is opening.
+    static func continueSession(_ session: Session, store: AppStore, completion: @escaping Completion) {
+        guard !continueInFlight else {
+            completion(.failure(ContinueError.inFlight))
+            return
+        }
+        if let blocker = continueBlocker(for: session, store: store) {
+            completion(.failure(blocker))
             return
         }
         guard let repo = store.repos.first(where: { $0.id == session.repoID }),
               let agent = store.agent(session.agentID),
               let mode = agent.modes.first(where: { $0.id == session.modeID })
         else {
-            completion(.failure(ResumeError.unavailable))
+            completion(.failure(ContinueError.unavailable))
             return
         }
-        resumeInFlight = true
-        launchAgent(repo: repo, agent: agent, mode: mode,
-                    prompt: session.prompt, store: store) { result in
-            resumeInFlight = false
+        continueInFlight = true
+        launchAgent(repo: repo, agent: agent, mode: mode, prompt: nil, store: store,
+                    worktreePath: session.worktreePath, continuing: true) { result in
+            continueInFlight = false
             completion(result)
         }
     }

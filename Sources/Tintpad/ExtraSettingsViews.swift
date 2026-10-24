@@ -121,7 +121,7 @@ struct RecentsSettingsView: View {
     private func resume(_ s: Session) {
         // Beeps when the session can't be reconstructed or the launch fails,
         // stays quiet on a double press while it is already opening.
-        LaunchService.resume(s, store: store) { result in
+        LaunchService.continueSession(s, store: store) { result in
             if case .failure(let error) = result, !LaunchService.isInFlight(error) { NSSound.beep() }
         }
     }

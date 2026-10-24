@@ -626,7 +626,7 @@ final class PaletteModel: ObservableObject {
 
     /// True only when the session can actually be reconstructed — the ⌘0
     /// hint must never advertise a resume that fails on arrival.
-    var hasLastSession: Bool { LaunchService.canResumeLast(store: store) }
+    var hasLastSession: Bool { LaunchService.canContinueLast(store: store) }
 
     // MARK: - Git context (branch + dirty) for the selected row
 
@@ -913,7 +913,7 @@ final class PaletteModel: ObservableObject {
         guard let session = store.lastSession else { status = "No session to resume yet"; return true }
         let fire: () -> Void = { [weak self] in
             guard let self else { return }
-            let canResume = LaunchService.canResumeLast(store: store)
+            let canResume = LaunchService.canContinueLast(store: store)
             let opening = canResume ? LaunchService.terminalName(store: store) : nil
             let repo = canResume ? store.repos.first { $0.id == session.repoID } : nil
             // A retry replays "the last session" as it is at retry time, the
@@ -926,7 +926,7 @@ final class PaletteModel: ObservableObject {
                                               modeID: session.modeID, prompt: session.prompt,
                                               worktreePath: nil) : nil
             beginLaunch(opening: opening, repo: repo, held: held, retry: retry) { [store] completion in
-                LaunchService.resumeLast(store: store, completion: completion)
+                LaunchService.continueLast(store: store, completion: completion)
             }
         }
         if let agent = store.agent(session.agentID),
@@ -1019,7 +1019,7 @@ final class PaletteModel: ObservableObject {
                 failures: max(permissionFailures[pane] ?? 0, 1), retry: retry)
             return
         }
-        if error is LaunchService.ResumeError {
+        if error is LaunchService.ContinueError {
             launchRepo = nil
             status = "⚠ \(error)"
             return

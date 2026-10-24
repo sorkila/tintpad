@@ -46,12 +46,12 @@ struct TintpadApp: App {
             // The resume affordance lives here, not as palette chrome. Menus
             // are where macOS teaches shortcuts (⌘0 also works in the palette).
             Button("Resume last session") {
-                LaunchService.resumeLast(store: store) { result in
+                LaunchService.continueLast(store: store) { result in
                     if case .failure(let error) = result, !LaunchService.isInFlight(error) { NSSound.beep() }
                 }
             }
             .globalKeyboardShortcut(.resumeLast)
-            .disabled(!LaunchService.canResumeLast(store: store))
+            .disabled(!LaunchService.canContinueLast(store: store))
             Divider()
             // Every key the palette answers to, where macOS teaches shortcuts.
             // Rows are text, not commands: they only work inside the drop.
@@ -123,7 +123,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 DispatchQueue.main.async { self?.panelController.model.resumeLastSession() }
                 return
             }
-            LaunchService.resumeLast(store: store) { result in
+            LaunchService.continueLast(store: store) { result in
                 if case .failure(let error) = result, !LaunchService.isInFlight(error) { NSSound.beep() }
             }
         }
