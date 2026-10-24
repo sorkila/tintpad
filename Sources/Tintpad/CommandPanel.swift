@@ -135,6 +135,12 @@ final class CommandPanelController: NSObject {
         DispatchQueue.main.async { [weak self] in
             guard let self, self.dismissal.generation == generation,
                   self.panel?.isVisible == true else { return }
+            // A turn later the new key window is known. If it's one of ours
+            // (the user clicked an update alert or Settings), the drop still
+            // leaves but the app stays, or that window would hide with it.
+            if let key = NSApp.keyWindow, key !== self.panel, key.isVisible {
+                _ = self.dismissal.handle(.focusMovedWithinApp)
+            }
             self.model.requestDismiss(.focusLoss)
         }
     }
