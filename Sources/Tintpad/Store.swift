@@ -132,12 +132,13 @@ final class AppStore: ObservableObject {
         case .loaded(let doc):
             repos = doc.repos
             let raw = doc.agents.isEmpty ? AgentSeed.defaults : doc.agents
-            agents = AgentSeed.migrateModeNames(raw)
+            agents = AgentSeed.backfillContinueFlags(AgentSeed.migrateModeNames(raw))
             prompts = doc.prompts
             sessions = doc.sessions
             settings = doc.settings
-            // A vocabulary migration that changed something is written back
-            // once, so the store speaks the new names from here on.
+            // A vocabulary migration or a continue-form backfill that changed
+            // something is written back once, so the store speaks the new
+            // names and carries the forms from here on.
             if agents != raw { persist() }
         case .missing:
             seed()

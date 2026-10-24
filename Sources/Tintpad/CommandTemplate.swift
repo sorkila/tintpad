@@ -3,9 +3,14 @@ import Foundation
 /// Resolves an agent command template into a concrete shell command.
 ///
 /// Variables (per the spec): `{repoPath}` `{repoName}` `{branch}` `{remote}`
-/// `{prompt}` `{mode}` `{shell}` `{worktreePath}`. The leading binary token is
-/// resolved to an absolute path via the login-shell PATH so a GUI-launched app
-/// finds `claude`/`codex`/… (the #1 footgun).
+/// `{prompt}` `{mode}` `{shell}` `{worktreePath}` `{continue}`. The leading
+/// binary token is resolved to an absolute path via the login-shell PATH so a
+/// GUI-launched app finds `claude`/`codex`/… (the #1 footgun).
+///
+/// A continue is the same template with the agent's continue form spliced
+/// in: at `{continue}` when the template has the slot, otherwise right after
+/// the leading binary, so every existing template continues without an edit
+/// (`claude {mode} {prompt}` → `claude --continue {mode} {prompt}`).
 enum CommandTemplate {
     struct Context {
         var repo: Repo
@@ -14,6 +19,9 @@ enum CommandTemplate {
         var branch: String?
         var remote: String?
         var worktreePath: String?
+        /// The agent's continue form when this launch continues the
+        /// conversation, nil for a fresh launch.
+        var continueFlags: String? = nil
     }
 
     enum ResolveError: Error, CustomStringConvertible, LocalizedError {
@@ -32,14 +40,14 @@ enum CommandTemplate {
     /// The fully substituted, human-readable command (binary NOT yet absolutized)
     /// — used for the footer preview.
     static func preview(_ template: String, context: Context) -> String {
-        substitute(template, context: context)
+        substitute(spliced(template, context: context), context: context)
     }
 
     /// The final command to hand to a terminal: variables substituted AND the
     /// leading binary resolved to an absolute path. Throws if the binary is
     /// missing so the caller can warn instead of launching a broken command.
     static func resolved(_ template: String, context: Context) throws -> String {
-        let substituted = substitute(template, context: context)
+        let substituted = substitute(spliced(template, context: context), context: context)
         let tokens = substituted.split(separator: " ", maxSplits: 1).map(String.init)
         guard let head = tokens.first, !head.isEmpty else { throw ResolveError.emptyCommand }
         // Already an absolute/relative path? Trust as-is.
@@ -71,11 +79,27 @@ enum CommandTemplate {
 
     // MARK: - Substitution
 
+    /// The template with a `{continue}` slot after its leading binary when
+    /// this launch continues and the template has no slot of its own. The
+    /// head is found the way `resolved` finds it (the first space-delimited
+    /// token, a path or not), so the two can never disagree about where the
+    /// binary ends. A fresh launch, or a template that places the slot
+    /// itself, is returned as it is.
+    static func spliced(_ template: String, context c: Context) -> String {
+        guard !sanitize(c.continueFlags ?? "").isEmpty, !template.contains("{continue}") else { return template }
+        let trimmed = template.trimmingCharacters(in: .whitespaces)
+        let parts = trimmed.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: false)
+        guard let head = parts.first, !head.isEmpty else { return template }
+        let rest = parts.count > 1 ? " " + parts[1] : ""
+        return head + " {continue}" + rest
+    }
+
     private static func substitute(_ template: String, context c: Context) -> String {
         // Every interpolated value is sanitized (control chars/newlines removed)
         // and single-quoted, so neither shell metacharacters nor a newline (which
         // would break AppleScript or submit early via the keystroke adapter) can
-        // escape the argument. {mode} and {shell} are app-controlled, not quoted.
+        // escape the argument. {mode}, {continue} and {shell} are
+        // app-controlled, sanitized onto one line, not quoted.
         let replacements: [String: String] = [
             "{repoPath}": quote(c.repo.path),
             "{repoName}": quote(c.repo.name),
@@ -83,6 +107,7 @@ enum CommandTemplate {
             "{remote}": quote(c.remote),
             "{prompt}": quote(c.prompt),
             "{mode}": sanitize(c.mode.flags),
+            "{continue}": sanitize(c.continueFlags ?? ""),
             "{shell}": ShellEnvironment.loginShell,
             "{worktreePath}": quote(c.worktreePath),
         ]
