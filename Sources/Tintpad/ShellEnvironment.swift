@@ -103,18 +103,34 @@ enum ShellEnvironment {
         return entries.isEmpty ? nil : entries
     }
 
-    /// Runs the probe under `<shell> -lic` to capture the interactive login
-    /// PATH. `-l` (login) sources zprofile, `-i` (interactive) sources
-    /// zshrc — between them we get whatever the user actually sees in a terminal.
-    /// `ProcessRunner` drains both pipes as data arrives, so an rc that prints
-    /// more than a pipe's 64KB can't wedge the shell until the deadline, and a
-    /// slow or hung rc is killed at 4s (we fall back to the probe directories).
+    /// The probe's attempts, in order. First `-lic`: `-l` (login) sources
+    /// zprofile, `-i` (interactive) sources zshrc — between them we get
+    /// whatever the user actually sees in a terminal. Only if that yields no
+    /// PATH, `-lc`: login but not interactive, which skips an rc that ends in
+    /// `exec tmux` or `exec fish` and still picks up fnm/nvm/volta shims set
+    /// in the profile. Pure.
+    static func probeArguments(shell: String) -> [[String]] {
+        let command = pathProbeCommand(shell: shell)
+        return [["-lic", command], ["-lc", command]]
+    }
+
+    /// Runs the probe attempts until one yields a PATH. `ProcessRunner`
+    /// drains both pipes as data arrives, so an rc that prints more than a
+    /// pipe's 64KB can't wedge the shell until the deadline, and a slow or
+    /// hung rc is killed at 4s (then the next attempt, then the probe
+    /// directories). stdin is an empty pipe closed at once, so an rc's
+    /// `read`, `tmux attach` or `exec fish` can never grab the terminal of a
+    /// developer running Tintpad from a TTY, it sees EOF instead.
     private static func pathFromLoginShell() -> [String]? {
         let shell = loginShell
-        guard let output = try? ProcessRunner.run(
-            shell, arguments: ["-lic", pathProbeCommand(shell: shell)], timeout: 4)
-        else { return nil }
-        return extractPath(from: output.stdout)
+        for arguments in probeArguments(shell: shell) {
+            if let output = try? ProcessRunner.run(shell, arguments: arguments,
+                                                   input: Data(), timeout: 4),
+               let path = extractPath(from: output.stdout) {
+                return path
+            }
+        }
+        return nil
     }
 
     /// Resolves an executable name (e.g. "claude") to an absolute path using the
