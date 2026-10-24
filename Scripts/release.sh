@@ -99,18 +99,33 @@ sed -i '' -E "s/version \"[^\"]*\"/version \"${VERSION}\"/" Casks/tintpad.rb
 sed -i '' -E "s/sha256 \"[0-9a-f]*\"/sha256 \"${SHA}\"/" Casks/tintpad.rb
 echo "▸ Casks/tintpad.rb set to ${VERSION} / ${SHA}"
 
-# 5. Stamp the site: the version line under the install command, the JSON-LD
-# softwareVersion/dateModified, and the sitemap's lastmod. Ships with the
-# appcast push, so the page always says when the last release was.
-TODAY="$(date +%F)"
-MONTH="$(LC_ALL=C date +'%b %Y')"
-sed -i '' -E \
-  -e "s/\"softwareVersion\": \"[^\"]*\"/\"softwareVersion\": \"${VERSION}\"/" \
-  -e "s/\"dateModified\": \"[^\"]*\"/\"dateModified\": \"${TODAY}\"/" \
-  -e "s/(class=\"ver\"[^>]*>)[^<]*/\1v${VERSION}, ${MONTH}/" \
-  web/index.html
-sed -i '' -E "s|<lastmod>[^<]*</lastmod>|<lastmod>${TODAY}</lastmod>|" web/sitemap.xml
-echo "▸ web/index.html and web/sitemap.xml stamped ${VERSION} / ${TODAY}"
+# ---- site stamp (self-contained: needs only a version, run from the repo root) ----
+# Stamps the version line under the install command (<a class="ver">), the
+# JSON-LD softwareVersion/dateModified, and the sitemap's lastmod. Ships with
+# the appcast push, so the page always says when the last release was. Fails
+# the release if any stamp did not land (markup changed under the seds).
+stamp_site() {
+  local version="$1" page="web/index.html" sitemap="web/sitemap.xml"
+  local today month
+  today="$(date +%F)"
+  month="$(LC_ALL=C date +'%b %Y')"
+  sed -i '' -E \
+    -e "s/\"softwareVersion\": \"[^\"]*\"/\"softwareVersion\": \"${version}\"/" \
+    -e "s/\"dateModified\": \"[^\"]*\"/\"dateModified\": \"${today}\"/" \
+    -e "s/(class=\"ver\"[^>]*>)[^<]*/\1v${version}, ${month}/" \
+    "$page"
+  sed -i '' -E "s|<lastmod>[^<]*</lastmod>|<lastmod>${today}</lastmod>|" "$sitemap"
+  if ! grep -qF "\"softwareVersion\": \"${version}\"" "$page" \
+    || ! grep -qF "\"dateModified\": \"${today}\"" "$page" \
+    || ! grep -qF ">v${version}, ${month}</a>" "$page" \
+    || ! grep -qF "<lastmod>${today}</lastmod>" "$sitemap"; then
+    echo "✗ site stamp missed, check web/index.html markup" >&2
+    exit 1
+  fi
+  echo "▸ ${page} and ${sitemap} stamped ${version} / ${today}"
+}
+stamp_site "$VERSION"
+# ---- end site stamp ----
 
 cat <<DONE
 
