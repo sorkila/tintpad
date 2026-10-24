@@ -543,6 +543,18 @@ final class ContinueDropTests: XCTestCase {
         XCTAssertEqual(lastCommand, CommandTemplate.inFreshSession("/bin/echo --continue --skip"))
     }
 
+    // The false that AppDelegate.continueSession turns into a beep.
+    func testACaptureModeRefusesAContinueFromOutside() {
+        store.recordSession(repo: store.repos[0], agent: store.agents[0], mode: skip, prompt: nil)
+        model.enterPromptMode()
+        XCTAssertFalse(model.continueSession(store.sessions[0].id))
+        model.exitPromptMode()
+        model.enterWorktreeMode()
+        XCTAssertFalse(model.continueSession(nil))
+        XCTAssertFalse(model.isPendingDangerous)
+        XCTAssertTrue(terminal.launches.isEmpty)
+    }
+
     func testAGoneSessionIDSaysSo() {
         XCTAssertTrue(model.continueSession(UUID()))
         XCTAssertEqual(model.status, DropCopy.sessionGone)

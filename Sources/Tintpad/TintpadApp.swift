@@ -214,7 +214,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
            agent.modes.first(where: { $0.id == s.modeID })?.isDangerous == true {
             panelController.show()
             let id = session?.id
-            DispatchQueue.main.async { [weak self] in self?.panelController.model.continueSession(id) }
+            DispatchQueue.main.async { [weak self] in
+                // False means the drop was busy taking a branch or a prompt
+                // and couldn't take the continue: say so like every other
+                // continue that can't happen, never stay silent.
+                guard let self, !self.panelController.model.continueSession(id) else { return }
+                NSSound.beep()
+            }
             return
         }
         let done: LaunchService.Completion = { result in
