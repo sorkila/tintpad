@@ -851,7 +851,7 @@ final class PaletteModel: ObservableObject {
             // The scan result replaces a resume offer, which declines it.
             if resumeOffer != nil { clearTransient() }
             launchRepo = nil
-            status = "Scanned, \(n) new repo\(n == 1 ? "" : "s")"
+            status = DropCopy.scanned(n)
             return true
         }
         if mods.contains(.command), chars == "p" { cyclePrompt(); return true }
@@ -1736,8 +1736,10 @@ struct PaletteView: View {
     }
 
     @ViewBuilder private var middleLine: some View {
-        if model.isPendingDangerous {
-            middleLine("\(model.pendingDangerousDescription ?? ""), Return confirms, Esc cancels",
+        if let pending = model.pendingDangerous {
+            // The repo is the subject token on the left, the line names what
+            // runs (VoiceOver's announcement still names the repo).
+            middleLine(DropCopy.confirm(mode: pending.mode.name, agent: pending.agent.name),
                        color: dangerTint)
         } else if let permission = model.pendingPermission {
             middleLine(permission.line, color: dangerTint)
@@ -1753,25 +1755,27 @@ struct PaletteView: View {
         } else if model.worktreeRepo != nil {
             middleLine(worktreeExplainer)
         } else if model.promptRepo != nil {
-            middleLine("Handed to \(model.promptRepo.flatMap { model.activeAgent(for: $0) }?.name ?? "the agent") as its first message, Return launches, Esc goes back")
+            middleLine(DropCopy.prompt(
+                agent: model.promptRepo.flatMap { model.activeAgent(for: $0) }?.name ?? "the agent"))
         }
     }
 
     private var worktreeExplainer: String {
-        if let path = model.worktreePreviewPath() {
-            return "New worktree at \(displayPath(path)), Return creates and launches"
-        }
-        return "An isolated checkout on a new branch, Return creates and launches"
+        DropCopy.worktree(path: model.worktreePreviewPath().map(displayPath))
     }
 
+    /// One storey. The copy is written to `DropCopy.maxLineCharacters`, and
+    /// the tail cut is only the safety net: every line leads with its reason
+    /// and ends with its keys, so an overflow costs the keys, not the reason.
+    /// Not selectable: a click in a keyboard-first capsule would take the
+    /// field's focus, and VoiceOver reads the line without it.
     private func middleLine(_ text: String, color: Color? = nil) -> some View {
         Text(text)
             .font(.system(size: fieldSize))
             .foregroundStyle(color.map(AnyShapeStyle.init) ?? AnyShapeStyle(.secondary))
             .lineLimit(1)
-            .truncationMode(.middle)
+            .truncationMode(.tail)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .textSelection(.enabled)
     }
 
     /// The token strip — ⌘Tab, but for repos, as words on black. Gray at

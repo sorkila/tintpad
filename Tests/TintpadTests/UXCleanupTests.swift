@@ -65,6 +65,107 @@ final class ColorLeakTests: XCTestCase {
     }
 }
 
+/// Every middle line fits one storey: the copy is written to a budget, the
+/// tail cut in the view is only the safety net.
+final class MiddleLineBudgetTests: XCTestCase {
+    private let budget = DropCopy.maxLineCharacters
+    /// Every terminal and editor a launch line can name, and the fallback.
+    private let targets = ["Ghostty", "kitty", "Alacritty", "WezTerm", "iTerm2", "Terminal", "Warp",
+                           "VS Code", "Cursor", "Zed", "Sublime Text", "IntelliJ IDEA", "the terminal"]
+
+    private func assertFits(_ lines: [String], file: StaticString = #filePath, line: UInt = #line) {
+        for text in lines {
+            XCTAssertLessThanOrEqual(text.count, budget, "\(text.count) chars: \(text)", file: file, line: line)
+        }
+        assertHouseStyle(lines, file: file, line: line)
+    }
+
+    func testPermissionLinesFit() {
+        for summary in PermissionSummary.all {
+            XCTAssertLessThanOrEqual(summary.count, PermissionEscalation.maxSummary, summary)
+        }
+        var lines = PermissionSummary.all.map {
+            PermissionEscalation.line(pane: .accessibility, summary: $0, failures: 1)
+        }
+        for pane in [PrivacyPane.accessibility, .automation] {
+            lines.append(PermissionEscalation.line(pane: pane, summary: "x", failures: 2))
+        }
+        assertFits(lines)
+    }
+
+    func testEscalatedLinesStillSayTheRemedy() {
+        let ax = PermissionEscalation.line(pane: .accessibility, summary: "x", failures: 2)
+        XCTAssertTrue(ax.contains("re-add Tintpad"), ax)
+        let auto = PermissionEscalation.line(pane: .automation, summary: "x", failures: 2)
+        XCTAssertTrue(auto.contains("off and on"), auto)
+    }
+
+    func testErrorLinesFitWhateverTheReason() {
+        let long = String(repeating: "word ", count: 30)
+        var lines: [String] = []
+        for target in targets {
+            for error: Error in [
+                TerminalLaunchError.launchFailed(long),
+                TerminalLaunchError.launchFailed("AppleScript: \(long)"),
+                TerminalLaunchError.launchFailed("AppleScript: \(target) \(long)"),
+                TerminalLaunchError.notInstalled,
+                ProcessRunner.RunError.timedOut(60),
+            ] {
+                lines.append(LaunchStatusCopy.error(terminal: target, error: error))
+            }
+        }
+        assertFits(lines)
+        // Every error line still ends with what Return and Esc do.
+        XCTAssertTrue(lines.allSatisfy { $0.hasSuffix(LaunchStatusCopy.retryKeys) })
+    }
+
+    func testAReasonAboutTheTargetIsTheLine() {
+        XCTAssertEqual(
+            LaunchStatusCopy.error(terminal: "Ghostty",
+                                   error: TerminalLaunchError.launchFailed("AppleScript: Ghostty lost focus, nothing was typed.")),
+            "Ghostty lost focus, Return retries, Esc closes")
+        XCTAssertEqual(
+            LaunchStatusCopy.error(terminal: "Ghostty", error: TerminalLaunchError.launchFailed("exited 1: boom")),
+            "Couldn't open Ghostty (exit 1), Return retries, Esc closes")
+    }
+
+    func testDropLinesFit() {
+        let agents = ["Claude Code", "Codex", "the agent"]
+        var lines = [
+            DropCopy.worktree(path: nil),
+            DropCopy.worktree(path: "~/Developer/tintpad-worktrees/feature-a-rather-long-branch-name"),
+            DropCopy.scanned(1), DropCopy.scanned(120),
+            LaunchStatusCopy.opening("IntelliJ IDEA"), LaunchStatusCopy.stillOpening("IntelliJ IDEA"),
+        ]
+        for agent in agents {
+            lines.append(DropCopy.prompt(agent: agent))
+            lines.append(DropCopy.confirm(mode: "Skip permissions", agent: agent))
+        }
+        assertFits(lines)
+    }
+
+    func testConfirmNamesModeAndAgent() {
+        XCTAssertEqual(DropCopy.confirm(mode: "Skip permissions", agent: "Claude Code"),
+                       "Skip permissions with Claude Code, Return confirms, Esc cancels")
+    }
+
+    func testWorktreePathKeepsHeadAndTail() {
+        let path = "~/Developer/tintpad-worktrees/feature-a-rather-long-branch-name"
+        let line = DropCopy.worktree(path: path)
+        XCTAssertEqual(line.count, budget)
+        XCTAssertTrue(line.hasPrefix("New worktree at ~/Developer/"), line)
+        XCTAssertTrue(line.hasSuffix("branch-name, Return creates and launches"), line)
+        XCTAssertTrue(line.contains("…"), line)
+        // A short path is left whole.
+        XCTAssertEqual(DropCopy.worktree(path: "~/wt/fix"), "New worktree at ~/wt/fix, Return creates and launches")
+    }
+
+    func testMiddleCut() {
+        XCTAssertEqual(DropCopy.middleCut("abcdefghij", to: 5), "ab…ij")
+        XCTAssertEqual(DropCopy.middleCut("abc", to: 5), "abc")
+    }
+}
+
 /// An available update, said once in the menu and once in About.
 final class UpdateCopyTests: XCTestCase {
     func testMenuNamesThePendingVersion() {

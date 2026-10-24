@@ -69,6 +69,19 @@ enum TerminalLaunchError: Error, CustomStringConvertible, LocalizedError {
     var errorDescription: String? { description }
 }
 
+/// The `summary` of every `permissionNeeded` an adapter raises, in one place
+/// so a test holds each to `PermissionEscalation.maxSummary`: the drop's
+/// first-failure line is the summary plus what Return and Esc do, on one
+/// storey beside its subject.
+enum PermissionSummary {
+    static let ghostty = "Ghostty needs Accessibility"
+    static let terminalTab = "A new tab needs Accessibility"
+    static let automation = "Tintpad needs Automation"
+    static let keystrokes = "Tintpad needs Accessibility"
+
+    static let all = [ghostty, terminalTab, automation, keystrokes]
+}
+
 /// One implementation per terminal app. Detection is bundle-id based; launch
 /// uses whichever mechanism is most reliable for that terminal.
 ///
@@ -161,7 +174,7 @@ struct GhosttyAdapter: TerminalAdapter {
         // instead. (Rebuilding an unsigned app resets this grant in macOS.)
         guard AXIsProcessTrusted() else {
             throw TerminalLaunchError.permissionNeeded(
-                summary: "Ghostty needs Accessibility",
+                summary: PermissionSummary.ghostty,
                 remedy: "Grant Tintpad in System Settings → Privacy & Security → Accessibility. If Tintpad is already listed, the grant has gone stale, remove it and add it back, then relaunch Tintpad.",
                 pane: .accessibility)
         }
@@ -341,7 +354,7 @@ struct AppleTerminalAdapter: TerminalAdapter {
         // fail with the actionable message, not a raw AppleScript error.
         if launch.openInTab, !AXIsProcessTrusted() {
             throw TerminalLaunchError.permissionNeeded(
-                summary: "Opening a Terminal tab needs Accessibility",
+                summary: PermissionSummary.terminalTab,
                 remedy: "Grant Tintpad in System Settings → Privacy & Security → Accessibility, or switch off open-in-tab. If Tintpad is already listed, remove it and add it back.",
                 pane: .accessibility)
         }
@@ -455,7 +468,7 @@ enum AppleScriptRunner {
         let raw = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
         if raw.contains("(-1743)") || raw.contains("(-1744)") {
             return .permissionNeeded(
-                summary: "Tintpad isn't allowed to control your terminal",
+                summary: PermissionSummary.automation,
                 remedy: "Allow it in System Settings → Privacy & Security → Automation, then try again. If Tintpad is already allowed, the grant has gone stale, switch it off and on again.",
                 pane: .automation)
         }
@@ -463,7 +476,7 @@ enum AppleScriptRunner {
             || raw.localizedCaseInsensitiveContains("not allowed to send keystrokes")
             || raw.localizedCaseInsensitiveContains("not allowed assistive access") {
             return .permissionNeeded(
-                summary: "Typing into your terminal needs Accessibility",
+                summary: PermissionSummary.keystrokes,
                 remedy: "Grant Tintpad in System Settings → Privacy & Security → Accessibility. If Tintpad is already listed, the grant has gone stale, remove it and add it back, then relaunch Tintpad.",
                 pane: .accessibility)
         }

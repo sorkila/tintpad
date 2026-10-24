@@ -1547,9 +1547,9 @@ final class PermissionEscalationTests: XCTestCase {
 
     func testSecondFailureEscalates() {
         XCTAssertEqual(PermissionEscalation.line(pane: .accessibility, summary: summary, failures: 2),
-                       "Still no Accessibility, if Tintpad is listed, remove it and add it back, Return opens the pane")
+                       "Still no Accessibility, remove and re-add Tintpad, Return opens the pane")
         XCTAssertEqual(PermissionEscalation.line(pane: .automation, summary: "x", failures: 5),
-                       "Still no Automation access, if Tintpad is listed, switch it off and on, Return opens the pane")
+                       "Still no Automation, switch Tintpad off and on, Return opens the pane")
     }
 
     func testGrantedLineNamesRepoAndAgent() {
