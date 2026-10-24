@@ -42,8 +42,18 @@ jobs:
       - name: Swift version
         run: swift --version
 
-      - name: Build release
-        run: swift build -c release
+      # Same cache as CI. package.sh does the release build, so there is no
+      # separate build step.
+      - name: Cache SwiftPM downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/org.swift.swiftpm
+          key: spm-macos-15-${{ hashFiles('Package.swift') }}
+          restore-keys: |
+            spm-macos-15-
+
+      - name: Release consistency
+        run: ./Scripts/check-release.sh --ci
 
       # --- Signing setup (only when SIGN_IDENTITY is present) -----------------
       # package.sh self-gates on SIGN_IDENTITY / NOTARY_PROFILE, so everything
@@ -91,16 +101,20 @@ jobs:
 
       - name: Sign appcast entry (Sparkle)
         if: ${{ env.SIGN_IDENTITY != '' && env.SPARKLE_ED_KEY != '' }}
+        # The key reaches sign_update on stdin (`--ed-key-file -`, as its --help
+        # documents), and the signature is checked against SUPublicEDKey the way
+        # release.sh checks it.
         run: |
           set -euo pipefail
+          . Scripts/release-lib.sh
           DMG=".build/release/Tintpad.dmg"
-          SIGN_TOOL="$(find .build -name sign_update -type f 2>/dev/null | head -n1 || true)"
-          if [[ -n "$SIGN_TOOL" && -f "$DMG" ]]; then
-            echo "EdDSA signature for $DMG:"
-            "$SIGN_TOOL" "$DMG" --ed-key-file <(printf '%s' "$SPARKLE_ED_KEY")
-          else
-            echo "sign_update tool or DMG not found — skipping appcast signature."
-          fi
+          SIGN_UPDATE="$(find_sign_update)"
+          SIG="$(printf '%s' "$SPARKLE_ED_KEY" | "$SIGN_UPDATE" --ed-key-file - "$DMG")"
+          ENCLOSURE="$(parse_enclosure "$SIG")"
+          swift Scripts/verify-ed25519.swift \
+            "$(plist_get Resources/Info.plist SUPublicEDKey)" "${ENCLOSURE% *}" "$DMG"
+          echo "Appcast enclosure attributes for $DMG (verified against SUPublicEDKey):"
+          echo "$SIG"
 
       # --- Zip + upload -------------------------------------------------------
 
