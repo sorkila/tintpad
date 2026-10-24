@@ -98,11 +98,15 @@ in `Resources/Info.plist` then run `./Scripts/release.sh` to cut the next one.
 ## Commands
 ```sh
 swift build              # debug build
-swift test               # 161 unit tests (pure logic, keep green)
+swift test               # 211 unit tests (pure logic, keep green)
 swift run                # run from source (dev; unsigned)
 ./Scripts/package.sh     # assemble + sign .app/DMG in a TMPDIR scratch (signs if SIGN_IDENTITY set)
 ./Scripts/dev-install.sh # build → Developer ID sign → install to /Applications (local dev)
-./Scripts/release.sh     # one-command notarized release (needs SIGN_IDENTITY + NOTARY_PROFILE)
+./Scripts/release.sh     # one-command notarized release (needs SIGN_IDENTITY + NOTARY_PROFILE,
+                         # SPARKLE_ED_KEY_FILE for headless signing; --dry-run, --republish)
+./Scripts/check-release.sh [--ci]  # release preflight (CI runs --ci)
+./Scripts/test-release.sh          # self-test for the release scripts
+./Scripts/check-bundle.sh          # checks an assembled .app bundle
 ./Scripts/uitest.sh      # synthetic-input GUI smoke test (needs Accessibility/Automation)
 ./Scripts/record-demo.sh # self-recording demo film: seeds portfolio repos, records the
                          # scripted take, cuts demo.mp4/poster/og/hero, restores the store
@@ -179,7 +183,8 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   every element is a capsule of `chipH` — white chip (position), etched hairline chips
   (the contract: AGENT and MODE as labeled instrument fields with baseline-aligned
   micro-eyebrows), red-etched chip (skips permissions). A contract never truncates
-  (`fixedSize`), never hides, and holds no branch (where you launch from is the tile's
+  (`fixedSize`), never hides while there is a repo (with no match there is honestly no
+  contract, and it fades on `DropTimeline.reshape`, never a hard cut), and holds no branch (where you launch from is the tile's
   business). Return dims the subject chip wordlessly, and the gray waiting line
   ("Opening …", "Creating worktree…") appears only after 700ms in flight (and only while the drop is key) and holds
   600ms once shown before any launch exit, a focus loss included (`LaunchFeedbackTiming`, the drop waits,
@@ -200,6 +205,15 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   arrival and settles on a stray offset nothing later corrects, shearing the leading
   chip flat against the clip (the 0.3.2 regression, fixed in 0.3.3).
   ←/→ move through tokens only while the field is empty; ↑/↓, ⌘1–⌘9, ⌘0 unchanged. `RepoTint` hues survive in Settings, never in the drop.
+- **Middle lines are written to `DropCopy.maxLineCharacters` (72)**, tested for every
+  permission, error and drop line (`MiddleLineBudgetTests`). `middleLine` truncates at the
+  tail as the safety net, so an overflow costs the keys, never the reason. Permission
+  summaries are the `PermissionSummary` enum, so every one is in the tested set.
+- **One reshape curve.** Anything that changes the drop's shape while it is up (field, hug,
+  middle swap, contract presence) animates on `DropTimeline.reshape`, never a literal, and a
+  summon resets the model inside `snap` so none of it plays while the drop is a bead.
+- **`ColorLeakTests`** fails on any named system color, accent, or RGB literal outside
+  `dangerTint` anywhere under `Sources/Tintpad`. Success is ink.
 - **Prose has no em dashes and no prose semicolons**, in markdown docs and website copy
   (a deliberate, enforced house style, use commas). Code, identifiers, and code comments
   are exempt, and third-party files (e.g. an upstream awesome-list with em-dash separators)
@@ -217,6 +231,17 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   `ShellEnvironment.resolvedPath` resolves the login-shell PATH. It's pre-warmed **off the
   main thread** with a timeout, running it on main during a SwiftUI layout re-enters and
   trips dispatch_once (a crash we hit). Don't move it back onto the render path.
+  The probe prints the PATH between `__TINTPAD_PATH_BEGIN__` and `__TINTPAD_PATH_END__`
+  lines through `ProcessRunner`, with stdin an empty closed pipe, and falls back once
+  from `-lic` to `-lc`. Quote `"$PATH"` for POSIX shells (an unquoted bash expansion
+  splits on spaces and globs), but never for fish, where unquoted is one entry per line.
+  `extractPath` is the pure parser, test any change there.
+- **A store that can't be read is not a first run.** `AppStore.classify` counts only
+  no-such-file with nothing at the path (symlinks not followed) as missing. Any other
+  failure lands in `loadFailure`, which the app says once at launch in an alert, and
+  onboarding runs only when `canPersist`. An unreadable store, or a corrupt one whose
+  backup failed, seeds in memory and saves nothing that session. Tests open
+  `AppStore(fileURL:)` on a temp directory, never `shared`.
 - **Palette keyboard nav:** a scoped `NSEvent` monitor drives ↑/↓ (a focused `TextField`
   swallows arrows). The results list must use **one identity scheme** (index: `ForEach(id:\.self)`
   == `.id(index)` == `selection`) and **no stack-wide `.animation(value: selection)`**, mixing
@@ -256,7 +281,7 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   the new key window a turn later, and if it's ours it sends
   `DismissSequencer`'s `.focusMovedWithinApp` so the exit skips the hide. Any
   window the user must reach borrows a regular presence through `AppPresence`
-  (`DockPresence`, reasons settings/onboarding/update, accessory only when the
+  (`DockPresence`, reasons settings/onboarding/update/storeAlert, accessory only when the
   last one lets go), never a raw `setActivationPolicy`. Sparkle runs with
   gentle reminders: a scheduled update outside immediate focus waits in the menu
   (`UpdaterController.pendingVersion`, a dot on the caret) instead of an alert
@@ -370,19 +395,28 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   (uses an **app-specific** password, not the Apple ID password). `release.sh` reads it via
   `NOTARY_PROFILE`. `package.sh` staples the **DMG** (Gatekeeper still accepts the app inside;
   stapling the .app too would be more robust offline).
-- **Sparkle `sign_update`** reads the ED private key from the login keychain and triggers a
-  **GUI keychain-approval prompt**, so it hangs in headless/sandboxed shells. Run it in a real
-  terminal, click "Always Allow", paste the `edSignature`/`length` into `web/appcast.xml`.
-  `SUPublicEDKey` (Info.plist) must match that key.
+- **Sparkle `sign_update`** reads the private key from `SPARKLE_ED_KEY_FILE` when it is set
+  (`--ed-key-file`, headless), which is how `release.sh` signs. Unset, it falls back to the
+  login keychain and its GUI approval prompt, which hangs headless shells. The file is a
+  one-time `generate_keys -x` export kept outside the repo, mode 600 (see `docs/RELEASE.md`).
+  `release.sh` verifies every signature against `SUPublicEDKey` before publishing.
 - **release.sh notes:** pass release notes via `--notes-file`, not `--notes "$(cat <<EOF…)"`,
   a heredoc inside `$(...)` trips bash with "bad substitution" on the parens/backticks.
+  Notes are the CHANGELOG section for the version inside `Scripts/release-notes.md`, never
+  a heredoc. `Scripts/check-release.sh` runs first. Preview with `--dry-run`, recover a
+  half-published release with `--republish` (it rebuilds and re-notarizes, so re-commit the
+  appcast, cask and site stamp). Rename `[Unreleased]` to `## [X.Y.Z] - date` before releasing.
+  `stamp_site` writes the version into `web/index.html` and `sitemap.xml` and fails loudly on a miss.
 - **Direct download URL:** link `releases/latest/download/Tintpad.dmg` (stable latest-asset URL,
   always the newest release) since `release.sh` always names the asset `Tintpad.dmg`.
 - **Homebrew 6.x trusts third-party taps explicitly:** a fresh `brew install --cask sorkila/tap/tintpad`
   prompts to trust the tap once (or `brew trust sorkila/tap`). The cask mirrors LockPaw's
   (`depends_on macos: :sonoma`, not `">= :sonoma"` which errors). Tap repo is `sorkila/homebrew-tap`.
 - **GitHub Actions:** never reference `secrets` in an `if:`, it fails the workflow at parse time
-  on every push (a "startup failure"). Map secrets to **job-level `env`** and gate on `env.X`.
+  on every push (a "startup failure"). Gate on a job-level `env` flag, and put the secret
+  value itself in the **step-level `env`** of the one step that uses it. CI builds with
+  `-warnings-as-errors` on macos-15 (decides pass or fail, Swift 6.1, SwiftPM strips the flag
+  from remote packages) and macos-26 (`continue-on-error`). `package.sh` takes `SWIFT_BUILD_FLAGS`.
 - **Settings:** don't put multiple SwiftUI `.menu` Pickers in one `Form` (AttributeGraph crash on
   this SDK), use `PopUpPicker` (NSPopUpButton wrapper).
 - **App icon (0.4.1, Icon Composer):** the icon is designed in Icon Composer and exported
@@ -403,10 +437,15 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
 - `Sources/Tintpad/`, app. `Tests/TintpadTests/`, unit tests. `Resources/`, Info.plist, icns,
   entitlements, and the icon sources (`appicon-export.png` the Icon Composer export,
   `appicon-source.png` the 824-grid build `Scripts/make-icon.swift` makes from it).
-- `web/`, marketing site: a single hand-written `index.html` (no build step, kept lean ~16KB: hero + film, WHAT IT DOES, five QUESTIONS, a three-line footer, each fact said once,
-  carries canonical + SoftwareApplication/FAQPage JSON-LD and a Lockpaw cross-link in the footer),
-  `appcast.xml`, `robots.txt`, `sitemap.xml`, `llms.txt`, `.htaccess` (https + apex 301s, verify
-  via Inleed if redirects misbehave), and `assets/` (demo.mp4, demo-poster.jpg, og.jpg, og.png).
+- `web/`, marketing site: a single hand-written `index.html` (no build step, kept lean ~18KB:
+  an eyebrow naming the category, hero + brew chip with the tap-trust line + a version stamp,
+  film, WHAT IT DOES, five QUESTIONS, GET IT, a three-line footer, each fact said once,
+  carries canonical + SoftwareApplication/VideoObject/FAQPage JSON-LD and a Lockpaw cross-link
+  in the footer, clicks are umami `data-umami-event` attributes, no extra script),
+  `appcast.xml`, `robots.txt`, `sitemap.xml`, `llms.txt`, `.htaccess` (https + apex 301s plus
+  mod_headers only: versioned media cached a year, html/xml/txt `no-cache` so the appcast is
+  always fresh, HSTS, nosniff, Referrer-Policy; never mod_expires, the host may not allow its
+  override and a disallowed directive 500s the site; verify via Inleed if redirects misbehave), and `assets/` (demo.mp4, demo-poster.jpg, og.jpg, og.png).
   Uses umami analytics + full Open Graph / Twitter-card meta. og.jpg (progressive JPEG ~50KB) is
   the served share card, the icon card, emitted with og.png by `Scripts/make-icon.swift` (bump its `?v=`).
   Auto-deploys to tintpad.com via `.github/workflows/deploy-web.yml`.
