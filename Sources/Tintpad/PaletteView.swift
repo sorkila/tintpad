@@ -810,9 +810,11 @@ final class PaletteModel: ObservableObject {
             // user where the launch was. Named as the store has them now.
             select(filtered.firstIndex { $0.id == repo.id } ?? 0, animated: false)
             launchRepo = repo
+            let continuing = retry.launch.continuing
             resumeOfferAnnouncement = PermissionEscalation.grantedAnnouncement(
-                pane: retry.pane, repo: repo.name, agent: agent.name)
-            resumeOffer = PermissionEscalation.grantedLine(pane: retry.pane, agent: agent.name)
+                pane: retry.pane, repo: repo.name, agent: agent.name, continuing: continuing)
+            resumeOffer = PermissionEscalation.grantedLine(pane: retry.pane, agent: agent.name,
+                                                           continuing: continuing)
         }
     }
 

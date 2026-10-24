@@ -565,6 +565,37 @@ final class ContinueSurfaceTests: XCTestCase {
     }
 }
 
+/// The post-grant offer for a held continue says continue, never "launches".
+final class ContinueGrantedLineTests: XCTestCase {
+    func testHeldContinueSaysContinue() {
+        XCTAssertEqual(PermissionEscalation.grantedLine(pane: .accessibility, agent: "Claude Code", continuing: true),
+                       "Accessibility granted, Return continues with Claude Code")
+        XCTAssertEqual(PermissionEscalation.grantedLine(pane: .automation, agent: "Claude Code", continuing: true),
+                       "Return tries again, continuing with Claude Code")
+        for pane in [PrivacyPane.accessibility, .automation] {
+            let spoken = PermissionEscalation.grantedAnnouncement(pane: pane, repo: "tintpad",
+                                                                  agent: "Codex", continuing: true)
+            XCTAssertTrue(spoken.contains("continu"), spoken)
+            XCTAssertTrue(spoken.contains("tintpad"), spoken)
+            XCTAssertFalse(spoken.contains("launch"), spoken)
+        }
+        // A fresh launch reads as it always did.
+        XCTAssertEqual(PermissionEscalation.grantedLine(pane: .accessibility, agent: "Codex"),
+                       "Accessibility granted, Return launches Codex")
+    }
+
+    func testContinueOffersFitTheBudget() {
+        // An agent name is the user's, give it room to be long.
+        for pane in [PrivacyPane.accessibility, .automation] {
+            let line = PermissionEscalation.grantedLine(pane: pane, agent: "Claude Code (sonnet, beta)",
+                                                        continuing: true)
+            XCTAssertLessThanOrEqual(line.count, DropCopy.maxLineCharacters, line)
+            XCTAssertFalse(line.contains("—"), line)
+            XCTAssertFalse(line.contains(";"), line)
+        }
+    }
+}
+
 final class ContinueCopyTests: XCTestCase {
     func testContinueLinesFitAndKeepHouseStyle() {
         let lines = [
