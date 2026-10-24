@@ -35,7 +35,7 @@ All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepac
   instead of popping.
 - **No match says so.** "No repo matches “xyz”", with ⌘R offered only when
   there are no repos yet. A rescan's line gives the strip back on its own.
-- **The menu shows your real shortcuts**, including Resume, and leads with
+- **The menu shows your real shortcuts**, including Continue, and leads with
   actions. Settings → Hotkeys is now **Keys** and lists every key the drop
   answers to.
 - **Onboarding is monochrome and SF Pro**, success in ink rather than green,
