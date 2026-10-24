@@ -1,0 +1,21 @@
+name: Feature request
+description: Suggest an idea
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What friction are you hitting? Keep it concrete.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: The idea
+      description: What you'd like Tintpad to do.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: Anything you do today to work around it.
