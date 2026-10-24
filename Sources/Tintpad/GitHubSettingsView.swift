@@ -28,7 +28,7 @@ struct GitHubSettingsView: View {
                             .linkStyle()
                     }
                     if let error {
-                        Text(error).font(.caption).foregroundStyle(.red)
+                        Text(error).font(.caption).foregroundStyle(dangerTint)
                     }
                 }
 
@@ -66,8 +66,13 @@ struct GitHubSettingsView: View {
             }
             Spacer()
             if added.contains(repo.id) {
-                Label("Added", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
-                    .font(.caption)
+                // Success is ink, not green. An HStack, not a Label: a list
+                // styles a Label's icon itself and would ignore the ink.
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                    Text("Added")
+                }
+                .font(.caption).foregroundStyle(.primary)
             } else {
                 Button("Clone & Add") { clone(repo) }.controlSize(.small)
             }
