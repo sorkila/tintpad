@@ -1,0 +1,48 @@
+name: Terminal support
+description: Request or offer a new terminal adapter
+title: "terminal: "
+labels: ["terminal-adapter", "good first issue"]
+body:
+  - type: input
+    id: name
+    attributes:
+      label: Terminal
+      placeholder: MyTerm
+    validations:
+      required: true
+  - type: input
+    id: bundle-id
+    attributes:
+      label: Bundle identifier
+      description: "Find it with: osascript -e 'id of app \"MyTerm\"'"
+      placeholder: com.example.MyTerm
+  - type: input
+    id: link
+    attributes:
+      label: Download link
+  - type: checkboxes
+    id: mechanism
+    attributes:
+      label: How does it open a window at a directory running a command?
+      description: Tick what it supports, best first.
+      options:
+        - label: "CLI flag (best, like kitty or Alacritty: myterm --dir X -e \"cmd\")"
+        - label: AppleScript do script (like Terminal or iTerm2)
+        - label: Keystroke injection (last resort, like Ghostty)
+        - label: No command API (clipboard fallback, like Warp)
+  - type: textarea
+    id: command
+    attributes:
+      label: The exact command or flags
+      description: Paste them if you know them.
+      render: shell
+  - type: dropdown
+    id: pr
+    attributes:
+      label: Offering a PR?
+      description: See [Adding a terminal adapter](https://github.com/sorkila/tintpad/blob/main/CONTRIBUTING.md#adding-a-terminal-adapter). It's one protocol, one struct and one line in TerminalRegistry.all.
+      options:
+        - "Yes"
+        - "No"
+    validations:
+      required: true

@@ -7,7 +7,10 @@
 <meta name="theme-color" content="#050506" />
 <title>Tintpad | macOS launcher for Claude Code, Codex &amp; coding agents</title>
 <meta name="description" content="Press a hotkey and a black drop falls out of your Mac's notch with your repos inside. Return opens your terminal at that repo with Claude Code, Codex, or any agent already running. Free and open source (MIT), local-only, native macOS." />
+<meta name="robots" content="index,follow,max-image-preview:large" />
 <link rel="canonical" href="https://tintpad.com/" />
+<link rel="alternate" type="application/atom+xml" title="Tintpad releases" href="https://github.com/sorkila/tintpad/releases.atom" />
+<link rel="preload" as="image" href="assets/demo-poster.jpg?v=5" fetchpriority="high" />
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://tintpad.com/" />
 <meta property="og:site_name" content="Tintpad" />
@@ -30,7 +33,7 @@
 <style>
   :root{
     --bg:#050506; --panel:#101013; --line:rgba(255,255,255,.07);
-    --text:#f5f5f3; --dim:#9a9a9f; --faint:#6e6e73;
+    --text:#f5f5f3; --dim:#9a9a9f; --faint:#86868b;
     --danger:#e5484d;
     --mono:"SF Mono",ui-monospace,Menlo,monospace;
     --sans:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;
@@ -58,8 +61,16 @@
   .chip-cta:hover{transform:translateY(-1px);box-shadow:0 14px 40px rgba(255,255,255,.16)}
   .ghost{color:var(--dim);font-size:14.5px;transition:color .15s}
   .ghost:hover{color:var(--text)}
-  .meta{margin-top:16px;color:var(--faint);font-size:12.5px;font-family:var(--mono);letter-spacing:.01em}
-  .meta code{color:var(--dim);user-select:all}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.04em;color:var(--dim);margin-bottom:16px}
+  .meta{margin-top:20px;color:var(--faint);font-size:12.5px;font-family:var(--mono);letter-spacing:.01em;
+    display:flex;flex-direction:column;align-items:flex-start;gap:10px}
+  .meta a{color:var(--dim);border-bottom:1px solid rgba(255,255,255,.2)}
+  .meta a:hover{color:var(--text)}
+  /* The brew line is an etched chip, the drop's own hairline. One click selects
+     the whole command, so copying it needs no script. */
+  .brew{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px}
+  .brew code{color:var(--text);font-size:13px;user-select:all;-webkit-user-select:all;cursor:text;
+    border:1px solid rgba(255,255,255,.16);border-radius:17px;padding:6px 14px}
 
   /* The film is the star: it breaks out of the text column to a wide stage. */
   .shot{width:min(1120px,calc(100vw - 40px));margin:56px 0 0 calc(50% - min(560px,calc(50vw - 20px)));
@@ -94,12 +105,14 @@
   summary::after{content:"+";color:var(--faint);font-family:var(--mono)}
   details[open] summary::after{content:"−"}
   details p{margin-top:11px;font-size:14.5px;color:var(--dim);max-width:560px}
+  details code{font-family:var(--mono);font-size:13px;color:var(--text)}
+  #get .actions{margin-top:0}
 
   footer{padding:40px 0 64px;color:var(--faint);font-size:12.5px;font-family:var(--mono);border-top:1px solid var(--line)}
   footer .wrap{display:flex;flex-direction:column;gap:7px}
   footer a{color:var(--dim);transition:color .15s}
   footer a:hover{color:var(--text)}
-  footer .fine{font-size:11.5px;opacity:.72;margin-top:2px}
+  footer .fine{font-size:11.5px;margin-top:2px}
   /* Reduce Motion is honored the way the app honors it: nothing moves on its
      own. The demo keeps playing only if the visitor asks for it (see below). */
   @media (prefers-reduced-motion: reduce){
@@ -120,57 +133,60 @@
     .actions .ghost{text-align:center}
     .shot{margin-top:36px}
     section{padding:38px 0}
-    .meta code{word-break:break-all}
+    .brew code{font-size:12px;word-break:break-all}
   }
   a:focus-visible,button:focus-visible,summary:focus-visible,video:focus-visible{
     outline:2px solid var(--text);outline-offset:3px;border-radius:6px}
 </style>
 <script type="application/ld+json">
 {
-  "@context": "https://schema.org",
-  "@graph": [
-    {
-      "@type": "SoftwareApplication",
-      "@id": "https://tintpad.com/#app",
-      "name": "Tintpad",
-      "url": "https://tintpad.com/",
-      "description": "A native macOS launcher. Press a hotkey and a black drop falls out of your Mac's notch with your repos inside. Return opens your terminal at that repo with Claude Code, Codex, or any coding agent already running. Also installable via Homebrew: brew install --cask sorkila/tap/tintpad",
-      "operatingSystem": "macOS 14 or later",
-      "applicationCategory": "DeveloperApplication",
-      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-      "downloadUrl": "https://github.com/sorkila/tintpad/releases/latest/download/Tintpad.dmg",
-      "license": "https://github.com/sorkila/tintpad/blob/main/LICENSE",
-      "image": "https://tintpad.com/assets/og.jpg",
-      "author": { "@type": "Person", "name": "Erik Nielsen", "url": "https://sorkila.com" },
-      "sameAs": ["https://github.com/sorkila/tintpad"]
-    },
-    {
-      "@type": "FAQPage",
-      "@id": "https://tintpad.com/#faq",
-      "mainEntity": [
-        {
-          "@type": "Question",
-          "name": "What if my Mac has no notch?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Same drop, hanging just below the menu bar. The notch only makes it look like the hardware did it." }
-        },
-        {
-          "@type": "Question",
-          "name": "Isn't this a shell alias?",
-          "acceptedAnswer": { "@type": "Answer", "text": "For one repo and one agent, pretty much. Add frecency, worktrees, seven terminals, and a red chip that asks first, and your alias gets long. Keep it if you like, we won't tell." }
-        },
-        {
-          "@type": "Question",
-          "name": "Is it really free?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Yes. MIT, open source, no account, no Pro version, and nothing leaves your Mac. If it saves you a morning, sponsor it on GitHub." }
-        },
-        {
-          "@type": "Question",
-          "name": "Why does macOS ask for permissions?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Blame your terminal. Ghostty can't open a window with a command, so Tintpad types it, and typing needs Accessibility. Terminal and iTerm2 take AppleScript, which needs Automation. kitty, Alacritty, and WezTerm need nothing. Warp has no command API at all, so it opens at the repo and the command waits on your clipboard." }
-        }
-      ]
-    }
-  ]
+"@context": "https://schema.org",
+"@graph": [
+ {
+ "@type": "SoftwareApplication",
+ "@id": "https://tintpad.com/#app",
+ "name": "Tintpad",
+ "url": "https://tintpad.com/",
+ "description": "A native macOS launcher. Press a hotkey and a black drop falls out of your Mac's notch with your repos inside. Return opens your terminal at that repo with Claude Code, Codex, or any coding agent already running.",
+ "operatingSystem": "macOS 14 or later",
+ "applicationCategory": "DeveloperApplication",
+ "applicationSubCategory": "Developer launcher",
+ "softwareVersion": "0.4.1",
+ "datePublished": "2026-06-18",
+ "dateModified": "2026-09-17",
+ "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+ "downloadUrl": "https://github.com/sorkila/tintpad/releases/latest/download/Tintpad.dmg",
+ "releaseNotes": "https://github.com/sorkila/tintpad/blob/main/CHANGELOG.md",
+ "license": "https://github.com/sorkila/tintpad/blob/main/LICENSE",
+ "featureList": ["Repos ranked by frecency", "Seven terminals", "A red mode chip and a confirm before skipping permissions", "Git worktrees", "Headless dispatch"],
+ "image": "https://tintpad.com/assets/og.jpg?v=2",
+ "screenshot": "https://tintpad.com/assets/demo-poster.jpg?v=5",
+ "video": {"@id": "https://tintpad.com/#demo"},
+ "author": {"@type": "Person", "name": "Erik Nielsen", "url": "https://sorkila.com"},
+ "sameAs": ["https://github.com/sorkila/tintpad"]
+ },
+ {
+ "@type": "VideoObject",
+ "@id": "https://tintpad.com/#demo",
+ "name": "Tintpad in twelve seconds",
+ "description": "The drop falls from the Mac notch with repos inside. A white chip walks through them, tab switches the agent, and shift tab turns the MODE chip red for the mode that skips permissions.",
+ "thumbnailUrl": "https://tintpad.com/assets/demo-poster.jpg?v=5",
+ "contentUrl": "https://tintpad.com/assets/demo.mp4?v=5",
+ "uploadDate": "2026-09-17T14:29:06+02:00",
+ "duration": "PT12S"
+ },
+ {
+ "@type": "FAQPage",
+ "@id": "https://tintpad.com/#faq",
+ "mainEntity": [
+  {"@type": "Question", "name": "Which agents does it launch?", "acceptedAnswer": {"@type": "Answer", "text": "Claude Code and Codex come set up. Any other agent with a CLI is one line in Settings, the way Claude Code is just claude {mode} {prompt}."}},
+  {"@type": "Question", "name": "What if my Mac has no notch?", "acceptedAnswer": {"@type": "Answer", "text": "Same drop, hanging just below the menu bar. The notch only makes it look like the hardware did it."}},
+  {"@type": "Question", "name": "Isn't this a shell alias?", "acceptedAnswer": {"@type": "Answer", "text": "For one repo and one agent, pretty much. Add frecency, worktrees, seven terminals, and a red chip that asks first, and your alias gets long. Keep it if you like, we won't tell."}},
+  {"@type": "Question", "name": "Is it really free?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. MIT, open source, no account, no Pro version, and nothing leaves your Mac. If it saves you a morning, sponsor it on GitHub."}},
+  {"@type": "Question", "name": "Why does macOS ask for permissions?", "acceptedAnswer": {"@type": "Answer", "text": "Blame your terminal. Ghostty can't open a window with a command, so Tintpad types it, and typing needs Accessibility. Terminal and iTerm2 take AppleScript, which needs Automation. kitty, Alacritty, and WezTerm need nothing. Warp has no command API at all, so it opens at the repo and the command waits on your clipboard."}}
+ ]
+ }
+]
 }
 </script>
 </head>
@@ -181,14 +197,18 @@
   </nav>
 
   <div class="hero">
+    <div class="eyebrow">A free macOS launcher for Claude Code and Codex</div>
     <h1>It falls out of<br/>your notch.</h1>
-    <p>Hotkey, repo, Return. Your terminal opens at that repo with Claude Code, Codex,
-       or whichever agent you're into this week, already running.</p>
+    <p>Hotkey, repo, Return. Your terminal opens at that repo with the agent
+       already running.</p>
     <div class="actions">
-      <a class="chip-cta" href="https://github.com/sorkila/tintpad/releases/latest/download/Tintpad.dmg">Download for macOS</a>
-      <a class="ghost" href="https://github.com/sorkila/tintpad">view source ›</a>
+      <a class="chip-cta" href="https://github.com/sorkila/tintpad/releases/latest/download/Tintpad.dmg" data-umami-event="download-dmg">Download for macOS</a>
+      <a class="ghost" href="https://github.com/sorkila/tintpad" data-umami-event="view-source">view source ›</a>
     </div>
-    <div class="meta">macOS 14+ · signed &amp; notarized · free &amp; MIT · <code>brew install --cask sorkila/tap/tintpad</code></div>
+    <div class="meta">
+      <div class="brew"><code data-umami-event="brew-command" title="Click to select the whole command">brew install --cask sorkila/tap/tintpad</code><span>Homebrew asks once to trust the tap, say yes.</span></div>
+      <div>macOS 14+ · signed &amp; notarized · MIT · <a class="ver" href="https://github.com/sorkila/tintpad/releases/latest" data-umami-event="release">v0.4.1, Sep 2026</a></div>
+    </div>
 
     <div class="shot">
       <video class="demo" autoplay loop muted playsinline preload="metadata"
@@ -216,6 +236,7 @@
 <section id="faq">
   <div class="wrap">
     <h2>QUESTIONS</h2>
+    <details><summary>Which agents does it launch?</summary><p>Claude Code and Codex come set up. Any other agent with a CLI is one line in Settings, the way Claude Code is just <code>claude {mode} {prompt}</code>.</p></details>
     <details><summary>What if my Mac has no notch?</summary><p>Same drop, hanging just below the menu bar. The notch only makes it look like the hardware did it.</p></details>
     <details><summary>Isn't this a shell alias?</summary><p>For one repo and one agent, pretty much. Add frecency, worktrees, seven terminals, and a red chip that asks first, and your alias gets long. Keep it if you like, we won't tell.</p></details>
     <details><summary>Is it really free?</summary><p>Yes. MIT, open source, no account, no Pro version, and nothing leaves your Mac. If it saves you a morning, sponsor it on GitHub.</p></details>
@@ -223,9 +244,19 @@
   </div>
 </section>
 
+<section id="get">
+  <div class="wrap">
+    <h2>GET IT</h2>
+    <div class="actions">
+      <a class="chip-cta" href="https://github.com/sorkila/tintpad/releases/latest/download/Tintpad.dmg" data-umami-event="download-dmg-end">Download for macOS</a>
+      <a class="ghost" href="https://github.com/sorkila/tintpad/blob/main/CHANGELOG.md" data-umami-event="release-notes">what's new ›</a>
+    </div>
+  </div>
+</section>
+
 <footer><div class="wrap">
   <span>tintpad · <a href="https://github.com/sorkila/tintpad">GitHub</a> · made by <a href="https://sorkila.com" target="_blank" rel="noopener">Erik Nielsen</a> · also by sorkila: <a href="https://getlockpaw.com" target="_blank" rel="noopener">Lockpaw</a></span>
-  <a class="sponsor" href="https://github.com/sponsors/sorkila" target="_blank" rel="noopener" aria-label="Sponsor on GitHub (opens in new tab)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>Sponsor on GitHub</a>
+  <a class="sponsor" href="https://github.com/sponsors/sorkila" data-umami-event="sponsor" target="_blank" rel="noopener" aria-label="Sponsor on GitHub (opens in new tab)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>Sponsor on GitHub</a>
   <span class="fine">This site counts visits with <a href="https://umami.is" target="_blank" rel="noopener">umami</a>. No cookies, no personal data.</span>
 </div></footer>
 <script>

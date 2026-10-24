@@ -1,0 +1,86 @@
+name: Bug report
+description: Something doesn't work
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If Return does nothing, read [If Return does nothing](https://github.com/sorkila/tintpad#if-return-does-nothing) first. A stale permission grant is the usual cause, and the fix takes a minute.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: A clear, short description.
+    validations:
+      required: true
+  - type: textarea
+    id: drop-line
+    attributes:
+      label: What the drop said
+      description: The red or gray line's exact words, if there was one, and whether Return on it opened System Settings.
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1.
+        2.
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+      description: What you expected instead.
+  - type: input
+    id: version
+    attributes:
+      label: Tintpad version
+      description: Settings → About.
+    validations:
+      required: true
+  - type: dropdown
+    id: macos
+    attributes:
+      label: macOS version
+      options:
+        - 14 Sonoma
+        - 15 Sequoia
+        - 26 Tahoe
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: terminal
+    attributes:
+      label: Terminal
+      options:
+        - Ghostty
+        - iTerm2
+        - kitty
+        - WezTerm
+        - Alacritty
+        - Terminal
+        - Warp
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: agent
+    attributes:
+      label: Agent
+      options:
+        - Claude Code
+        - Codex
+        - Other
+  - type: dropdown
+    id: install
+    attributes:
+      label: Installed from
+      options:
+        - DMG download
+        - Homebrew
+        - Built from source
+  - type: textarea
+    id: extra
+    attributes:
+      label: Logs or screenshot
+      description: Anything else that helps. Drag images in.
