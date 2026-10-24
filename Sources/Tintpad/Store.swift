@@ -5,7 +5,15 @@ import SwiftUI
 /// `~/Library/Application Support/Tintpad/store.json`. Local-only, no accounts.
 @MainActor
 final class AppStore: ObservableObject {
-    static let shared = AppStore()
+    static let shared = AppStore(fileURL: defaultFileURL)
+
+    /// `~/Library/Application Support/Tintpad/store.json`, the only store the
+    /// app itself ever opens. Tests hand `init(fileURL:)` a temp file instead.
+    nonisolated static var defaultFileURL: URL {
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        return support.appendingPathComponent("Tintpad", isDirectory: true)
+            .appendingPathComponent("store.json")
+    }
 
     @Published var repos: [Repo] = [] { didSet { searchRevision &+= 1 } }
     @Published var agents: [Agent] = []
@@ -23,22 +31,105 @@ final class AppStore: ObservableObject {
 
     private let fileURL: URL
     private var isLoading = false
+    /// Why the store on disk didn't load, nil when it did (or on a first run).
+    /// The app says so once at launch, a silent failure reads as "Tintpad
+    /// forgot everything".
+    @Published private(set) var loadFailure: LoadFailure?
+    /// False when nothing this session may write over the file on disk: it
+    /// exists but could not be read, or it failed to decode and no backup of
+    /// it could be made. The seed then lives in memory only, and a relaunch
+    /// reads the file again.
+    var canPersist: Bool { loadFailure?.allowsSaving ?? true }
+    /// First-run onboarding, never over a store this session can't save:
+    /// that user has been here before, and nothing onboarding sets would stick.
+    var shouldOnboard: Bool { Self.shouldOnboard(hasOnboarded: settings.hasOnboarded, canPersist: canPersist) }
+    nonisolated static func shouldOnboard(hasOnboarded: Bool, canPersist: Bool) -> Bool {
+        !hasOnboarded && canPersist
+    }
+    /// Completed writes to disk, so tests can pin how often a change persists.
+    private(set) var writeCount = 0
 
-    init() {
-        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let dir = support.appendingPathComponent("Tintpad", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        self.fileURL = dir.appendingPathComponent("store.json")
+    init(fileURL: URL) {
+        try? FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(),
+                                                 withIntermediateDirectories: true)
+        self.fileURL = fileURL
         load()
     }
 
     // MARK: - Persistence
 
+    /// What reading the store file found. A failed *read* and a failed
+    /// *decode* are different problems: a read that fails (permissions, an
+    /// iCloud placeholder, a transient I/O error) says nothing about the data,
+    /// which is probably fine, while a decode that fails means the bytes are.
+    enum LoadResult {
+        case loaded(StoreDocument)
+        /// Nothing at the path: a true first run.
+        case missing
+        /// Something is there but could not be read.
+        case unreadable(Error)
+        /// The bytes were read but are not a store.
+        case corrupt(Error)
+    }
+
+    /// A store that existed but didn't load, as the user hears about it.
+    enum LoadFailure: Equatable {
+        /// Couldn't be read. The data is probably fine, nothing is saved.
+        case unreadable
+        /// Didn't decode, a copy was kept at `backup`, the seed saves normally.
+        case corrupt(backup: URL)
+        /// Didn't decode and the copy failed, so nothing is saved over it.
+        case corruptNotBackedUp(store: URL)
+
+        var allowsSaving: Bool {
+            if case .corrupt = self { return true }
+            return false
+        }
+
+        /// The launch alert's text. Pure, so the copy is pinned by tests.
+        var alertCopy: (message: String, informative: String) {
+            switch self {
+            case .unreadable:
+                return ("Tintpad couldn't read its data",
+                        "Your repos and settings are safe on disk. Changes made this session won't be saved. Quit and reopen Tintpad to try again.")
+            case .corrupt(let backup):
+                let folder = (backup.deletingLastPathComponent().path as NSString).abbreviatingWithTildeInPath
+                return ("Tintpad couldn't load its data",
+                        "The saved file was damaged, so Tintpad kept a copy as \(backup.lastPathComponent) in \(folder) and started fresh.")
+            case .corruptNotBackedUp(let store):
+                let folder = (store.deletingLastPathComponent().path as NSString).abbreviatingWithTildeInPath
+                return ("Tintpad couldn't load its data",
+                        "The saved file is damaged and Tintpad couldn't keep a copy, so it is left untouched and changes made this session won't be saved. Move \(store.lastPathComponent) out of \(folder) and reopen Tintpad to start fresh.")
+            }
+        }
+    }
+
+    /// Pure: classify a read attempt. `entryExists` is asked separately
+    /// (without following a symlink), so only "no such file" *and* nothing at
+    /// the path counts as missing. Anything else that fails to read is
+    /// unreadable, never a first run that may seed over it.
+    nonisolated static func classify(read: Result<Data, Error>, entryExists: Bool) -> LoadResult {
+        switch read {
+        case .success(let data):
+            do { return .loaded(try JSONDecoder.tintpad.decode(StoreDocument.self, from: data)) }
+            catch { return .corrupt(error) }
+        case .failure(let error):
+            let ns = error as NSError
+            let noSuchFile = (ns.domain == NSCocoaErrorDomain && ns.code == NSFileReadNoSuchFileError)
+                || (ns.domain == NSPOSIXErrorDomain && ns.code == Int(ENOENT))
+            return noSuchFile && !entryExists ? .missing : .unreadable(error)
+        }
+    }
+
     private func load() {
         isLoading = true
         defer { isLoading = false }
-        if let data = try? Data(contentsOf: fileURL),
-           let doc = try? JSONDecoder.tintpad.decode(StoreDocument.self, from: data) {
+        let read = Result { try Data(contentsOf: fileURL) }
+        // attributesOfItem doesn't traverse a final symlink, so a dangling one
+        // (a synced folder not mounted yet) still counts as something there.
+        let entryExists = (try? FileManager.default.attributesOfItem(atPath: fileURL.path)) != nil
+        switch Self.classify(read: read, entryExists: entryExists) {
+        case .loaded(let doc):
             repos = doc.repos
             let raw = doc.agents.isEmpty ? AgentSeed.defaults : doc.agents
             agents = AgentSeed.migrateModeNames(raw)
@@ -48,28 +139,45 @@ final class AppStore: ObservableObject {
             // A vocabulary migration that changed something is written back
             // once, so the store speaks the new names from here on.
             if agents != raw { persist() }
-            return
-        }
-        // A store exists but didn't load (corrupt, sync conflict, transient
-        // read error): preserve the evidence before anything can write over
-        // it. Reseeding must never destroy the only copy of the user's data.
-        let hadFile = FileManager.default.fileExists(atPath: fileURL.path)
-        if hadFile {
+        case .missing:
+            seed()
+            // A true first run: the seed is the store.
+            persist()
+        case .corrupt(let error):
+            // A store exists but didn't decode (a sync conflict, a half-written
+            // file): preserve the evidence before anything can write over it.
+            // Reseeding must never destroy the only copy of the user's data,
+            // so a backup that fails leaves the store read-only.
             let stamp = Int(Date().timeIntervalSince1970)
             let backup = fileURL.deletingLastPathComponent()
                 .appendingPathComponent("store.corrupt-\(stamp).json")
-            try? FileManager.default.copyItem(at: fileURL, to: backup)
-            NSLog("Tintpad: store.json failed to load — preserved a copy at \(backup.path)")
+            do {
+                try FileManager.default.copyItem(at: fileURL, to: backup)
+                loadFailure = .corrupt(backup: backup)
+                NSLog("Tintpad: store.json failed to decode (\(error)), preserved a copy at \(backup.path)")
+            } catch {
+                loadFailure = .corruptNotBackedUp(store: fileURL)
+                NSLog("Tintpad: store.json failed to decode and couldn't be backed up (\(error.localizedDescription)), not saving this session")
+            }
+            // The seed stays in memory until something actually changes.
+            seed()
+        case .unreadable(let error):
+            // The file is there but couldn't be read. Its contents are
+            // probably fine, so this session must never save a seed over them:
+            // seed in memory so the palette still works, write nothing.
+            loadFailure = .unreadable
+            NSLog("Tintpad: store.json couldn't be read (\(error.localizedDescription)), not saving this session")
+            seed()
         }
+    }
+
+    private func seed() {
         let seeded = StoreDocument.seeded()
         repos = seeded.repos
         agents = seeded.agents
         prompts = seeded.prompts
         sessions = seeded.sessions
         settings = seeded.settings
-        // Persist immediately only on a true first run; after a failed load
-        // the seed stays in memory until something actually changes.
-        if !hadFile { persist() }
     }
 
     func save() {
@@ -104,11 +212,13 @@ final class AppStore: ObservableObject {
     }
 
     private func persist() {
+        guard canPersist else { return }
         let doc = StoreDocument(version: 1, repos: repos, agents: agents,
                                 prompts: prompts, sessions: sessions, settings: settings)
         do {
             let data = try JSONEncoder.tintpad.encode(doc)
             try data.write(to: fileURL, options: .atomic)
+            writeCount += 1
         } catch {
             // A failed save must at least leave a trace — silent loss of
             // repos/sessions/settings on disk-full is worse than a log line.
@@ -119,11 +229,26 @@ final class AppStore: ObservableObject {
     // MARK: - Repo operations
 
     func addRepo(path: String, via source: RepoSource = .manual) {
-        let canonical = (path as NSString).standardizingPath
-        guard !repos.contains(where: { $0.path == canonical }) else { return }
-        let name = (canonical as NSString).lastPathComponent
-        repos.append(Repo(path: canonical, name: name, addedVia: source))
+        addRepos(paths: [path], via: source)
+    }
+
+    /// Add every path not already known, in order, with one save: a first
+    /// discovery scan of sixty repos is one encode and one write on main, not
+    /// sixty. Returns the number added.
+    @discardableResult
+    func addRepos(paths: [String], via source: RepoSource) -> Int {
+        var known = Set(repos.map(\.path))
+        var added: [Repo] = []
+        for path in paths {
+            let canonical = (path as NSString).standardizingPath
+            guard known.insert(canonical).inserted else { continue }
+            let name = (canonical as NSString).lastPathComponent
+            added.append(Repo(path: canonical, name: name, addedVia: source))
+        }
+        guard !added.isEmpty else { return 0 }
+        repos.append(contentsOf: added)
         save()
+        return added.count
     }
 
     func removeRepo(_ id: UUID) {
@@ -259,13 +384,7 @@ final class AppStore: ObservableObject {
     }
 
     private func merge(_ found: [String]) -> Int {
-        let existing = Set(repos.map(\.path))
-        var added = 0
-        for path in found where !existing.contains(path) {
-            addRepo(path: path, via: .autoDiscover)
-            added += 1
-        }
-        return added
+        addRepos(paths: found, via: .autoDiscover)
     }
 }
 

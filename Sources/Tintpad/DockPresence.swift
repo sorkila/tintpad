@@ -8,7 +8,7 @@ import AppKit
 /// lets go: closing Settings must not pull the Dock icon out from under an
 /// update alert that is still waiting for its click.
 struct DockPresence: Equatable {
-    enum Reason: Hashable { case settings, onboarding, update }
+    enum Reason: Hashable { case settings, onboarding, update, storeAlert }
 
     private(set) var reasons: Set<Reason> = []
 

@@ -92,9 +92,11 @@ enum ProcessRunner {
         out.fileHandleForReading.readabilityHandler = nil
         err.fileHandleForReading.readabilityHandler = nil
         if timedOut { throw RunError.timedOut(timeout) }
+        // Lossy decoding: one stray Latin-1 byte (a motd, a git path) becomes
+        // U+FFFD instead of turning the whole stream into "".
         return Output(status: p.terminationStatus,
-                      stdout: String(data: outBuf.value, encoding: .utf8) ?? "",
-                      stderr: String(data: errBuf.value, encoding: .utf8) ?? "")
+                      stdout: String(decoding: outBuf.value, as: UTF8.self),
+                      stderr: String(decoding: errBuf.value, as: UTF8.self))
     }
 
     /// Spawn without waiting, for processes that *are* the thing being opened
