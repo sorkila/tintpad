@@ -66,6 +66,30 @@ final class ShellPathExtractTests: XCTestCase {
         }
     }
 
+    func testInteractiveProbeFirstThenLoginOnly() {
+        let attempts = ShellEnvironment.probeArguments(shell: "/bin/zsh")
+        XCTAssertEqual(attempts.map(\.first), ["-lic", "-lc"])
+        XCTAssertEqual(Set(attempts.map(\.last)), [ShellEnvironment.pathProbeCommand(shell: "/bin/zsh")])
+    }
+
+    // The probe's stdin is an empty, closed pipe: an rc that reads from it
+    // sees EOF at once instead of holding a developer's TTY until the timeout.
+    func testEmptyInputGivesTheShellEOF() throws {
+        let out = try ProcessRunner.run("/bin/sh", arguments: ["-c", "read x; echo read=$?"],
+                                        input: Data(), timeout: 5)
+        XCTAssertEqual(out.stdout, "read=1\n")
+    }
+
+    // One Latin-1 byte in a motd used to decode the whole stream to "",
+    // markers included.
+    func testANonUTF8ByteInTheNoiseKeepsThePath() throws {
+        let script = "printf 'caf\\351\\n'; \(ShellEnvironment.pathProbeCommand(shell: "/bin/sh"))"
+        let out = try ProcessRunner.run("/bin/sh", arguments: ["-c", script],
+                                        environment: ["PATH": "/usr/bin:/bin"], timeout: 10)
+        XCTAssertTrue(out.stdout.hasPrefix("caf\u{FFFD}"))
+        XCTAssertEqual(ShellEnvironment.extractPath(from: out.stdout), ["/usr/bin", "/bin"])
+    }
+
     func testMergeKeepsShellOrderThenProbesWithoutDuplicates() {
         XCTAssertEqual(ShellEnvironment.mergedPath(shell: ["/a", "/usr/bin", "/a"], probes: ["/usr/bin", "/b"]),
                        "/a:/usr/bin:/b")
@@ -127,6 +151,7 @@ final class StoreLoadTests: XCTestCase {
 
     override func tearDown() async throws {
         // An unreadable fixture must be readable again to be removed.
+        try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: dir.path)
         try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: url.path)
         try? FileManager.default.removeItem(at: dir)
     }
@@ -157,6 +182,8 @@ final class StoreLoadTests: XCTestCase {
     }
 
     // A transient read error must never reseed and then save over real data.
+    // chmod 000 makes the file unreadable only for a non-root runner (root
+    // reads it anyway), which is what CI and a developer Mac are.
     func testUnreadableStoreIsNeverOverwritten() throws {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let original = Data(#"{"repos":[{"path":"/real","name":"real"}]}"#.utf8)
@@ -164,7 +191,9 @@ final class StoreLoadTests: XCTestCase {
         try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: url.path)
 
         let store = AppStore(fileURL: url)
+        XCTAssertEqual(store.loadFailure, .unreadable)
         XCTAssertFalse(store.canPersist)
+        XCTAssertFalse(store.shouldOnboard, "a returning user is not walked through setup")
         XCTAssertTrue(store.repos.isEmpty, "seeded in memory")
         XCTAssertFalse(store.agents.isEmpty, "the palette still has agents")
         store.addRepo(path: "/tmp/new")
@@ -195,6 +224,8 @@ final class StoreLoadTests: XCTestCase {
         let store = AppStore(fileURL: url)
         XCTAssertTrue(store.canPersist)
         XCTAssertEqual(backups().count, 1)
+        XCTAssertEqual(store.loadFailure, .corrupt(backup: dir.appendingPathComponent(backups()[0])))
+        XCTAssertTrue(store.shouldOnboard, "the fresh store saves, so onboarding can rebuild it")
         XCTAssertEqual(try Data(contentsOf: url), garbage, "the seed stays in memory")
         XCTAssertEqual(store.writeCount, 0)
 
@@ -203,6 +234,52 @@ final class StoreLoadTests: XCTestCase {
         XCTAssertEqual(AppStore(fileURL: url).repos.map(\.path), ["/tmp/after"])
         let backup = dir.appendingPathComponent(backups()[0])
         XCTAssertEqual(try Data(contentsOf: backup), garbage)
+    }
+
+    // A read-only folder: the store reads, the backup copy can't be made, so
+    // nothing may be saved over the only copy (non-root runner, as above).
+    func testCorruptStoreThatCantBeBackedUpIsReadOnly() throws {
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try Data("{ not json".utf8).write(to: url)
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: dir.path)
+
+        let store = AppStore(fileURL: url)
+        XCTAssertEqual(store.loadFailure, .corruptNotBackedUp(store: url))
+        XCTAssertFalse(store.canPersist)
+        XCTAssertFalse(store.shouldOnboard)
+        XCTAssertTrue(backups().isEmpty)
+    }
+
+    func testOnboardingOnlyOnAStoreThatSaves() {
+        XCTAssertTrue(AppStore.shouldOnboard(hasOnboarded: false, canPersist: true))
+        XCTAssertFalse(AppStore.shouldOnboard(hasOnboarded: false, canPersist: false))
+        XCTAssertFalse(AppStore.shouldOnboard(hasOnboarded: true, canPersist: true))
+        XCTAssertFalse(AppStore.LoadFailure.unreadable.allowsSaving)
+        XCTAssertFalse(AppStore.LoadFailure.corruptNotBackedUp(store: url).allowsSaving)
+        XCTAssertTrue(AppStore.LoadFailure.corrupt(backup: url).allowsSaving)
+    }
+
+    func testLoadFailureAlertCopy() {
+        let backup = URL(fileURLWithPath: NSHomeDirectory())
+            .appendingPathComponent("Library/Application Support/Tintpad/store.corrupt-1792840646.json")
+        let corrupt = AppStore.LoadFailure.corrupt(backup: backup).alertCopy
+        XCTAssertTrue(corrupt.informative.contains("store.corrupt-1792840646.json"))
+        XCTAssertTrue(corrupt.informative.contains("~/Library/Application Support/Tintpad"))
+
+        let unreadable = AppStore.LoadFailure.unreadable.alertCopy
+        XCTAssertEqual(unreadable.message, "Tintpad couldn't read its data")
+        XCTAssertEqual(unreadable.informative,
+                       "Your repos and settings are safe on disk. Changes made this session won't be saved. Quit and reopen Tintpad to try again.")
+
+        // House voice: no em dashes, no semicolons.
+        let all: [AppStore.LoadFailure] = [.unreadable, .corrupt(backup: backup),
+                                          .corruptNotBackedUp(store: url)]
+        for copy in all.map(\.alertCopy) {
+            for text in [copy.message, copy.informative] {
+                XCTAssertFalse(text.contains("\u{2014}"), text)
+                XCTAssertFalse(text.contains(";"), text)
+            }
+        }
     }
 
     func testModeMigrationWritesBackOnce() throws {

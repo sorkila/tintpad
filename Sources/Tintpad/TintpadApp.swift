@@ -176,12 +176,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        // First-run onboarding.
-        if !AppStore.shared.settings.hasOnboarded {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+        // A store that didn't load is said once, then first-run onboarding,
+        // which a store this session can't save never gets (a returning user
+        // would be walked through setup and every choice dropped). In one
+        // block so onboarding can't open under the modal alert.
+        let store = AppStore.shared
+        guard store.loadFailure != nil || store.shouldOnboard else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            guard let failure = store.loadFailure else {
                 OnboardingWindowController.shared.show()
+                return
             }
+            AppPresence.claim(.storeAlert)
+            Self.presentLoadFailure(failure)
+            if store.shouldOnboard { OnboardingWindowController.shared.show() }
+            // After onboarding claims its own presence, so the Dock icon
+            // doesn't blink out between the two.
+            AppPresence.release(.storeAlert)
         }
+    }
+
+    /// The store alert, in the black world (`applyProductTheme` ran first)
+    /// and in front (the caller claims a Dock presence) so it takes clicks.
+    private static func presentLoadFailure(_ failure: AppStore.LoadFailure) {
+        let alert = NSAlert()
+        alert.messageText = failure.alertCopy.message
+        alert.informativeText = failure.alertCopy.informative
+        alert.runModal()
     }
 
     func applicationWillTerminate(_ notification: Notification) {

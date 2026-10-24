@@ -31,11 +31,21 @@ final class AppStore: ObservableObject {
 
     private let fileURL: URL
     private var isLoading = false
+    /// Why the store on disk didn't load, nil when it did (or on a first run).
+    /// The app says so once at launch, a silent failure reads as "Tintpad
+    /// forgot everything".
+    @Published private(set) var loadFailure: LoadFailure?
     /// False when nothing this session may write over the file on disk: it
     /// exists but could not be read, or it failed to decode and no backup of
     /// it could be made. The seed then lives in memory only, and a relaunch
     /// reads the file again.
-    private(set) var canPersist = true
+    var canPersist: Bool { loadFailure?.allowsSaving ?? true }
+    /// First-run onboarding, never over a store this session can't save:
+    /// that user has been here before, and nothing onboarding sets would stick.
+    var shouldOnboard: Bool { Self.shouldOnboard(hasOnboarded: settings.hasOnboarded, canPersist: canPersist) }
+    nonisolated static func shouldOnboard(hasOnboarded: Bool, canPersist: Bool) -> Bool {
+        !hasOnboarded && canPersist
+    }
     /// Completed writes to disk, so tests can pin how often a change persists.
     private(set) var writeCount = 0
 
@@ -60,6 +70,38 @@ final class AppStore: ObservableObject {
         case unreadable(Error)
         /// The bytes were read but are not a store.
         case corrupt(Error)
+    }
+
+    /// A store that existed but didn't load, as the user hears about it.
+    enum LoadFailure: Equatable {
+        /// Couldn't be read. The data is probably fine, nothing is saved.
+        case unreadable
+        /// Didn't decode, a copy was kept at `backup`, the seed saves normally.
+        case corrupt(backup: URL)
+        /// Didn't decode and the copy failed, so nothing is saved over it.
+        case corruptNotBackedUp(store: URL)
+
+        var allowsSaving: Bool {
+            if case .corrupt = self { return true }
+            return false
+        }
+
+        /// The launch alert's text. Pure, so the copy is pinned by tests.
+        var alertCopy: (message: String, informative: String) {
+            switch self {
+            case .unreadable:
+                return ("Tintpad couldn't read its data",
+                        "Your repos and settings are safe on disk. Changes made this session won't be saved. Quit and reopen Tintpad to try again.")
+            case .corrupt(let backup):
+                let folder = (backup.deletingLastPathComponent().path as NSString).abbreviatingWithTildeInPath
+                return ("Tintpad couldn't load its data",
+                        "The saved file was damaged, so Tintpad kept a copy as \(backup.lastPathComponent) in \(folder) and started fresh.")
+            case .corruptNotBackedUp(let store):
+                let folder = (store.deletingLastPathComponent().path as NSString).abbreviatingWithTildeInPath
+                return ("Tintpad couldn't load its data",
+                        "The saved file is damaged and Tintpad couldn't keep a copy, so it is left untouched and changes made this session won't be saved. Move \(store.lastPathComponent) out of \(folder) and reopen Tintpad to start fresh.")
+            }
+        }
     }
 
     /// Pure: classify a read attempt. `entryExists` is asked separately
@@ -111,9 +153,10 @@ final class AppStore: ObservableObject {
                 .appendingPathComponent("store.corrupt-\(stamp).json")
             do {
                 try FileManager.default.copyItem(at: fileURL, to: backup)
+                loadFailure = .corrupt(backup: backup)
                 NSLog("Tintpad: store.json failed to decode (\(error)), preserved a copy at \(backup.path)")
             } catch {
-                canPersist = false
+                loadFailure = .corruptNotBackedUp(store: fileURL)
                 NSLog("Tintpad: store.json failed to decode and couldn't be backed up (\(error.localizedDescription)), not saving this session")
             }
             // The seed stays in memory until something actually changes.
@@ -122,7 +165,7 @@ final class AppStore: ObservableObject {
             // The file is there but couldn't be read. Its contents are
             // probably fine, so this session must never save a seed over them:
             // seed in memory so the palette still works, write nothing.
-            canPersist = false
+            loadFailure = .unreadable
             NSLog("Tintpad: store.json couldn't be read (\(error.localizedDescription)), not saving this session")
             seed()
         }
