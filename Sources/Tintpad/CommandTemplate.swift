@@ -100,28 +100,55 @@ enum CommandTemplate {
         // would break AppleScript or submit early via the keystroke adapter) can
         // escape the argument. {mode}, {continue} and {shell} are
         // app-controlled, sanitized onto one line, not quoted.
-        let replacements: [String: String] = [
-            "{repoPath}": quote(c.repo.path),
-            "{repoName}": quote(c.repo.name),
-            "{branch}": quote(c.branch),
-            "{remote}": quote(c.remote),
-            "{prompt}": quote(c.prompt),
-            "{mode}": sanitize(c.mode.flags),
-            "{continue}": sanitize(c.continueFlags ?? ""),
-            "{shell}": ShellEnvironment.loginShell,
-            "{worktreePath}": quote(c.worktreePath),
+        //
+        // One pass, left to right over the template, and a value is never
+        // scanned again: a prompt or a continue form that contains `{prompt}`
+        // stays those literal characters. (Replacing key by key from a
+        // dictionary made the answer depend on the per-process hash order.)
+        // A `{name}` the table doesn't know is left as written.
+        let values: [String: String] = [
+            "repoPath": quote(c.repo.path),
+            "repoName": quote(c.repo.name),
+            "branch": quote(c.branch),
+            "remote": quote(c.remote),
+            "prompt": quote(c.prompt),
+            "mode": sanitize(c.mode.flags),
+            "continue": sanitize(c.continueFlags ?? ""),
+            "shell": ShellEnvironment.loginShell,
+            "worktreePath": quote(c.worktreePath),
         ]
-        var result = template
-        for (key, value) in replacements {
+        var result = ""
+        // Characters copied from the template since the last value, so the
+        // tidy below can only ever eat a template space, never a value's.
+        var literalTail = 0
+        var rest = template[...]
+        while let open = rest.firstIndex(of: "{") {
+            result += rest[..<open]
+            literalTail += rest.distance(from: rest.startIndex, to: open)
+            let afterOpen = rest.index(after: open)
+            guard let close = rest[afterOpen...].firstIndex(of: "}"),
+                  let value = values[String(rest[afterOpen..<close])] else {
+                result.append("{")
+                literalTail += 1
+                rest = rest[afterOpen...]
+                continue
+            }
             if value.isEmpty {
                 // An empty slot swallows one adjacent space so
                 // "claude {mode} {prompt}" tidies to "claude" — a targeted
                 // cleanup, never a global collapse, which would rewrite
                 // legitimate double spaces inside quoted paths and prompts.
-                result = result.replacingOccurrences(of: " " + key, with: "")
+                if literalTail > 0, result.last == " " {
+                    result.removeLast()
+                    literalTail -= 1
+                }
+            } else {
+                result += value
+                literalTail = 0
             }
-            result = result.replacingOccurrences(of: key, with: value)
+            rest = rest[rest.index(after: close)...]
         }
+        result += rest
         return result.trimmingCharacters(in: .whitespaces)
     }
 

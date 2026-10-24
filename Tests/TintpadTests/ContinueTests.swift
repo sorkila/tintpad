@@ -79,6 +79,60 @@ final class ContinueTemplateTests: XCTestCase {
     }
 }
 
+/// Substitution is one fixed pass over the template: a value is never scanned
+/// for placeholders again, so the result can't depend on hash order.
+final class SubstitutionOrderTests: XCTestCase {
+    private let keys = ["repoPath", "repoName", "branch", "remote", "prompt", "mode",
+                        "continue", "shell", "worktreePath"]
+
+    func testAContinueFormNamingAPlaceholderStaysLiteral() {
+        let c = CommandTemplate.Context(repo: Repo(path: "/x", name: "x"), mode: .defaultMode(),
+                                        prompt: "next turn", branch: nil, remote: nil,
+                                        continueFlags: "resume --last {prompt}")
+        for _ in 0..<20 {
+            XCTAssertEqual(CommandTemplate.preview("codex {mode} {prompt}", context: c),
+                           "codex resume --last {prompt} 'next turn'")
+        }
+    }
+
+    func testEveryValueStaysLiteralWhateverItNames() {
+        for key in keys where key != "shell" {
+            let literal = "{\(key)}"
+            let c = CommandTemplate.Context(
+                repo: Repo(path: "/p\(literal)", name: "n\(literal)"),
+                mode: RunMode(name: "M", flags: "--m\(literal)", isDangerous: false, description: ""),
+                prompt: "say \(literal)", branch: "b\(literal)", remote: "r\(literal)",
+                worktreePath: "/w\(literal)", continueFlags: "--c\(literal)")
+            let template = keys.map { "{\($0)}" }.joined(separator: " ")
+            for _ in 0..<10 {
+                let out = CommandTemplate.preview(template, context: c)
+                XCTAssertEqual(out, [
+                    "'/p\(literal)'", "'n\(literal)'", "'b\(literal)'", "'r\(literal)'",
+                    "'say \(literal)'", "--m\(literal)", "--c\(literal)",
+                    ShellEnvironment.loginShell, "'/w\(literal)'",
+                ].joined(separator: " "), key)
+            }
+        }
+    }
+
+    func testUnknownAndUnclosedBracesAreLeftAsWritten() {
+        let c = CommandTemplate.Context(repo: Repo(path: "/x", name: "x"), mode: .defaultMode(),
+                                        prompt: "go", branch: nil, remote: nil)
+        XCTAssertEqual(CommandTemplate.preview("echo {nope} {prompt} {", context: c), "echo {nope} 'go' {")
+        XCTAssertEqual(CommandTemplate.preview("awk '{print $1}' {prompt}", context: c), "awk '{print $1}' 'go'")
+    }
+
+    // The tidy eats a template space next to an empty slot, never a value's.
+    func testTidyStillCollapsesEmptySlots() {
+        let c = CommandTemplate.Context(repo: Repo(path: "/x", name: "x"), mode: .defaultMode(),
+                                        prompt: nil, branch: nil, remote: nil)
+        XCTAssertEqual(CommandTemplate.preview("claude {continue} {mode} {prompt}", context: c), "claude")
+        XCTAssertEqual(CommandTemplate.preview("a {mode}{prompt} b", context: c), "a b")
+        XCTAssertEqual(CommandTemplate.preview("{mode} claude  {prompt}", context: c), "claude")
+        XCTAssertEqual(CommandTemplate.preview("echo {repoName} {branch}", context: c), "echo 'x'")
+    }
+}
+
 final class ContinueSeedTests: XCTestCase {
     private func agent(_ template: String, name: String = "T", flags: String? = nil) -> Agent {
         Agent(name: name, commandTemplate: template, continueFlags: flags, acceptsPrompt: true,
