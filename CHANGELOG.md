@@ -5,6 +5,19 @@ All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepac
 ## [Unreleased]
 
 ### Changed
+- **⌘0 and the new ⌃R continue the conversation instead of starting it
+  again.** ⌘0 picks up the last session in the repo or worktree it ran in,
+  with its agent and mode and without resending its first prompt. ⌃R
+  continues the selected repo's conversation in the mode the chips state,
+  sending the prompt chip, or the text typed after ⌘L, as the next turn.
+  Return starts fresh, ⌃R continues.
+- **Agents carry a continue form.** Claude Code (`--continue`) and Codex
+  (`resume --last`) come with theirs, and existing stores pick it up once. Any
+  agent can have one in Settings → Agents. An agent without one says so and
+  launches nothing.
+- **"Resume last session" is now "Continue last session"** in the menu,
+  Settings → Keys and Recents, and a dangerous session from the menu or
+  Recents now asks first, like the hotkey always did.
 - Settings → About links GitHub Sponsors instead of Buy me a coffee.
 - **An update waits in the menu bar, not behind your windows.** A scheduled
   update found while you're working no longer opens an alert behind other
@@ -55,6 +68,9 @@ All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepac
 - **If the saved data is damaged, Tintpad keeps a copy**, names it in an
   alert, and starts fresh.
 - Repo discovery saves once per scan instead of once per repo.
+- **A command template fills its slots in one pass.** A value that holds
+  another slot's name (a Continue form of `resume --last {prompt}`) is kept
+  literally, where it used to depend on a random per-run order.
 
 ## [0.4.1] - 2026-09-17
 

@@ -98,7 +98,7 @@ in `Resources/Info.plist` then run `./Scripts/release.sh` to cut the next one.
 ## Commands
 ```sh
 swift build              # debug build
-swift test               # 211 unit tests (pure logic, keep green)
+swift test               # 263 unit tests (pure logic, keep green)
 swift run                # run from source (dev; unsigned)
 ./Scripts/package.sh     # assemble + sign .app/DMG in a TMPDIR scratch (signs if SIGN_IDENTITY set)
 ./Scripts/dev-install.sh # build → Developer ID sign → install to /Applications (local dev)
@@ -205,6 +205,18 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   arrival and settles on a stray offset nothing later corrects, shearing the leading
   chip flat against the clip (the 0.3.2 regression, fixed in 0.3.3).
   ←/→ move through tokens only while the field is empty; ↑/↓, ⌘1–⌘9, ⌘0 unchanged. `RepoTint` hues survive in Settings, never in the drop.
+- **Continue is a fragment, never a fallback.** `Agent.continueFlags` (`--continue`,
+  `resume --last`) is spliced by `CommandTemplate` at `{continue}`, or right after the
+  leading binary when the template has no slot, sanitized and unquoted like `{mode}`, inside
+  the same `env -u` scrub. nil is never set (backfilled for known binaries on load, matched on
+  the binary, never the name), "" is cleared on purpose. The drop never substitutes a fresh
+  launch for a continue: no form, a gone worktree or no session is a gray status line and
+  nothing runs. Return starts fresh, ⌃R continues (the repo root), and ⌘0 continues the last
+  session in `Session.worktreePath ?? repoPath` without its stored prompt. Every continue
+  passes `fireOrConfirm`, and the hotkey, menu and Recents share `AppDelegate.continueSession`,
+  which routes a dangerous session through the drop. The hotkey's stored name stays
+  `"resumeLast"` so recorded chords survive. `CommandTemplate.substitute` is one left-to-right
+  pass, values are never re-scanned, so a user fragment holding `{prompt}` stays literal.
 - **Middle lines are written to `DropCopy.maxLineCharacters` (72)**, tested for every
   permission, error and drop line (`MiddleLineBudgetTests`). `middleLine` truncates at the
   tail as the safety net, so an overflow costs the keys, never the reason. Permission
