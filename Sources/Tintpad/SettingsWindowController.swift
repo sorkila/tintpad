@@ -16,8 +16,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         // The drop is a black world in every theme — Settings matches it,
         // one scheme across the product.
         window?.appearance = NSAppearance(named: .darkAqua)
-        NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
+        AppPresence.claim(.settings)
         window?.center()
         window?.makeKeyAndOrderFront(nil)
         window?.orderFrontRegardless()
@@ -36,7 +35,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
-        // Back to a menu-bar-only accessory app (no Dock icon) when done.
-        NSApp.setActivationPolicy(.accessory)
+        // Back to a menu-bar-only accessory app (no Dock icon) when done,
+        // unless an update alert still holds the Dock.
+        AppPresence.release(.settings)
     }
 }

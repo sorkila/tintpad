@@ -6,6 +6,18 @@ All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepac
 
 ### Changed
 - Settings → About links GitHub Sponsors instead of Buy me a coffee.
+- **An update waits in the menu bar, not behind your windows.** A scheduled
+  update found while you're working no longer opens an alert behind other
+  apps. The menu bar caret gains a small dot and the menu offers "Update to
+  0.4.2…", which brings the alert up in front.
+
+### Fixed
+- **The update alert takes clicks.** It only surfaced when a summon brought
+  Tintpad forward, and clicking it took focus from the drop, whose dismissal
+  hid the app and the alert with it, so it could be neither installed nor
+  dismissed. Focus that moves from the drop to another Tintpad window now
+  leaves the app up, and an update alert comes forward with a Dock icon like
+  Settings does.
 
 ## [0.4.1] - 2026-09-17
 

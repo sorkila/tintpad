@@ -5,11 +5,17 @@ import SwiftUI
 struct TintpadApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @ObservedObject private var store = AppStore.shared
+    @ObservedObject private var updater = UpdaterController.shared
 
     /// The brand caret as a template glyph: the menu bar tints it like every
     /// native status item (the old hard-orange ⌘ ignored appearance and
     /// looked like a sticker next to the system's monochrome icons).
-    private static let menuIcon: NSImage = {
+    private static let menuIcon = makeMenuIcon(pendingUpdate: false)
+    /// The caret with a small dot, while an update waits in the menu. Still a
+    /// template, the product's one signal stays monochrome.
+    private static let menuIconPendingUpdate = makeMenuIcon(pendingUpdate: true)
+
+    private static func makeMenuIcon(pendingUpdate: Bool) -> NSImage {
         let img = NSImage(size: NSSize(width: 16, height: 15), flipped: false) { rect in
             let caret = NSAttributedString(string: "❯", attributes: [
                 .font: NSFont.monospacedSystemFont(ofSize: 12.5, weight: .bold),
@@ -18,11 +24,15 @@ struct TintpadApp: App {
             let s = caret.size()
             caret.draw(at: NSPoint(x: (rect.width - s.width) / 2,
                                    y: (rect.height - s.height) / 2))
+            if pendingUpdate {
+                NSColor.black.setFill()
+                NSBezierPath(ovalIn: NSRect(x: rect.maxX - 4, y: rect.maxY - 4, width: 4, height: 4)).fill()
+            }
             return true
         }
         img.isTemplate = true
         return img
-    }()
+    }
 
     var body: some Scene {
         MenuBarExtra {
@@ -50,13 +60,19 @@ struct TintpadApp: App {
                 let n = store.runAutoDiscovery()
                 NSLog("Tintpad: discovered \(n) new repos")
             }
-            Button("Check for Updates…") { UpdaterController.shared.checkForUpdates() }
-                .disabled(!UpdaterController.shared.canCheckForUpdates)
+            // A scheduled update waits here rather than in an alert behind the
+            // user's work (see UpdaterController), so the item names it.
+            if let version = updater.pendingVersion {
+                Button("Update to \(version)…") { updater.checkForUpdates() }
+            } else {
+                Button("Check for Updates…") { updater.checkForUpdates() }
+                    .disabled(!updater.canCheckForUpdates)
+            }
             Divider()
             Button("Quit Tintpad") { NSApp.terminate(nil) }
                 .keyboardShortcut("q")
         } label: {
-            Image(nsImage: Self.menuIcon)
+            Image(nsImage: updater.pendingVersion == nil ? Self.menuIcon : Self.menuIconPendingUpdate)
         }
     }
 }

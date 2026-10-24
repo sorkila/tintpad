@@ -98,7 +98,7 @@ in `Resources/Info.plist` then run `./Scripts/release.sh` to cut the next one.
 ## Commands
 ```sh
 swift build              # debug build
-swift test               # 155 unit tests (pure logic, keep green)
+swift test               # 161 unit tests (pure logic, keep green)
 swift run                # run from source (dev; unsigned)
 ./Scripts/package.sh     # assemble + sign .app/DMG in a TMPDIR scratch (signs if SIGN_IDENTITY set)
 ./Scripts/dev-install.sh # build → Developer ID sign → install to /Applications (local dev)
@@ -248,6 +248,24 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   blank commit stands down, and `toggle()` summons a panel that is mid-dismissal
   instead of hiding it). `PaletteModel.dismissal` is never cleared on the way out, that
   reinflated the capsule offscreen, `reset()` clears it on the next summon.
+- **Every dismissal hides the app, unless focus moved to one of ours.** The
+  `NSApp.hide` that returns focus also hides every other Tintpad window, which
+  made the 0.4.1 Sparkle alert unclickable: it opened behind other apps, came
+  forward only with a summon, and clicking it took key from the drop, whose
+  focus-loss exit hid the app and the alert with it. `panelResignedKey` checks
+  the new key window a turn later, and if it's ours it sends
+  `DismissSequencer`'s `.focusMovedWithinApp` so the exit skips the hide. Any
+  window the user must reach borrows a regular presence through `AppPresence`
+  (`DockPresence`, reasons settings/onboarding/update, accessory only when the
+  last one lets go), never a raw `setActivationPolicy`. Sparkle runs with
+  gentle reminders: a scheduled update outside immediate focus waits in the menu
+  (`UpdaterController.pendingVersion`, a dot on the caret) instead of an alert
+  behind the user's windows. The `.update` claim is released by
+  `standardUserDriverWillFinishUpdateSession`, plus one fallback for Install on
+  Quit (the only path that ends without it): a `SUStatusController` window
+  closing with no modal up. **Never release on an alert closing**, Sparkle
+  closes the alert before it opens the download's status window. An update
+  alert promoted to key when the drop orders out also skips the app hide.
 - **Arrival and exit are one generation-counted `StepSequencer` timeline**, never nested
   `asyncAfter`, so a re-summon cancels stale beats. The beat times live only in
   `DropTimeline`. Everything user-facing asks `PaletteModel.requestDismiss(_:)` (Esc,
