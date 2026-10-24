@@ -49,12 +49,27 @@ enum PermissionEscalation {
 
     /// The offer a summon makes once the held launch may run. Accessibility
     /// was checked and is granted, Automation could not be checked.
-    static func grantedLine(pane: PrivacyPane, repo: String, agent: String) -> String {
+    ///
+    /// The repo is the line's subject token, so the line names only the
+    /// agent and stays inside `DropCopy.maxLineCharacters` whatever the
+    /// repo is called. VoiceOver, which can't see the token, hears
+    /// `grantedAnnouncement` instead.
+    static func grantedLine(pane: PrivacyPane, agent: String) -> String {
         switch pane {
         case .accessibility:
-            return "\(noun(pane)) granted, Return launches \(repo) with \(agent)"
+            return "\(noun(pane)) granted, Return launches \(agent)"
         case .automation:
-            return "Return retries the launch in \(repo) with \(agent)"
+            return "Return retries the launch with \(agent)"
+        }
+    }
+
+    /// `grantedLine` with the repo named, for VoiceOver.
+    static func grantedAnnouncement(pane: PrivacyPane, repo: String, agent: String) -> String {
+        switch pane {
+        case .accessibility:
+            return "\(noun(pane)) granted. Return launches \(repo) with \(agent), or press escape to cancel."
+        case .automation:
+            return "Return retries the launch in \(repo) with \(agent), or press escape to cancel."
         }
     }
 

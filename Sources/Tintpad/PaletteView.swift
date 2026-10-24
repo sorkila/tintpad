@@ -303,6 +303,9 @@ final class PaletteModel: ObservableObject {
     /// The offer line while a summon is offering `pendingRetry`. Return runs
     /// it, Esc forgets it.
     @Published private(set) var resumeOffer: String?
+    /// The offer as VoiceOver hears it, with the repo the line leaves to its
+    /// subject token. Set with `resumeOffer`, read only while it shows.
+    private(set) var resumeOfferAnnouncement = ""
 
     /// Whether the panel is on screen. Set by the controller: Settings orders
     /// the panel out without a dismissal, so `isDismissing` alone can't tell.
@@ -805,8 +808,9 @@ final class PaletteModel: ObservableObject {
             // user where the launch was. Named as the store has them now.
             select(filtered.firstIndex { $0.id == repo.id } ?? 0, animated: false)
             launchRepo = repo
-            resumeOffer = PermissionEscalation.grantedLine(
+            resumeOfferAnnouncement = PermissionEscalation.grantedAnnouncement(
                 pane: retry.pane, repo: repo.name, agent: agent.name)
+            resumeOffer = PermissionEscalation.grantedLine(pane: retry.pane, agent: agent.name)
         }
     }
 
@@ -1011,7 +1015,7 @@ final class PaletteModel: ObservableObject {
             status = nil   // the "Opening …" line has had its turn
             let retry = context.held.map { PendingRetry(launch: $0, pane: pane) }
             pendingPermission = PendingPermission(
-                summary: summary, pane: pane,
+                summary: summary.text, pane: pane,
                 failures: max(permissionFailures[pane] ?? 0, 1), retry: retry)
             return
         }
@@ -1307,7 +1311,7 @@ final class PaletteModel: ObservableObject {
     private func openInEditor(repo: Repo) {
         let editor = EditorRegistry.preferred(settings: store.settings)
         beginLaunch(opening: editor?.name, repo: repo, retry: nil,
-                    failureLine: { _ in "No editor detected, set one in Settings" }) { [store] completion in
+                    failureLine: { _ in DropCopy.noEditor }) { [store] completion in
             LaunchService.openInEditor(repo: repo, store: store, completion: completion)
         }
     }
@@ -1561,7 +1565,7 @@ struct PaletteView: View {
         // (Dynamic Type is clamped at the hosting root, see CommandPanel, so
         // the geometry's own `typeScale` metric is clamped too.)
         .environment(\.colorScheme, .dark)
-        .onAppear { model.startMonitoring(); model.reset(); searchFocused = true; animateIn(); pushHeight() }
+        .onAppear { model.startMonitoring(); resetForSummon(); searchFocused = true; animateIn(); pushHeight() }
         // Typing always lands in the field — no one should ever have to click
         // it first. Exception: when VoiceOver/Full Keyboard Access owns focus
         // traversal, forcing it back would trap the user (a11y #1).
@@ -1584,8 +1588,8 @@ struct PaletteView: View {
             if let announcement { AccessibilityNotification.Announcement(announcement).post() }
         }
         .onChange(of: model.resumeOffer) { _, offer in
-            if let offer {
-                AccessibilityNotification.Announcement("\(offer), or press escape to cancel.").post()
+            if offer != nil {
+                AccessibilityNotification.Announcement(model.resumeOfferAnnouncement).post()
             }
         }
         // The panel is being dismissed and is already transparent: put the
@@ -1601,7 +1605,7 @@ struct PaletteView: View {
             play(DropTimeline.exit(reason, reduceMotion: reduceMotion), reason: reason)
         }
         .onReceive(NotificationCenter.default.publisher(for: .tintpadPanelDidShow)) { _ in
-            model.reset()
+            resetForSummon()
             searchFocused = true
             animateIn()
             pushHeight()
@@ -2134,10 +2138,10 @@ struct PaletteView: View {
         let action: () -> Void
         switch c.kind {
         case .prompt:
-            help = "Starting prompt, ⌘P cycles"
+            help = DropCopy.promptHelp
             action = { model.cyclePrompt() }
         case .agent:
-            help = "Click or ⇥ to switch"
+            help = DropCopy.agentHelp
             action = { model.cycleAgent() }
         case .mode:
             help = modeHelp(model.previewMode(agent: agent, repo: repo))
@@ -2158,10 +2162,7 @@ struct PaletteView: View {
 
     /// The tooltip carries the truth: the exact flags this mode passes.
     private func modeHelp(_ mode: RunMode) -> String {
-        let flags = mode.flags.isEmpty ? "no flags" : mode.flags
-        return mode.isDangerous
-            ? "Skips permissions (\(flags)), click or ⇧⇥ to switch"
-            : "Mode (\(flags)), click or ⇧⇥ to switch"
+        DropCopy.modeHelp(flags: mode.flags, dangerous: mode.isDangerous)
     }
 
     private func chip(_ tag: String, _ label: String, key: String? = nil, danger: Bool = false,
@@ -2200,6 +2201,14 @@ struct PaletteView: View {
         play(DropTimeline.arrival(reduceMotion: reduceMotion), reason: nil)
     }
 
+    /// A summon's model reset, committed with no animation. Clearing the last
+    /// visit's query, line or capture flips the content's animation keys
+    /// (`middleToken`, the field's `resting`, `selectedRepo == nil`), and
+    /// none of them may play while the capsule is still a bead.
+    private func resetForSummon() {
+        snap { model.reset() }
+    }
+
     /// The drop at rest: nothing drawn.
     private func rest() {
         phase = .hidden
@@ -2232,9 +2241,9 @@ struct PaletteView: View {
         case .spread:
             withAnimation(.spring(duration: 0.34, bounce: 0.12)) { phase = .spread }
         case .contentA:
-            withAnimation(.smooth(duration: 0.22)) { contentA = true }
+            withAnimation(DropTimeline.contentArrival) { contentA = true }
         case .contentB:
-            withAnimation(.smooth(duration: 0.22)) { contentB = true }
+            withAnimation(DropTimeline.contentArrival) { contentB = true }
         case .crossfadeIn:
             withAnimation(.easeInOut(duration: 0.12)) { faded = false }
         case .contentOut:

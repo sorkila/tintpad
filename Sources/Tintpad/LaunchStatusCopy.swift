@@ -139,12 +139,31 @@ enum DropCopy {
     /// the line, which sizes the capsule, stays one storey.
     static func emptyState(query: String, storeEmpty: Bool) -> String {
         if storeEmpty { return "No repos yet, ⌘R scans your folders, or add roots in Settings" }
-        let q = query.trimmingCharacters(in: .whitespaces)
+        // Trimmed as `RepoSearch.rank` trims, so a stray space never shows.
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let shown = q.count > maxQueryEcho ? String(q.prefix(maxQueryEcho - 1)) + "…" : q
         return "No repo matches “\(shown)”"
     }
 
     static let maxQueryEcho = 24
+
+    /// ⌘⏎ with no editor to open.
+    static let noEditor = "No editor detected, set one in Settings"
+
+    // The contract chips' tooltips, also their VoiceOver hints. The chip's
+    // label already says what it is ("Mode, Safe"), so the help never opens
+    // with that noun again: it says what the chip does, then how to change it.
+
+    static let promptHelp = "Click or ⌘P to cycle"
+    static let agentHelp = "Click or ⇥ to switch"
+
+    /// The truth a mode chip carries: the exact flags it passes.
+    static func modeHelp(flags: String, dangerous: Bool) -> String {
+        if dangerous {
+            return "Skips permissions (\(flags.isEmpty ? "no flags" : flags)), click or ⇧⇥ to switch"
+        }
+        return "Flags: \(flags.isEmpty ? "none" : flags), click or ⇧⇥ to switch"
+    }
 
     /// Keeps the first and last characters of `s`, joined by an ellipsis.
     static func middleCut(_ s: String, to limit: Int) -> String {

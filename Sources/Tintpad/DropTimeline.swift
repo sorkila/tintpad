@@ -65,14 +65,19 @@ enum DropTimeline {
         let step: Step
     }
 
+    /// The content's arrival (`contentA`, `contentB`): opacity, rise and
+    /// blur, critically damped.
+    static let contentArrivalDuration: TimeInterval = 0.22
+    static var contentArrival: Animation { .smooth(duration: contentArrivalDuration) }
+
     /// The drop changing shape while it is up: the query field
     /// materializing, the capsule hugging its content, the middle region
     /// swapping, the contract leaving when nothing matches. One curve for
     /// all of them, critically damped (an underdamped field overshot the
-    /// room the hug gave it), and the same length as the content's arrival,
-    /// so everything that moves on a keystroke breathes at one rate.
-    static let reshapeDuration: TimeInterval = 0.22
-    static var reshape: Animation { .smooth(duration: reshapeDuration) }
+    /// room the hug gave it), and defined as the content's arrival, so
+    /// everything that moves on a keystroke breathes at the arrival's rate.
+    static let reshapeDuration: TimeInterval = contentArrivalDuration
+    static var reshape: Animation { contentArrival }
 
     static func arrival(reduceMotion: Bool) -> [Beat] {
         if reduceMotion { return [Beat(at: 0, step: .crossfadeIn)] }

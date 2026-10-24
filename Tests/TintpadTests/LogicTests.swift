@@ -333,7 +333,7 @@ final class ErrorMessageTests: XCTestCase {
         // A permission error keeps its short summary and full remedy joined,
         // and carries the pane so the palette can open it on ⏎.
         let permission = TerminalLaunchError.permissionNeeded(
-            summary: "Ghostty needs Accessibility",
+            summary: .ghostty,
             remedy: "Grant Tintpad in System Settings.",
             pane: .accessibility)
         XCTAssertEqual((permission as LocalizedError).errorDescription,
@@ -1553,11 +1553,16 @@ final class PermissionEscalationTests: XCTestCase {
     }
 
     func testGrantedLineNamesRepoAndAgent() {
-        XCTAssertEqual(PermissionEscalation.grantedLine(pane: .accessibility, repo: "tintpad", agent: "Claude Code"),
-                       "Accessibility granted, Return launches tintpad with Claude Code")
+        // The repo is the line's subject token, VoiceOver hears it named.
+        XCTAssertEqual(PermissionEscalation.grantedLine(pane: .accessibility, agent: "Claude Code"),
+                       "Accessibility granted, Return launches Claude Code")
+        XCTAssertEqual(PermissionEscalation.grantedAnnouncement(pane: .accessibility, repo: "tintpad", agent: "Claude Code"),
+                       "Accessibility granted. Return launches tintpad with Claude Code, or press escape to cancel.")
         // Automation can't be checked, so it never claims a grant.
-        XCTAssertEqual(PermissionEscalation.grantedLine(pane: .automation, repo: "tintpad", agent: "Claude Code"),
-                       "Return retries the launch in tintpad with Claude Code")
+        XCTAssertEqual(PermissionEscalation.grantedLine(pane: .automation, agent: "Claude Code"),
+                       "Return retries the launch with Claude Code")
+        XCTAssertEqual(PermissionEscalation.grantedAnnouncement(pane: .automation, repo: "tintpad", agent: "Claude Code"),
+                       "Return retries the launch in tintpad with Claude Code, or press escape to cancel.")
     }
 
     func testNounPerPane() {
@@ -1568,8 +1573,10 @@ final class PermissionEscalationTests: XCTestCase {
     func testCopyHasNoEmDashesOrSemicolons() {
         let lines = [
             PermissionEscalation.line(pane: .automation, summary: "s", failures: 2),
-            PermissionEscalation.grantedLine(pane: .accessibility, repo: "r", agent: "a"),
-            PermissionEscalation.grantedLine(pane: .automation, repo: "r", agent: "a"),
+            PermissionEscalation.grantedLine(pane: .accessibility, agent: "a"),
+            PermissionEscalation.grantedLine(pane: .automation, agent: "a"),
+            PermissionEscalation.grantedAnnouncement(pane: .accessibility, repo: "r", agent: "a"),
+            PermissionEscalation.grantedAnnouncement(pane: .automation, repo: "r", agent: "a"),
         ]
         for line in lines {
             XCTAssertFalse(line.contains("—"), line)

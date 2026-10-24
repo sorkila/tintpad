@@ -57,29 +57,34 @@ enum TerminalLaunchError: Error, CustomStringConvertible, LocalizedError {
     /// enabled in System Settings yet silently fails to apply. `summary` is
     /// short enough for the drop's one-line status, `remedy` carries the full
     /// instructions (including the stale case) for surfaces with room.
-    case permissionNeeded(summary: String, remedy: String, pane: PrivacyPane)
+    case permissionNeeded(summary: PermissionSummary, remedy: String, pane: PrivacyPane)
 
     var description: String {
         switch self {
         case .notInstalled: return "That terminal isn't installed."
         case .launchFailed(let m): return "Couldn't open the terminal: \(m)"
-        case .permissionNeeded(let summary, let remedy, _): return "\(summary). \(remedy)"
+        case .permissionNeeded(let summary, let remedy, _): return "\(summary.text). \(remedy)"
         }
     }
     var errorDescription: String? { description }
 }
 
-/// The `summary` of every `permissionNeeded` an adapter raises, in one place
-/// so a test holds each to `PermissionEscalation.maxSummary`: the drop's
-/// first-failure line is the summary plus what Return and Esc do, on one
-/// storey beside its subject.
-enum PermissionSummary {
-    static let ghostty = "Ghostty needs Accessibility"
-    static let terminalTab = "A new tab needs Accessibility"
-    static let automation = "Tintpad needs Automation"
-    static let keystrokes = "Tintpad needs Accessibility"
+/// The `summary` of every `permissionNeeded`, a closed set rather than a
+/// string, so no adapter can raise one the budget test hasn't seen: each is
+/// held to `PermissionEscalation.maxSummary`, since the drop's first-failure
+/// line is the summary plus what Return and Esc do, on one storey beside
+/// its subject.
+enum PermissionSummary: CaseIterable, Equatable, Sendable {
+    case ghostty, terminalTab, automation, keystrokes
 
-    static let all = [ghostty, terminalTab, automation, keystrokes]
+    var text: String {
+        switch self {
+        case .ghostty: return "Ghostty needs Accessibility"
+        case .terminalTab: return "A new tab needs Accessibility"
+        case .automation: return "Tintpad needs Automation"
+        case .keystrokes: return "Tintpad needs Accessibility"
+        }
+    }
 }
 
 /// One implementation per terminal app. Detection is bundle-id based; launch
@@ -174,7 +179,7 @@ struct GhosttyAdapter: TerminalAdapter {
         // instead. (Rebuilding an unsigned app resets this grant in macOS.)
         guard AXIsProcessTrusted() else {
             throw TerminalLaunchError.permissionNeeded(
-                summary: PermissionSummary.ghostty,
+                summary: .ghostty,
                 remedy: "Grant Tintpad in System Settings → Privacy & Security → Accessibility. If Tintpad is already listed, the grant has gone stale, remove it and add it back, then relaunch Tintpad.",
                 pane: .accessibility)
         }
@@ -354,7 +359,7 @@ struct AppleTerminalAdapter: TerminalAdapter {
         // fail with the actionable message, not a raw AppleScript error.
         if launch.openInTab, !AXIsProcessTrusted() {
             throw TerminalLaunchError.permissionNeeded(
-                summary: PermissionSummary.terminalTab,
+                summary: .terminalTab,
                 remedy: "Grant Tintpad in System Settings → Privacy & Security → Accessibility, or switch off open-in-tab. If Tintpad is already listed, remove it and add it back.",
                 pane: .accessibility)
         }
@@ -468,7 +473,7 @@ enum AppleScriptRunner {
         let raw = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
         if raw.contains("(-1743)") || raw.contains("(-1744)") {
             return .permissionNeeded(
-                summary: PermissionSummary.automation,
+                summary: .automation,
                 remedy: "Allow it in System Settings → Privacy & Security → Automation, then try again. If Tintpad is already allowed, the grant has gone stale, switch it off and on again.",
                 pane: .automation)
         }
@@ -476,7 +481,7 @@ enum AppleScriptRunner {
             || raw.localizedCaseInsensitiveContains("not allowed to send keystrokes")
             || raw.localizedCaseInsensitiveContains("not allowed assistive access") {
             return .permissionNeeded(
-                summary: PermissionSummary.keystrokes,
+                summary: .keystrokes,
                 remedy: "Grant Tintpad in System Settings → Privacy & Security → Accessibility. If Tintpad is already listed, the grant has gone stale, remove it and add it back, then relaunch Tintpad.",
                 pane: .accessibility)
         }

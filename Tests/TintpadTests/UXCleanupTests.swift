@@ -9,20 +9,25 @@ private func assertHouseStyle(_ lines: [String], file: StaticString = #filePath,
     }
 }
 
-/// The app's own Swift sources, as (file name, code lines). Comment lines are
-/// dropped, so a comment may name a color the code must not use.
+/// The app's own Swift sources, every subfolder included, as (path relative
+/// to Sources/Tintpad, line, code). Comment lines are dropped, so a comment
+/// may name a color the code must not use.
 private func sourceCodeLines() throws -> [(file: String, line: Int, text: String)] {
     let sources = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        .appendingPathComponent("Sources/Tintpad")
-    let files = try FileManager.default.contentsOfDirectory(at: sources, includingPropertiesForKeys: nil)
-        .filter { $0.pathExtension == "swift" }
+        .appendingPathComponent("Sources/Tintpad").standardizedFileURL
+    guard let walk = FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil) else {
+        XCTFail("can't walk \(sources.path)")
+        return []
+    }
+    let files = walk.compactMap { $0 as? URL }.filter { $0.pathExtension == "swift" }
     XCTAssertFalse(files.isEmpty, "no sources found at \(sources.path)")
     var out: [(String, Int, String)] = []
     for url in files {
+        let relative = String(url.standardizedFileURL.path.dropFirst(sources.path.count + 1))
         let lines = try String(contentsOf: url, encoding: .utf8).components(separatedBy: "\n")
         for (i, line) in lines.enumerated() where !line.trimmingCharacters(in: .whitespaces).hasPrefix("//") {
-            out.append((url.lastPathComponent, i + 1, line))
+            out.append((relative, i + 1, line))
         }
     }
     return out
@@ -81,16 +86,37 @@ final class MiddleLineBudgetTests: XCTestCase {
     }
 
     func testPermissionLinesFit() {
-        for summary in PermissionSummary.all {
-            XCTAssertLessThanOrEqual(summary.count, PermissionEscalation.maxSummary, summary)
+        for summary in PermissionSummary.allCases {
+            XCTAssertLessThanOrEqual(summary.text.count, PermissionEscalation.maxSummary, summary.text)
         }
-        var lines = PermissionSummary.all.map {
-            PermissionEscalation.line(pane: .accessibility, summary: $0, failures: 1)
+        var lines = PermissionSummary.allCases.map {
+            PermissionEscalation.line(pane: .accessibility, summary: $0.text, failures: 1)
         }
         for pane in [PrivacyPane.accessibility, .automation] {
             lines.append(PermissionEscalation.line(pane: pane, summary: "x", failures: 2))
+            // An agent name is the user's, give it room to be long.
+            lines.append(PermissionEscalation.grantedLine(pane: pane, agent: "Claude Code (sonnet, beta)"))
         }
         assertFits(lines)
+    }
+
+    /// The offer leaves the repo to its subject token (so no repo name can
+    /// push it past the budget), and VoiceOver, which can't see the token,
+    /// still hears the repo.
+    func testGrantedAnnouncementNamesTheRepo() {
+        let longRepo = String(repeating: "r", count: 60)
+        for pane in [PrivacyPane.accessibility, .automation] {
+            XCTAssertTrue(PermissionEscalation.grantedAnnouncement(pane: pane, repo: longRepo, agent: "Codex")
+                .contains(longRepo))
+        }
+    }
+
+    func testOtherStatusLinesFit() {
+        assertFits([
+            DropCopy.noEditor,
+            "\(LaunchService.ResumeError.unavailable)",
+            "\(LaunchService.ResumeError.inFlight)",
+        ])
     }
 
     func testEscalatedLinesStillSayTheRemedy() {
@@ -168,9 +194,36 @@ final class MiddleLineBudgetTests: XCTestCase {
 
 /// The drop's reshape curve and its honest empty strip.
 final class ReshapeAndEmptyStateTests: XCTestCase {
-    /// One curve for every reshape, the content arrival's length.
-    func testReshapeIsTheArrivalLength() {
-        XCTAssertEqual(DropTimeline.reshapeDuration, 0.22)
+    /// One curve for every reshape, defined from the content's arrival.
+    func testReshapeIsTheArrivalCurve() {
+        XCTAssertEqual(DropTimeline.reshapeDuration, DropTimeline.contentArrivalDuration)
+        XCTAssertEqual(DropTimeline.reshape, DropTimeline.contentArrival)
+    }
+
+    /// A whitespace-only query matches everything (`RepoSearch.rank` trims),
+    /// and a padded one is echoed trimmed, never as empty quotes.
+    func testQueryEchoIsTrimmed() {
+        XCTAssertEqual(DropCopy.emptyState(query: "  xyz \n", storeEmpty: false), "No repo matches “xyz”")
+        let repo = Repo(path: "/x/tintpad", name: "tintpad")
+        XCTAssertEqual(RepoSearch.rank("   ", in: [repo]).count, 1)
+    }
+
+    /// Tooltips and VoiceOver hints share one shape: what the chip does,
+    /// then how to change it, never the chip's own noun again.
+    func testChipHelpNeverRepeatsTheTag() {
+        let helps = [
+            DropCopy.promptHelp, DropCopy.agentHelp,
+            DropCopy.modeHelp(flags: "", dangerous: false),
+            DropCopy.modeHelp(flags: "--ask-for-approval untrusted", dangerous: false),
+            DropCopy.modeHelp(flags: "--dangerously-skip-permissions", dangerous: true),
+        ]
+        for help in helps {
+            for tag in ["Prompt", "Agent", "Mode"] { XCTAssertFalse(help.hasPrefix(tag), help) }
+        }
+        XCTAssertEqual(DropCopy.modeHelp(flags: "", dangerous: false), "Flags: none, click or ⇧⇥ to switch")
+        XCTAssertEqual(DropCopy.modeHelp(flags: "--x", dangerous: true),
+                       "Skips permissions (--x), click or ⇧⇥ to switch")
+        assertHouseStyle(helps)
     }
 
     func testNoMatchSaysSoWithoutSellingARescan() {
@@ -199,7 +252,7 @@ final class ReshapeAndEmptyStateTests: XCTestCase {
 final class KeysPaneTests: XCTestCase {
     func testPaneIsKeysAndSaysWhatItHolds() {
         XCTAssertEqual(SettingsTab.hotkeys.title, "Keys")
-        XCTAssertEqual(SettingsTab.hotkeys.subtitle, "The summon hotkey, and every key the drop answers to")
+        XCTAssertEqual(SettingsTab.hotkeys.subtitle, "Two global shortcuts, and every key the drop answers to")
     }
 
     func testSettingsChromeHouseStyle() {
