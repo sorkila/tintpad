@@ -4,8 +4,6 @@ All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
-## [0.4.2] - 2026-10-24
-
 ### Changed
 - **⌘0 and the new ⌃R continue the conversation instead of starting it
   again.** ⌘0 picks up the last session in the repo or worktree it ran in,
@@ -20,12 +18,6 @@ All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepac
 - **"Resume last session" is now "Continue last session"** in the menu,
   Settings → Keys and Recents, and a dangerous session from the menu or
   Recents now asks first, like the hotkey always did.
-- Settings → About links GitHub Sponsors instead of Buy me a coffee.
-- **An update waits in the menu bar, not behind your windows.** A scheduled
-  update found while you're working no longer opens an alert behind other
-  apps. The menu bar caret gains a small dot and the menu offers "Update to
-  0.4.2…", which brings the alert up in front. Settings → About shows it too,
-  as "Available 0.4.2" with an "Install 0.4.2…" button.
 - **The drop's lines fit.** Permission and error lines are written to fit one
   storey, the stale-grant line now reads "Still no Accessibility, remove and
   re-add Tintpad, Return opens the pane", and anything that still overflows
@@ -50,16 +42,10 @@ All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepac
 - **The site and README say what Tintpad is up front**, with the brew command
   one click away, a version stamp, a closing download section, AA contrast,
   and issue forms instead of markdown templates.
+- **An available update shows in Settings → About too**, as "Available X"
+  with an "Install X…" button.
 
 ### Fixed
-- **The update alert takes clicks.** It only surfaced when a summon brought
-  Tintpad forward, and clicking it took focus from the drop, whose dismissal
-  hid the app and the alert with it, so it could be neither installed nor
-  dismissed. Focus that moves from the drop to another Tintpad window now
-  leaves the app up, and an update alert comes forward with a Dock icon like
-  Settings does.
-  On 0.4.1, if the alert for this update won't take clicks, open Settings
-  from the menu bar first, then click Install and Relaunch.
 - **Agents are found on your real PATH** even when your shell config prints a
   greeting or notice, fish users get their full PATH, and a config that ends
   in `exec tmux` or `exec fish` no longer hides your agents (Tintpad retries
@@ -75,6 +61,25 @@ All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepac
 - **A command template fills its slots in one pass.** A value that holds
   another slot's name (a Continue form of `resume --last {prompt}`) is kept
   literally, where it used to depend on a random per-run order.
+
+## [0.4.2] - 2026-10-24
+
+### Changed
+- Settings → About links GitHub Sponsors instead of Buy me a coffee.
+- **An update waits in the menu bar, not behind your windows.** A scheduled
+  update found while you're working no longer opens an alert behind other
+  apps. The menu bar caret gains a small dot and the menu offers "Update to
+  <version>…", which brings the alert up in front.
+
+### Fixed
+- **The update alert takes clicks.** It only surfaced when a summon brought
+  Tintpad forward, and clicking it took focus from the drop, whose dismissal
+  hid the app and the alert with it, so it could be neither installed nor
+  dismissed. Focus that moves from the drop to another Tintpad window now
+  leaves the app up, and an update alert comes forward with a Dock icon like
+  Settings does.
+  On 0.4.1, if the alert for this update won't take clicks, open Settings
+  from the menu bar first, then click Install and Relaunch.
 
 ## [0.4.1] - 2026-09-17
 
