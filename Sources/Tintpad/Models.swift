@@ -29,6 +29,13 @@ struct Agent: Identifiable, Codable, Hashable {
     /// Command template with variables, e.g. `claude {mode} {prompt}`.
     /// The leading binary token is resolved to an absolute path at launch.
     var commandTemplate: String
+    /// The continue form, a fragment in the agent's own words the way a mode's
+    /// flags are (`--continue`, `resume --last`), placed at `{continue}` or
+    /// right after the binary (see `CommandTemplate`). Not a second template:
+    /// `commandTemplate` stays the one truth for the binary and its flags.
+    /// Nil was never set (backfilled for the seeds on load), "" was cleared
+    /// on purpose and means this agent has no continue form.
+    var continueFlags: String?
     var acceptsPrompt: Bool
     /// Hex tint string, e.g. "#FF7333". Nil draws the mark in plain ink, the
     /// product has no global accent to fall back to.
@@ -40,6 +47,13 @@ struct Agent: Identifiable, Codable, Hashable {
 
     var defaultMode: RunMode {
         modes.first { $0.id == defaultModeID } ?? modes.first ?? RunMode.defaultMode()
+    }
+
+    /// The continue form when there is one to run, nil for never set and for
+    /// cleared alike: either way a continue has nothing to say.
+    var continueForm: String? {
+        guard let flags = continueFlags.map(CommandTemplate.sanitize), !flags.isEmpty else { return nil }
+        return flags
     }
 
     var dangerousMode: RunMode? {
@@ -109,7 +123,7 @@ struct PromptTemplate: Identifiable, Codable, Hashable {
 
 // MARK: - Sessions
 
-/// A recorded launch, for recents / quick-resume.
+/// A recorded launch, for recents and continuing the last conversation.
 struct Session: Identifiable, Codable, Hashable {
     var id: UUID = UUID()
     var repoID: UUID
@@ -121,6 +135,10 @@ struct Session: Identifiable, Codable, Hashable {
     var modeName: String
     var prompt: String?
     var date: Date
+    /// The worktree the launch went into, nil for the repo root. Agents keep
+    /// their conversations per directory, so a continue runs here. Optional,
+    /// so every session recorded before it decodes as the root it was.
+    var worktreePath: String?
 }
 
 // MARK: - Appearance
@@ -297,6 +315,7 @@ enum AgentSeed {
         return Agent(
             name: "Claude Code",
             commandTemplate: "claude {mode} {prompt}",
+            continueFlags: "--continue",
             acceptsPrompt: true,
             tintHex: "#D97757",   // Claude clay
             symbol: "sparkle",
@@ -314,6 +333,7 @@ enum AgentSeed {
         return Agent(
             name: "Codex",
             commandTemplate: "codex {mode} {prompt}",
+            continueFlags: "resume --last",
             acceptsPrompt: true,
             tintHex: "#10A37F",   // OpenAI teal
             symbol: "chevron.left.forwardslash.chevron.right",
@@ -341,6 +361,32 @@ enum AgentSeed {
                 }
                 return mode
             }
+            return agent
+        }
+    }
+
+    /// The continue form each known binary speaks, keyed by the binary's own
+    /// name (verified against `--help`: Claude Code 2.1, Codex 0.147).
+    static let continueForms: [String: String] = [
+        "claude": "--continue",
+        "codex": "resume --last",
+    ]
+
+    /// Fill in the continue form for agents that never had one, matched on
+    /// the template's leading binary (its last path component), never the
+    /// name: a renamed "My Claude" still gets its form, a Claude seed pointed
+    /// at another binary does not. Only nil is filled, so a form the user
+    /// cleared ("") or wrote stays theirs. IDs are untouched, and a second
+    /// pass changes nothing, so `AppStore.load` writes back at most once.
+    static func backfillContinueFlags(_ agents: [Agent]) -> [Agent] {
+        agents.map { agent in
+            guard agent.continueFlags == nil else { return agent }
+            let head = agent.commandTemplate.trimmingCharacters(in: .whitespaces)
+                .split(separator: " ", maxSplits: 1).first.map(String.init) ?? ""
+            let binary = (head as NSString).lastPathComponent
+            guard let form = continueForms[binary] else { return agent }
+            var agent = agent
+            agent.continueFlags = form
             return agent
         }
     }

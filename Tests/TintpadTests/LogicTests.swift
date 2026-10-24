@@ -1260,7 +1260,7 @@ final class PaletteKeysTests: XCTestCase {
     // edit here, in the README, and in `PaletteModel.handle(_:)` together.
     func testPaletteKeysArePinned() {
         XCTAssertEqual(PaletteKeys.all.map(\.keys), [
-            "↑ ↓", "← →", "⏎", "⌘0", "⌘1–⌘9", "⌘⏎", "⌥⏎", "⇧⏎", "⌃⏎", "⌃W",
+            "↑ ↓", "← →", "⏎", "⌘0", "⌘1–⌘9", "⌘⏎", "⌥⏎", "⇧⏎", "⌃⏎", "⌃W", "⌃R",
             "⇥ / ⇧⇥", "⌘L · ⌘P", "⌘R · Esc", "⌘,",
         ])
     }

@@ -15,9 +15,9 @@ struct HotkeysSettingsView: View {
                     name: .summon
                 )
                 HotkeyRow(
-                    title: "Resume last session",
-                    caption: "Launch your last repo, agent and mode again.",
-                    name: .resumeLast
+                    title: "Continue last session",
+                    caption: "Pick up your most recent conversation in its repo.",
+                    name: .continueLast
                 )
             } header: {
                 Text("Global shortcuts")

@@ -46,9 +46,10 @@ Summon is the global hotkey (⌥⌘Space by default). Inside the drop:
 | ⌃⏎ | headless dispatch, notifies when done |
 | ⇥ / ⇧⇥ | cycle agent / cycle mode (yields to focus traversal under VoiceOver or Full Keyboard Access) |
 | ⌘1 to ⌘9 | jump to that repo and launch it, no arrowing |
-| ⌘0 | resume the last session |
+| ⌘0 | continue the last session's conversation |
 | ⌘L | capture a one-off starting prompt |
 | ⌃W | worktree mode, isolated checkout on a new branch |
+| ⌃R | continue the selected repo's conversation (in prompt mode, the typed text is the next turn) |
 | ⌘P | cycle the saved starting prompt |
 | ⌘R | rescan the root folders |
 | ⌘, | Settings |
@@ -106,7 +107,7 @@ land. `Charlie` below is that repo.
 | J7 | Arrow the strip | summon, → →, ⏎ | Charlie's marker, the third token |
 | J8 | Jump shortcut | summon, ⌘3 | Charlie's marker without any arrowing |
 | J9 | Danger needs consent | `confirmDangerousModes` on, ⇧⇥ to `Skip permissions`, ⏎ | no marker yet, the confirm line arms and reads `Skip permissions in <repo> with <agent>, Return confirms, Esc cancels`, a second ⏎ produces it. `confirmDangerousModes` is on by default for a new store only, an existing store keeps its value, the harness store writes it false, flip it for J9 |
-| J10 | Resume | J1 first, summon, ⌘0 | row 1's marker again, sessions deduped to one |
+| J10 | Continue | J1 first, set TestA's template to `touch /tmp/tp_A; echo "[{mode}{continue}]" > /tmp/tp_A_flags` and its Continue to `continued`, summon, ⌘0 | the flags file reads `[continued]`, sessions deduped to one. With Continue cleared the line says TestA has no continue form and nothing runs |
 | J11 | The app remembers | J4 first, summon again | the MODE chip states `Skip permissions`, and ⏎ passes `--test-danger` |
 | J12 | Worktree mode | summon, ⌃W, type a branch, ⏎ | the worktree dir exists and the marker ran inside it |
 | J13 | Dispatch is not a back door | ⇧⇥ to `Skip permissions`, ⌃⏎ with confirm on | dispatch waits at the same gate a plain ⏎ would |

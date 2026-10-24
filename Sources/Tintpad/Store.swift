@@ -132,12 +132,13 @@ final class AppStore: ObservableObject {
         case .loaded(let doc):
             repos = doc.repos
             let raw = doc.agents.isEmpty ? AgentSeed.defaults : doc.agents
-            agents = AgentSeed.migrateModeNames(raw)
+            agents = AgentSeed.backfillContinueFlags(AgentSeed.migrateModeNames(raw))
             prompts = doc.prompts
             sessions = doc.sessions
             settings = doc.settings
-            // A vocabulary migration that changed something is written back
-            // once, so the store speaks the new names from here on.
+            // A vocabulary migration or a continue-form backfill that changed
+            // something is written back once, so the store speaks the new
+            // names and carries the forms from here on.
             if agents != raw { persist() }
         case .missing:
             seed()
@@ -335,8 +336,10 @@ final class AppStore: ObservableObject {
 
     /// Record a launch as a session (newest first, de-duped by repo+agent+mode).
     /// Also stamps the repo's last-used agent + mode, so the palette can offer
-    /// "the way you opened it last" when no explicit default is pinned.
-    func recordSession(repo: Repo, agent: Agent, mode: RunMode, prompt: String?, now: Date = Date()) {
+    /// "the way you opened it last" when no explicit default is pinned, and
+    /// the worktree the launch went into, where a continue must run.
+    func recordSession(repo: Repo, agent: Agent, mode: RunMode, prompt: String?,
+                       worktreePath: String? = nil, now: Date = Date()) {
         if let idx = repos.firstIndex(where: { $0.id == repo.id }) {
             repos[idx].lastAgentID = agent.id
             repos[idx].lastModeID = mode.id
@@ -345,7 +348,7 @@ final class AppStore: ObservableObject {
             repoID: repo.id, repoPath: repo.path, repoName: repo.name,
             agentID: agent.id, agentName: agent.name,
             modeID: mode.id, modeName: mode.name,
-            prompt: prompt, date: now
+            prompt: prompt, date: now, worktreePath: worktreePath
         )
         sessions.removeAll { $0.repoID == repo.id && $0.agentID == agent.id && $0.modeID == mode.id }
         sessions.insert(session, at: 0)

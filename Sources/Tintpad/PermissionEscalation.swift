@@ -54,22 +54,34 @@ enum PermissionEscalation {
     /// agent and stays inside `DropCopy.maxLineCharacters` whatever the
     /// repo is called. VoiceOver, which can't see the token, hears
     /// `grantedAnnouncement` instead.
-    static func grantedLine(pane: PrivacyPane, agent: String) -> String {
-        switch pane {
-        case .accessibility:
+    ///
+    /// A held continue says so: Return continues the conversation, it never
+    /// reads as a fresh launch.
+    static func grantedLine(pane: PrivacyPane, agent: String, continuing: Bool = false) -> String {
+        switch (pane, continuing) {
+        case (.accessibility, false):
             return "\(noun(pane)) granted, Return launches \(agent)"
-        case .automation:
+        case (.accessibility, true):
+            return "\(noun(pane)) granted, Return continues with \(agent)"
+        case (.automation, false):
             return "Return retries the launch with \(agent)"
+        case (.automation, true):
+            return "Return tries again, continuing with \(agent)"
         }
     }
 
     /// `grantedLine` with the repo named, for VoiceOver.
-    static func grantedAnnouncement(pane: PrivacyPane, repo: String, agent: String) -> String {
-        switch pane {
-        case .accessibility:
+    static func grantedAnnouncement(pane: PrivacyPane, repo: String, agent: String,
+                                    continuing: Bool = false) -> String {
+        switch (pane, continuing) {
+        case (.accessibility, false):
             return "\(noun(pane)) granted. Return launches \(repo) with \(agent), or press escape to cancel."
-        case .automation:
+        case (.accessibility, true):
+            return "\(noun(pane)) granted. Return continues in \(repo) with \(agent), or press escape to cancel."
+        case (.automation, false):
             return "Return retries the launch in \(repo) with \(agent), or press escape to cancel."
+        case (.automation, true):
+            return "Return tries again, continuing in \(repo) with \(agent), or press escape to cancel."
         }
     }
 
