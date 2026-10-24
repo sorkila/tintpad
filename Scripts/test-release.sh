@@ -18,13 +18,18 @@ trap 'rm -rf "$TMP"' EXIT
 PASSED=0 FAILED=0
 ok()  { PASSED=$((PASSED + 1)); echo "  ✓ $*"; }
 bad() { FAILED=$((FAILED + 1)); echo "  ✗ $*"; }
+# VERBOSE=1 shows the failure lines (✗) a command printed, to see that a
+# negative case fails for the reason its description gives.
+show() { [[ "${VERBOSE:-0}" == 1 ]] && grep '✗' "$TMP/last" | sed 's/^/        /' || true; }
 expect() { # DESCRIPTION COMMAND… → passes when COMMAND succeeds
   local d="$1"; shift
-  if "$@" >/dev/null 2>&1; then ok "$d"; else bad "$d"; fi
+  if "$@" >"$TMP/last" 2>&1; then ok "$d"; else bad "$d"; fi
+  show
 }
 expect_not() { # DESCRIPTION COMMAND… → passes when COMMAND fails
   local d="$1"; shift
-  if "$@" >/dev/null 2>&1; then bad "$d"; else ok "$d"; fi
+  if "$@" >"$TMP/last" 2>&1; then bad "$d"; else ok "$d"; fi
+  show
 }
 expect_eq() { # DESCRIPTION ACTUAL EXPECTED
   if [[ "$2" == "$3" ]]; then ok "$1"; else bad "$1 (got '$2', expected '$3')"; fi
@@ -64,12 +69,22 @@ wraps.
   - a nested item
 - one & two \ $HOME
 
+```sh
+# a comment
+## not a heading either
+make it
+so
+```
+
+- after the fence
+
 ## [0.4.0] - 2026-09-16
 
 ## [0.3.9] - 2026-09-01
 - nine
 EOF
-expect_eq "0.4.1 is not confused with 0.4.10" "$(changelog_section "$TMP/CHANGELOG.md" 0.4.1 | tail -1)" '- one & two \ $HOME'
+expect_eq "0.4.1 is not confused with 0.4.10" "$(changelog_section "$TMP/CHANGELOG.md" 0.4.1 | tail -1)" '- after the fence'
+expect "a ## line inside a code fence does not end the section" grep -qxF -- '## not a heading either' <<<"$(changelog_section "$TMP/CHANGELOG.md" 0.4.1)"
 expect_eq "0.4.10 is its own section" "$(changelog_section "$TMP/CHANGELOG.md" 0.4.10)" "- ten"
 expect_not "an empty section counts as missing" changelog_section "$TMP/CHANGELOG.md" 0.4.0
 expect_not "an empty [Unreleased] counts as missing" changelog_section "$TMP/CHANGELOG.md" Unreleased
@@ -110,12 +125,36 @@ expect "a wrapped bullet is joined into one line" grep -qxF -- '- a bullet that 
 expect "a nested item stays its own line" grep -qxF -- '  - a nested item' "$TMP/notes.md"
 expect "a wrapped paragraph is joined" grep -qxF -- 'A paragraph that wraps.' "$TMP/notes.md"
 expect "the heading is not joined to its first bullet" grep -qxF -- '#### Fixed' "$TMP/notes.md"
+expect "a comment in a fenced block keeps its single #" grep -qxF -- '# a comment' "$TMP/notes.md"
+expect "a ## line in a fenced block is not demoted" grep -qxF -- '## not a heading either' "$TMP/notes.md"
+expect "lines in a fenced block are not joined" grep -qxF -- 'so' "$TMP/notes.md"
+expect "the fence closes on its own line" grep -qxF -- '```' "$TMP/notes.md"
 changelog_section CHANGELOG.md 0.4.1 > "$TMP/real-changes.md"
 render_release_notes Scripts/release-notes.md "$TMP/real-changes.md" 0.4.1 "$(printf 'a%.0s' {1..64})" > "$TMP/real-notes.md"
 expect_eq "the real 0.4.1 bullets are one line each" "$(grep -c '^- \*\*' "$TMP/real-notes.md")" "$(grep -c '^- ' "$TMP/real-changes.md")"
 expect_not "no line of the real 0.4.1 notes is a stray continuation" grep -q '^  [a-z]' "$TMP/real-notes.md"
 expect "the sha256 is stamped" grep -q "sha256 \`$(printf 'a%.0s' {1..64})\`" "$TMP/notes.md"
 expect_not "no placeholder survives" grep -q '{{' "$TMP/notes.md"
+
+echo "▸ GitHub release readiness (gh release view --json isDraft,assets)"
+SHA_C="$(printf 'c%.0s' {1..64})" SHA_D="$(printf 'd%.0s' {1..64})"
+asset() { printf '{"name":"%s","size":%s,"digest":"sha256:%s"}' "$1" "$2" "$3"; }
+release_json() { printf '{"isDraft":%s,"assets":[%s]}' "$1" "$2"; }
+expect "a published release with the signed DMG is ready" \
+  release_ready "$(release_json false "$(asset Tintpad.dmg 4951114 "$SHA_C")")" 4951114 "$SHA_C"
+expect "no digest from GitHub falls back to the size" \
+  release_ready '{"isDraft":false,"assets":[{"name":"Tintpad.dmg","size":4951114}]}' 4951114 "$SHA_C"
+expect_not "a draft is not ready" \
+  release_ready "$(release_json true "$(asset Tintpad.dmg 4951114 "$SHA_C")")" 4951114 "$SHA_C"
+expect_eq "and says why" "$(release_ready '{"isDraft":true,"assets":[]}' 1 "$SHA_C")" "the release is a draft, its download URL is a 404"
+expect_not "a release without Tintpad.dmg is not ready" \
+  release_ready "$(release_json false "$(asset Other.dmg 4951114 "$SHA_C")")" 4951114 "$SHA_C"
+expect_not "a Tintpad.dmg of another size is not ready" \
+  release_ready "$(release_json false "$(asset Tintpad.dmg 4951000 "$SHA_C")")" 4951114 "$SHA_C"
+expect_not "a Tintpad.dmg with another digest is not ready" \
+  release_ready "$(release_json false "$(asset Tintpad.dmg 4951114 "$SHA_C")")" 4951114 "$SHA_D"
+expect_not "a missing isDraft is not ready" release_ready '{"assets":[]}' 1 "$SHA_C"
+expect_not "something that is not JSON is not ready" release_ready 'HTTP 502' 1 "$SHA_C"
 
 echo "▸ Ed25519 verifier (RFC 8032 test 2)"
 RFC_SEED="4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb"
@@ -196,10 +235,58 @@ expect "release: --allow-dirty lets it through" check --allow-dirty
 rm "$TMP/fx/stray"
 (cd "$TMP/fx" && git -c tag.gpgSign=false tag v0.4.2)
 expect_not "release: an existing tag fails" check
-expect "release: --allow-existing-tag lets it through" check --allow-existing-tag
-fixture 0.4.1 12 0.4.1 12
-(cd "$TMP/fx" && git init -q && git add -A && git -c user.name=t -c user.email=t@t -c commit.gpgsign=false commit -qm fixture)
+expect "republish: an existing tag at HEAD is accepted" check --republish
+printf '<!-- rewritten -->\n' >> "$TMP/fx/web/appcast.xml"
+printf '# rewritten\n' >> "$TMP/fx/Casks/tintpad.rb"
+expect "republish: the appcast and cask a failed run wrote do not count as dirty" check --republish
+touch "$TMP/fx/stray"
+expect_not "republish: any other change still counts" check --republish
+rm "$TMP/fx/stray"
+
+fx_git() { (cd "$TMP/fx" && git -c user.name=t -c user.email=t@t -c commit.gpgsign=false -c tag.gpgSign=false "$@"); }
+commit_fx() { (cd "$TMP/fx" && git init -q) && fx_git add -A && fx_git commit -qm fixture; }
+next_commit() { printf '%s\n' "$1" > "$TMP/fx/other" && fx_git add other && fx_git commit -qm "$1"; }
+fx_git checkout -q -- .
+next_commit moved-on
+expect_not "republish: a tag at another commit fails" check --republish
+
+fixture 0.4.2 13 0.4.2 13
+commit_fx
 expect_not "release: the already published version fails" check
+fx_git tag v0.4.2
+expect "republish: the published version and build with the tag at HEAD pass" check --republish
+fx_git tag -d v0.4.2 >/dev/null
+expect "republish: the published version with no tag yet (a draft) passes" check --republish
+next_commit next
+fx_git tag v0.4.2 HEAD~1
+expect_not "republish: the published version with the tag elsewhere fails" check --republish
+fixture 0.4.2 13 0.4.3 14
+commit_fx
+expect_not "republish: a build below the published one still fails" check --republish
+
+echo "▸ check-release.sh against a live feed (file://)"
+fixture 0.4.1 12 0.4.1 12
+commit_fx
+printf '<!doctype html><title>Just a moment...</title>\n' > "$TMP/challenge.html"
+live() { local url="$1"; shift; APPCAST_URL="$url" "$TMP/fx/Scripts/check-release.sh" "$@"; }
+expect "ci: a live feed that reads passes" live "file://$TMP/fx/web/appcast.xml" --ci
+expect "ci: a 200 that is not a feed falls back to web/appcast.xml" live "file://$TMP/challenge.html" --ci
+expect "ci: and says so" grep -q 'not a feed, comparing against web/appcast.xml only' <<<"$(live "file://$TMP/challenge.html" --ci 2>&1)"
+expect "ci: an unreachable feed falls back too" live "file://$TMP/does-not-exist.xml" --ci
+fixture 0.4.2 13 0.4.1 12
+commit_fx
+expect "release: a live feed that reads passes" live "file://$TMP/fx/web/appcast.xml"
+expect_not "release: a 200 that is not a feed fails" live "file://$TMP/challenge.html"
+
+echo "▸ Build numbers with leading zeros"
+fixture 0.4.2 013 0.4.1 12
+expect_not "ci: a CFBundleVersion with a leading zero fails" check --ci
+fixture 0.4.2 13 0.4.1 012
+expect "ci: a feed build of 012 reads as 12, not octal" check --ci
+fixture 0.4.2 9 0.4.1 09
+expect_not "ci: a feed build of 09 reads as 9, so a new version at build 9 fails" check --ci
+fixture 0.4.2 10 0.4.1 09
+expect "ci: and build 10 is above it" check --ci
 
 echo "▸ release.sh --dry-run (fixture, feed via file://)"
 fixture 0.4.2 13 0.4.1 12
@@ -223,6 +310,14 @@ expect_not "a key file in the repo and not ignored stops the run" dry env SPARKL
 rm "$TMP/fx/stray.key"
 mkdir -p "$TMP/fx/secrets"; printf 'not a key\n' > "$TMP/fx/secrets/ed.key"
 expect "a gitignored key file in the repo is allowed" dry env SPARKLE_ED_KEY_FILE="$TMP/fx/secrets/ed.key"
+fixture 0.4.2 13 0.4.2 13
+commit_fx
+fx_git tag v0.4.2
+printf '<!-- rewritten -->\n' >> "$TMP/fx/Casks/tintpad.rb"
+export APPCAST_URL="file://$TMP/fx/web/appcast.xml"
+out="$(env -u SIGN_IDENTITY -u NOTARY_PROFILE -u SPARKLE_ED_KEY_FILE "$TMP/fx/Scripts/release.sh" --dry-run --republish 2>&1)" || true
+expect "a --republish dry run passes its preflight" grep -q 'republishing the published 0.4.2 (build 13), tag v0.4.2 is at HEAD' <<<"$out"
+expect "and plans to publish the draft" grep -q 'upload --clobber + edit --draft=false' <<<"$out"
 unset APPCAST_URL
 
 cd "$ROOT"

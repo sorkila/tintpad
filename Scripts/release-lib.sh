@@ -13,7 +13,8 @@ plist_get() {
 # version are literal and [0.4.1] never matches [0.4.10].
 changelog_section() {
   awk -v want="## [$2]" '
-    index($0, "## ") == 1 {
+    /^[ \t]*```/ { fenced = !fenced }
+    !fenced && index($0, "## ") == 1 {
       if (inside) exit
       if (index($0, want) == 1) {
         rest = substr($0, length(want) + 1)
@@ -99,6 +100,26 @@ parse_enclosure() {
   echo "${BASH_REMATCH[1]} ${BASH_REMATCH[2]}"
 }
 
+# release_ready JSON SIZE SHA256 → success when JSON (from `gh release view
+# TAG --json isDraft,assets`) is a published release whose Tintpad.dmg asset
+# has SIZE bytes and, when GitHub reports a digest, that sha256. Otherwise it
+# prints why and exits 1. release.sh writes no appcast pointing at a draft or
+# at a DMG that is not the one it signed.
+release_ready() {
+  local verdict
+  verdict="$(jq -r --argjson size "$2" --arg sha "sha256:$3" '
+    if .isDraft != false then "the release is a draft, its download URL is a 404"
+    else ([.assets[]? | select(.name == "Tintpad.dmg")] | first) as $a
+      | if $a == null then "it has no Tintpad.dmg asset"
+        elif $a.size != $size then "Tintpad.dmg is \($a.size) bytes on GitHub, the signed DMG is \($size)"
+        elif ($a.digest // "") != "" and $a.digest != $sha then "Tintpad.dmg on GitHub is \($a.digest), the signed DMG is \($sha)"
+        else "ok" end
+    end' <<<"$1" 2>/dev/null)" || verdict="gh did not return release JSON"
+  [[ "$verdict" == ok ]] && return 0
+  echo "${verdict:-gh did not return release JSON}"
+  return 1
+}
+
 # render_release_notes TEMPLATE CHANGES_FILE VERSION SHA256 → the GitHub
 # release body. The template's {{CHANGES}} line is replaced by the CHANGELOG
 # section with its headings demoted one level (they sit under "### New in")
@@ -122,8 +143,8 @@ render_release_notes() {
     $0 == "{{CHANGES}}" {
       held = 0; fenced = 0
       while ((getline line < changes) > 0) {
-        if (line ~ /^#+ /) line = "#" line
         if (line ~ /^[ \t]*```/) fenced = !fenced
+        if (!fenced && line ~ /^#+ /) line = "#" line
         if (held && !fenced && !starts_block(line) && pending !~ /^#+ / && pending !~ /^[ \t]*(```|\||$)/) {
           sub(/^[ \t]+/, "", line)
           pending = pending " " line

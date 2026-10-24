@@ -2,7 +2,8 @@
 
 One command cuts a release: `./Scripts/release.sh`. It checks the repo first, then
 builds, signs, notarizes, signs the Sparkle update, publishes the GitHub release, and
-rewrites the appcast and the Homebrew cask for you to commit. Everything below is
+rewrites the appcast, the Homebrew cask and the site's version stamp for you to
+commit. Everything below is
 what it needs and what it does.
 
 ## One-time setup
@@ -82,8 +83,9 @@ Optional, only if the manual Release workflow should sign too:
    ./Scripts/release.sh
    ```
 
-6. **Do the three steps it prints**: commit and push `web/appcast.xml` and
-   `Casks/tintpad.rb` (the push deploys the appcast to tintpad.com, which is the moment
+6. **Do the three steps it prints**: commit and push `web/appcast.xml`,
+   `web/index.html`, `web/sitemap.xml` and `Casks/tintpad.rb` (the push deploys the
+   appcast and the stamped site to tintpad.com, which is the moment
    installed copies see the update), copy the cask into `sorkila/homebrew-tap`, and
    test `brew install --cask sorkila/tap/tintpad`.
 
@@ -104,13 +106,32 @@ Optional, only if the manual Release workflow should sign too:
    anything is public.
 4. **Publish the GitHub release** with the DMG, the tag pinned to the commit the DMG
    was built from (`--target`), and notes rendered from `Scripts/release-notes.md`
-   around the CHANGELOG section.
+   around the CHANGELOG section. Then read the release back and stop unless it is
+   published (not a draft) and its `Tintpad.dmg` has the size and sha256 of the DMG
+   that was signed, so the appcast never points at a 404 or a different file.
 5. **Write `web/appcast.xml`** with the new item, its signature, length and date.
 6. **Rewrite `Casks/tintpad.rb`** with the version and the DMG's sha256.
+7. **Stamp the site**: the version line and the JSON-LD in `web/index.html`, the
+   `lastmod` in `web/sitemap.xml`.
 
-If a step after the GitHub release fails, the release is already public. Fix the
-cause and re-run with `--republish`, which skips the tag check and replaces the DMG
-and notes on the existing release instead of creating one.
+## When a release fails halfway
+
+Before step 4 nothing is public: fix the cause and run `release.sh` again.
+
+From step 4 on, the release exists on GitHub, published or left as a draft
+(`gh release create` drafts, uploads, then publishes, and can fail in between). Fix
+the cause and run `./Scripts/release.sh --republish`. Its preflight accepts what the
+first run left behind: the tag at HEAD or not created yet, the version and build
+already in the appcast if you committed it, and uncommitted changes to the files a
+release writes (`web/appcast.xml`, `Casks/tintpad.rb`, `web/index.html`,
+`web/sitemap.xml`). A tag at any other commit still stops it.
+
+A republish **rebuilds and re-notarizes**, so the DMG, its Sparkle signature and its
+sha256 all change. It replaces the DMG and notes on the release, publishes it if it
+was a draft, and writes the appcast, cask and site stamp again. Commit and push those
+files again even if the first run's versions were already committed: the old
+signature and sha256 do not match the new DMG, so Sparkle and Homebrew would both
+refuse it. Copy the cask into the tap again too.
 
 ## Release notes
 
@@ -126,6 +147,7 @@ one release belongs in its CHANGELOG section.
 ```sh
 ./Scripts/check-release.sh --ci   # what CI runs, passes on a resting main
 ./Scripts/check-release.sh        # the full release preflight
+./Scripts/check-release.sh --republish   # the preflight release.sh --republish runs
 ./Scripts/test-release.sh         # self-test of the release scripts against fixtures
 ./Scripts/package.sh && ./Scripts/check-bundle.sh   # unsigned bundle, then its structure
 ```

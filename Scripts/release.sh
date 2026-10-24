@@ -15,8 +15,12 @@
 #   --dry-run    preflight (a dirty tree only warns), render the release notes,
 #                show the signing path and the appcast item, then stop. Needs no
 #                credentials and builds nothing.
-#   --republish  the GitHub release already exists (a re-run after a failure
-#                past `gh release create`): re-upload the DMG and notes to it.
+#   --republish  the GitHub release already exists, published or left as a
+#                draft (a re-run after a failure past `gh release create`).
+#                Rebuilds and re-notarizes, so the DMG, its signature and its
+#                sha256 all change: the DMG and notes are replaced on the
+#                release, which is published, and the appcast and cask are
+#                written fresh and must be committed again.
 #
 # Sparkle signing: with SPARKLE_ED_KEY_FILE set, sign_update reads the private
 # key from that file and never touches the keychain, so the run is headless.
@@ -61,6 +65,7 @@ else
   : "${SIGN_IDENTITY:?set SIGN_IDENTITY, \"Developer ID Application: Name (TEAMID)\"}"
   : "${NOTARY_PROFILE:?set NOTARY_PROFILE, your notarytool keychain profile name}"
   command -v gh >/dev/null || die "gh is not installed (brew install gh, then gh auth login)"
+  command -v jq >/dev/null || die "jq is not installed (it ships with macOS 15 and later, or brew install jq)"
   gh auth status -h github.com >/dev/null 2>&1 || die "gh is not logged in to github.com (gh auth login)"
   echo "▸ Releasing Tintpad ${VERSION} (${TAG}, build ${BUILD})"
 fi
@@ -69,7 +74,7 @@ fi
 # 0. Preflight: versions against the live appcast, CHANGELOG, tree, tag.
 PREFLIGHT=()
 [[ "$DRY_RUN" -eq 1 ]] && PREFLIGHT+=(--allow-dirty)
-[[ "$REPUBLISH" -eq 1 ]] && PREFLIGHT+=(--allow-existing-tag)
+[[ "$REPUBLISH" -eq 1 ]] && PREFLIGHT+=(--republish)
 ./Scripts/check-release.sh ${PREFLIGHT[@]+"${PREFLIGHT[@]}"} "$VERSION"
 
 # Which key signs the appcast entry. An explicit key file must be usable, it
@@ -111,9 +116,11 @@ Would run, in order:
   2. sign_update ${SIGN_ARGS[*]+${SIGN_ARGS[*]} }${DMG}
                                      signing key: ${SIGN_DESC}
      verify-ed25519.swift            against SUPublicEDKey ${PUBLIC_ED_KEY}
-  3. gh release $([[ "$REPUBLISH" -eq 1 ]] && echo "upload --clobber + edit" || echo "create ${TAG} --target $(git rev-parse --short HEAD)") -R ${REPO}
+  3. gh release $([[ "$REPUBLISH" -eq 1 ]] && echo "upload --clobber + edit --draft=false" || echo "create ${TAG} --target $(git rev-parse --short HEAD)") -R ${REPO}
+     gh release view --json          published, Tintpad.dmg the signed size, or stop here
   4. web/appcast.xml                 ${VERSION} (build ${BUILD}) → ${DL}
   5. Casks/tintpad.rb                version "${VERSION}", sha256 of the DMG
+  6. web/index.html, sitemap.xml     stamped ${VERSION} / $(date +%F)
 
 sign_update: $(find_sign_update || echo "not fetched yet (package.sh's build fetches it)")
 SIGN_IDENTITY: $([[ -n "${SIGN_IDENTITY:-}" ]] && echo set || echo "unset, required for a real run")
@@ -151,22 +158,41 @@ ENCLOSURE="$(parse_enclosure "$SIG")" || die "sign_update printed something unex
 ED_SIGNATURE="${ENCLOSURE% *}"
 SIGNED_LENGTH="${ENCLOSURE#* }"
 [[ "$SIGNED_LENGTH" == "$SIZE" ]] || die "signed length ${SIGNED_LENGTH} does not match the DMG's ${SIZE} bytes"
-swift Scripts/verify-ed25519.swift "$PUBLIC_ED_KEY" "$ED_SIGNATURE" "$DMG" \
-  || die "the signature does not verify against SUPublicEDKey in Info.plist, wrong Sparkle key? Nothing was published."
-echo "▸ Signature verifies against SUPublicEDKey"
+VERIFY=0
+swift Scripts/verify-ed25519.swift "$PUBLIC_ED_KEY" "$ED_SIGNATURE" "$DMG" || VERIFY=$?
+case "$VERIFY" in
+  0) echo "▸ Signature verifies against SUPublicEDKey" ;;
+  1) die "the signature does not verify against SUPublicEDKey in Info.plist, wrong Sparkle key? Nothing was published." ;;
+  2) die "the signature or SUPublicEDKey is malformed (see the line above), not a key mismatch. Nothing was published." ;;
+  *) die "verify-ed25519.swift failed to run (exit ${VERIFY}). Nothing was published." ;;
+esac
 
 # 3. GitHub Release with the DMG. Notes go via a file (a heredoc inside $(...)
 # trips bash on the parens/backticks in the body). --target pins the tag to the
 # commit this DMG was built from, not whatever main is on GitHub.
 render_release_notes Scripts/release-notes.md "$CHANGES_FILE" "$VERSION" "$SHA" > "$NOTES_FILE"
+# `gh release create` is draft, upload, publish in three calls, so a failure
+# can leave a draft behind: --republish finishes it. --draft=false publishes a
+# draft (a no-op on a published release), --target only applies while the tag
+# does not exist yet.
 if [[ "$REPUBLISH" -eq 1 ]]; then
-  gh release view "$TAG" -R "$REPO" >/dev/null 2>&1 || die "--republish, but there is no release ${TAG}"
+  gh release view "$TAG" -R "$REPO" >/dev/null 2>&1 || die "--republish, but there is no release or draft ${TAG}"
   gh release upload "$TAG" "$DMG" --clobber -R "$REPO"
-  gh release edit "$TAG" -R "$REPO" --title "Tintpad ${VERSION}" --notes-file "$NOTES_FILE"
+  gh release edit "$TAG" -R "$REPO" --draft=false --target "$(git rev-parse HEAD)" \
+    --title "Tintpad ${VERSION}" --notes-file "$NOTES_FILE"
 else
   gh release create "$TAG" "$DMG" -R "$REPO" --target "$(git rev-parse HEAD)" \
-    --title "Tintpad ${VERSION}" --notes-file "$NOTES_FILE"
+    --title "Tintpad ${VERSION}" --notes-file "$NOTES_FILE" \
+    || die "gh release create failed. It may have left a draft ${TAG} on GitHub, re-run with --republish to finish it."
 fi
+
+# The appcast and cask point at the release's download URL, so they are written
+# only once GitHub serves the DMG this run signed.
+RELEASE_JSON="$(gh release view "$TAG" -R "$REPO" --json isDraft,assets)" \
+  || die "could not read release ${TAG} back from GitHub. The appcast and cask were not written, re-run with --republish."
+WHY="$(release_ready "$RELEASE_JSON" "$SIZE" "$SHA")" \
+  || die "release ${TAG} is not ready: ${WHY}. The appcast and cask were not written, re-run with --republish."
+echo "▸ Release ${TAG} is published with the signed Tintpad.dmg"
 
 # 4. Sparkle appcast (auto-deploys via web/ → tintpad.com/appcast.xml).
 PUB_DATE="$(LC_ALL=C date -u '+%a, %d %b %Y %H:%M:%S +0000')"
