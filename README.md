@@ -79,13 +79,14 @@ relaunch.
 | <kbd>↑</kbd> <kbd>↓</kbd> | Move through your repos |
 | <kbd>←</kbd> <kbd>→</kbd> | Move through your repos while the field is empty |
 | <kbd>⏎</kbd> | Launch what the chips say |
-| <kbd>⌘0</kbd> | Resume the last session exactly |
+| <kbd>⌘0</kbd> | Continue the last conversation |
 | <kbd>⌘1</kbd>–<kbd>⌘9</kbd> | Jump straight to the nth repo and launch it |
 | <kbd>⌘⏎</kbd> | Open repo in editor |
 | <kbd>⌥⏎</kbd> | Launch the dangerous mode |
 | <kbd>⇧⏎</kbd> | Launch the safest mode |
 | <kbd>⌃⏎</kbd> | Headless dispatch |
 | <kbd>⌃W</kbd> | New worktree |
+| <kbd>⌃R</kbd> | Continue the conversation |
 | <kbd>⇥</kbd> / <kbd>⇧⇥</kbd> | Cycle agent / mode |
 | <kbd>⌘L</kbd> · <kbd>⌘P</kbd> | Inline prompt · cycle saved prompt |
 | <kbd>⌘R</kbd> · <kbd>Esc</kbd> | Re-scan repos · close |

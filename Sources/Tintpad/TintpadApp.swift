@@ -120,7 +120,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                let s = store.lastSession, let agent = store.agent(s.agentID),
                agent.modes.first(where: { $0.id == s.modeID })?.isDangerous == true {
                 self?.panelController.show()
-                DispatchQueue.main.async { self?.panelController.model.resumeLastSession() }
+                DispatchQueue.main.async { self?.panelController.model.continueLastSession() }
                 return
             }
             LaunchService.continueLast(store: store) { result in

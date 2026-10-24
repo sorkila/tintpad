@@ -345,6 +345,139 @@ final class ContinueServiceTests: XCTestCase {
     }
 }
 
+/// The drop's two continue gestures, driven on the model with a terminal
+/// that opens nothing. No event is ever posted: ⌃R is handed to `handle(_:)`
+/// as an `NSEvent` object, the way the panel's monitor would.
+@MainActor
+final class ContinueDropTests: XCTestCase {
+    private var dir: URL!
+    private var store: AppStore!
+    private var terminal: CapturingTerminal!
+    private var savedResolver: (@MainActor (Settings) -> TerminalAdapter)!
+    private var model: PaletteModel!
+    private let safe = RunMode(name: "Default", flags: "", isDangerous: false, description: "")
+    private let skip = RunMode(name: "Skip permissions", flags: "--skip", isDangerous: true, description: "")
+
+    override func setUp() async throws {
+        dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tintpad-continue-drop-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        store = AppStore(fileURL: dir.appendingPathComponent("store.json"))
+        store.settings.rootScanFolders = []
+        store.settings.confirmDangerousModes = true
+        terminal = CapturingTerminal()
+        savedResolver = LaunchService.resolveTerminal
+        let fake = terminal!
+        LaunchService.resolveTerminal = { _ in fake }
+
+        store.addRepo(path: dir.path)
+        store.agents = [Agent(name: "Echo", commandTemplate: "/bin/echo {mode} {prompt}",
+                              continueFlags: "--continue", acceptsPrompt: true, tintHex: nil,
+                              symbol: "terminal", modes: [safe, skip], defaultModeID: safe.id)]
+        store.prompts = [PromptTemplate(title: "Tests", text: "write tests")]
+        model = PaletteModel(store: store, onClose: {}, onOpenSettings: {})
+        model.isPresented = { true }
+    }
+
+    override func tearDown() async throws {
+        LaunchService.resolveTerminal = savedResolver
+        try? FileManager.default.removeItem(at: dir)
+    }
+
+    private func controlR(_ extra: NSEvent.ModifierFlags = []) -> NSEvent {
+        NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: NSEvent.ModifierFlags.control.union(extra),
+                         timestamp: 0, windowNumber: 0, context: nil, characters: "\u{12}",
+                         charactersIgnoringModifiers: "r", isARepeat: false, keyCode: 15)!
+    }
+
+    private var lastCommand: String? { terminal.launches.last?.command }
+
+    func testControlRContinuesWithThePromptChip() {
+        model.cyclePrompt()
+        XCTAssertTrue(model.handle(controlR()))
+        XCTAssertEqual(lastCommand, CommandTemplate.inFreshSession("/bin/echo --continue 'write tests'"))
+        XCTAssertEqual(terminal.launches.last?.workingDirectory, dir.path)
+    }
+
+    func testReturnStillStartsFresh() {
+        model.handleReturn(modifiers: [])
+        XCTAssertEqual(lastCommand, CommandTemplate.inFreshSession("/bin/echo"))
+    }
+
+    func testOptionControlRPassesTheGate() {
+        XCTAssertTrue(model.handle(controlR(.option)))
+        XCTAssertTrue(model.isPendingDangerous, "a dangerous continue arms the confirm first")
+        XCTAssertTrue(terminal.launches.isEmpty)
+        model.handleReturn(modifiers: [])
+        XCTAssertEqual(lastCommand, CommandTemplate.inFreshSession("/bin/echo --continue --skip"))
+    }
+
+    func testControlROverAPendingConfirmOnlyCancels() {
+        model.handleReturn(modifiers: [.option])
+        XCTAssertTrue(model.isPendingDangerous)
+        XCTAssertTrue(model.handle(controlR()))
+        XCTAssertFalse(model.isPendingDangerous)
+        XCTAssertTrue(terminal.launches.isEmpty, "a ⌃R on a red line is a cancel, never a launch")
+    }
+
+    func testPromptModeSendsTheTypedTextAsTheNextTurn() {
+        model.enterPromptMode()
+        model.query = "and now the docs"
+        XCTAssertTrue(model.handle(controlR()))
+        XCTAssertEqual(lastCommand, CommandTemplate.inFreshSession("/bin/echo --continue 'and now the docs'"))
+    }
+
+    func testWorktreeModeIsInert() {
+        model.enterWorktreeMode()
+        model.query = "feature"
+        XCTAssertFalse(model.handle(controlR()))
+        XCTAssertTrue(terminal.launches.isEmpty)
+    }
+
+    func testNoFormSaysSoAndLaunchesNothing() {
+        store.agents[0].continueFlags = ""
+        XCTAssertTrue(model.handle(controlR()))
+        XCTAssertEqual(model.status, DropCopy.noContinueForm(agent: "Echo"))
+        XCTAssertNil(model.subjectRepo, "a status line about nothing wears no subject token")
+        XCTAssertTrue(terminal.launches.isEmpty)
+    }
+
+    func testCommandZeroWithNoSession() {
+        XCTAssertTrue(model.continueLastSession())
+        XCTAssertEqual(model.status, DropCopy.noSessionToContinue)
+        XCTAssertTrue(terminal.launches.isEmpty)
+    }
+
+    func testCommandZeroContinuesInTheWorktreeWithoutTheStoredPrompt() throws {
+        let worktree = dir.appendingPathComponent("wt", isDirectory: true)
+        try FileManager.default.createDirectory(at: worktree, withIntermediateDirectories: true)
+        store.recordSession(repo: store.repos[0], agent: store.agents[0], mode: safe,
+                            prompt: "the first message", worktreePath: worktree.path)
+        XCTAssertTrue(model.canContinueLast)
+        XCTAssertTrue(model.continueLastSession())
+        XCTAssertEqual(lastCommand, CommandTemplate.inFreshSession("/bin/echo --continue"))
+        XCTAssertEqual(terminal.launches.last?.workingDirectory, worktree.path)
+    }
+
+    func testCommandZeroSaysAGoneWorktree() {
+        store.recordSession(repo: store.repos[0], agent: store.agents[0], mode: safe,
+                            prompt: nil, worktreePath: dir.appendingPathComponent("gone").path)
+        XCTAssertFalse(model.canContinueLast)
+        XCTAssertTrue(model.continueLastSession())
+        XCTAssertEqual(model.status, DropCopy.worktreeGone)
+        XCTAssertTrue(terminal.launches.isEmpty)
+    }
+
+    func testCommandZeroOnADangerousSessionPassesTheGate() {
+        store.recordSession(repo: store.repos[0], agent: store.agents[0], mode: skip, prompt: nil)
+        XCTAssertTrue(model.continueLastSession())
+        XCTAssertTrue(model.isPendingDangerous)
+        XCTAssertTrue(terminal.launches.isEmpty)
+        model.handleReturn(modifiers: [])
+        XCTAssertEqual(lastCommand, CommandTemplate.inFreshSession("/bin/echo --continue --skip"))
+    }
+}
+
 final class ContinueCopyTests: XCTestCase {
     func testContinueLinesFitAndKeepHouseStyle() {
         let lines = [

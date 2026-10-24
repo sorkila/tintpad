@@ -29,6 +29,13 @@ enum ModeResolution {
 /// pressed within that beat, or with no editor installed, shows the resting
 /// MODE while Return opens (or fails to open) an editor. That never runs an
 /// agent, so it is never dangerous, and it keeps ⌘R and ⌘P from flashing.
+///
+/// Second accepted trade-off: the chips preview **Return**. Under ⌃ they read
+/// AGENT · MODE · RUN Headless, which is what ⌃⏎ runs and not what ⌃W (a
+/// new worktree) or ⌃R (continue the conversation) do. Those are their own
+/// keys, taught by the Keys table, not chips: a RUN chip naming three keys
+/// would break one capsule, one value. MODE stays true for ⌃R either way,
+/// since it resolves ⌥ and ⇧ through the same `ModeResolution`.
 enum ContractPreview {
     /// One capsule of the contract. `kind` is the identity (and decides what a
     /// click does), the rest is what it says. Extend here (a key hint, say)

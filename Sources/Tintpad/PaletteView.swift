@@ -6,7 +6,7 @@ private struct PendingLaunch {
     let agent: Agent
     let mode: RunMode
     /// What ⏎ replays once the user confirms — launch, dispatch, prompt,
-    /// worktree, or resume all arm the same banner with their own action.
+    /// worktree, or continue all arm the same banner with their own action.
     let fire: () -> Void
 }
 
@@ -74,6 +74,8 @@ struct HeldLaunch {
     let modeID: UUID
     let prompt: String?
     let worktreePath: String?
+    /// A continue replays as a continue, never as a fresh launch.
+    var continuing = false
 }
 
 /// A launch that failed on a missing grant, kept across summons from the
@@ -106,7 +108,7 @@ enum KeyPolicy {
 ///
 /// A pending confirm names its launch, a capture mode (worktree, prompt) its
 /// repo. Outside those, a status or permission line belongs to the launch
-/// that raised it, or to nothing (a scan result, "No session to resume yet"),
+/// that raised it, or to nothing (a scan result, "No session to continue yet"),
 /// and must never borrow the selection's chip.
 enum DropSubject {
     static func pick<R>(pending: R?, worktree: R?, prompt: R?, statusShown: Bool,
@@ -145,7 +147,7 @@ final class PaletteModel: ObservableObject {
     @Published var selection = 0
     /// The repo the last launch attempt was for, so its status line (Opening,
     /// an error, a note) keeps the right subject token even when that repo
-    /// is not the selected one (⌘0 resumes a session from any repo).
+    /// is not the selected one (⌘0 continues a session from any repo).
     @Published private(set) var launchRepo: Repo?
     /// The drop's content at its natural (unconstrained) width, measured by
     /// a hidden copy in the view. The view hugs the capsule to it.
@@ -192,7 +194,7 @@ final class PaletteModel: ObservableObject {
 
     /// Whether the strip's white chip on `repo` dims as Return's wordless
     /// acknowledgement: a launch is busy and it is the launch's own repo
-    /// (⌘0 resumes a repo that may not be the selection).
+    /// (⌘0 continues a repo that may not be the selection).
     func acknowledgesLaunch(of repo: Repo) -> Bool {
         launchBusy && (launchRepo == nil || launchRepo?.id == repo.id)
     }
@@ -624,9 +626,9 @@ final class PaletteModel: ObservableObject {
 
     var isPendingDangerous: Bool { pendingDangerous != nil }
 
-    /// True only when the session can actually be reconstructed — the ⌘0
-    /// hint must never advertise a resume that fails on arrival.
-    var hasLastSession: Bool { LaunchService.canContinueLast(store: store) }
+    /// True only when the last session's conversation can be continued, so
+    /// nothing advertises a ⌘0 that says no on arrival.
+    var canContinueLast: Bool { LaunchService.canContinueLast(store: store) }
 
     // MARK: - Git context (branch + dirty) for the selected row
 
@@ -845,10 +847,10 @@ final class PaletteModel: ObservableObject {
         default: break
         }
         // ⌘1–⌘9 jump straight to a numbered row and launch it. The numbers shown
-        // in the list are this shortcut, not decoration. ⌘0 replays the last
-        // session exactly — the zeroth row, in a sense: the one you just left.
+        // in the list are this shortcut, not decoration. ⌘0 continues the last
+        // session's conversation — the zeroth row, in a sense: the one you just left.
         if mods.contains(.command), let c = chars, c.count == 1, let digit = Int(c) {
-            if digit == 0 { return resumeLastSession() }
+            if digit == 0 { return continueLastSession() }
             if (1...9).contains(digit) { return launchByIndex(digit - 1) }
         }
         // Bulletproof type-to-search: if the field is genuinely first
@@ -879,6 +881,8 @@ final class PaletteModel: ObservableObject {
         if mods.contains(.command), chars == "p" { cyclePrompt(); return true }
         if mods.contains(.command), chars == "l" { enterPromptMode(); return true }
         if mods.contains(.control), chars == "w" { enterWorktreeMode(); return true }
+        // Return starts fresh, ⌃R continues. After ⌘R above, so ⌃⌘R scans.
+        if mods.contains(.control), chars == "r" { return continueConversation(modifiers: mods) }
         return false
     }
 
@@ -900,41 +904,81 @@ final class PaletteModel: ObservableObject {
         return true
     }
 
-    /// ⌘0 — relaunch the most recent session exactly (repo, agent, mode,
-    /// prompt), same semantics as the global resume hotkey. Inert while the
-    /// field is capturing a worktree branch or a prompt, like ⌘1–⌘9. A pending
-    /// confirm is cancelled, never fired, and a dangerous last session arms
-    /// the same confirm banner as any other dangerous launch.
+    /// ⌘0 — continue the most recent session's conversation, in the repo or
+    /// worktree it launched into, with its agent and mode, and without its
+    /// stored prompt (that was the conversation's first message). The same
+    /// semantics as the global continue hotkey. Inert while the field is
+    /// capturing a worktree branch or a prompt, like ⌘1–⌘9. A pending confirm
+    /// is cancelled, never fired, and a dangerous last session arms the same
+    /// confirm banner as any other dangerous launch. Nothing to continue is
+    /// said, and nothing launches in its place.
     @discardableResult
-    func resumeLastSession() -> Bool {
+    func continueLastSession() -> Bool {
         guard worktreeRepo == nil, promptRepo == nil else { return false }
         guard admitLaunchGesture() else { return true }
         clearTransient()
-        guard let session = store.lastSession else { status = "No session to resume yet"; return true }
-        let fire: () -> Void = { [weak self] in
+        guard let session = store.lastSession else { status = DropCopy.noSessionToContinue; return true }
+        if let blocker = LaunchService.continueBlocker(for: session, store: store) {
+            status = "\(blocker)"
+            return true
+        }
+        guard let repo = store.repos.first(where: { $0.id == session.repoID }),
+              let agent = store.agent(session.agentID),
+              let mode = agent.modes.first(where: { $0.id == session.modeID }) else { return true }
+        fireOrConfirm(repo: repo, agent: agent, mode: mode) { [weak self] in
             guard let self else { return }
-            let canResume = LaunchService.canContinueLast(store: store)
-            let opening = canResume ? LaunchService.terminalName(store: store) : nil
-            let repo = canResume ? store.repos.first { $0.id == session.repoID } : nil
-            // A retry replays "the last session" as it is at retry time, the
-            // same as pressing ⌘0 again.
-            let retry: (() -> Void)? = canResume ? { [weak self] in _ = self?.resumeLastSession() } : nil
+            // A retry continues "the last session" as it is at retry time,
+            // the same as pressing ⌘0 again.
+            let retry: () -> Void = { [weak self] in _ = self?.continueLastSession() }
             // Held after a permission failure as this session's concrete
-            // launch, so the offer runs what it names even if another session
-            // has become the last one since.
-            let held = canResume ? HeldLaunch(repoID: session.repoID, agentID: session.agentID,
-                                              modeID: session.modeID, prompt: session.prompt,
-                                              worktreePath: nil) : nil
-            beginLaunch(opening: opening, repo: repo, held: held, retry: retry) { [store] completion in
-                LaunchService.continueLast(store: store, completion: completion)
+            // continue, so the offer runs what it names even if another
+            // session has become the last one since.
+            let held = HeldLaunch(repoID: session.repoID, agentID: session.agentID,
+                                  modeID: session.modeID, prompt: nil,
+                                  worktreePath: session.worktreePath, continuing: true)
+            beginLaunch(opening: LaunchService.terminalName(store: store), repo: repo,
+                        held: held, retry: retry) { [store] completion in
+                LaunchService.continueSession(session, store: store, completion: completion)
             }
         }
-        if let agent = store.agent(session.agentID),
-           let mode = agent.modes.first(where: { $0.id == session.modeID }),
-           let repo = store.repos.first(where: { $0.id == session.repoID }) {
-            fireOrConfirm(repo: repo, agent: agent, mode: mode, fire)
+        return true
+    }
+
+    /// ⌃R — continue the selected repo's conversation with the agent and mode
+    /// the contract states (⌥⌃R the dangerous mode, ⇧⌃R the safest, through
+    /// `ModeResolution` like ⏎), sending the PROMPT chip as the next turn. In
+    /// prompt mode the typed text is the next turn: Return starts fresh, ⌃R
+    /// continues, everywhere in the drop. Runs in the repo root.
+    ///
+    /// Inert in worktree mode (a new worktree has no conversation yet).
+    /// Over a pending confirm, permission line or offer it is a cancel, never
+    /// a launch, so no ⌃R can fire something armed for another gesture. An
+    /// agent with no continue form says so and launches nothing.
+    @discardableResult
+    func continueConversation(modifiers mods: NSEvent.ModifierFlags) -> Bool {
+        guard worktreeRepo == nil else { return false }
+        guard admitLaunchGesture() else { return true }
+        if pendingDangerous != nil || pendingPermission != nil || resumeOffer != nil {
+            clearTransient()
+            return true
+        }
+        guard let repo = promptRepo ?? selectedRepo, let agent = activeAgent(for: repo) else { return true }
+        guard agent.continueForm != nil else {
+            launchRepo = nil
+            status = DropCopy.noContinueForm(agent: agent.name)
+            return true
+        }
+        // Read now: the typed text (or the chip) is what the gesture sends.
+        let prompt: String?
+        if promptRepo != nil {
+            let typed = query.trimmingCharacters(in: .whitespaces)
+            prompt = typed.isEmpty ? nil : typed
         } else {
-            fire()
+            prompt = selectedPrompt?.text
+        }
+        let mode = resolveMode(agent: agent, repo: repo, modifiers: mods)
+        fireOrConfirm(repo: repo, agent: agent, mode: mode) { [weak self] in
+            self?.launch(repo: repo, agent: agent, mode: mode, prompt: prompt, continuing: true)
         }
         return true
     }
@@ -1019,9 +1063,10 @@ final class PaletteModel: ObservableObject {
                 failures: max(permissionFailures[pane] ?? 0, 1), retry: retry)
             return
         }
+        // Nothing to continue is status, not a failure: no subject, no red.
         if error is LaunchService.ContinueError {
             launchRepo = nil
-            status = "⚠ \(error)"
+            status = "\(error)"
             return
         }
         if let failureLine = context.failureLine {
@@ -1250,8 +1295,8 @@ final class PaletteModel: ObservableObject {
             guard let (repo, agent, mode) = resolve(retry.launch) else { return }
             let held = retry.launch
             fireOrConfirm(repo: repo, agent: agent, mode: mode) { [weak self] in
-                self?.launch(repo: repo, agent: agent, mode: mode,
-                             prompt: held.prompt, worktreePath: held.worktreePath)
+                self?.launch(repo: repo, agent: agent, mode: mode, prompt: held.prompt,
+                             worktreePath: held.worktreePath, continuing: held.continuing)
             }
             return
         }
@@ -1277,7 +1322,7 @@ final class PaletteModel: ObservableObject {
 
     /// The one danger gate: every path that would run a permission-skipping
     /// mode arms the confirm banner (when the setting is on) instead of firing.
-    /// Launch, dispatch, prompt, worktree, and resume all pass through here —
+    /// Launch, dispatch, prompt, worktree, and continue all pass through here —
     /// no flow is quieter than the plain ⏎.
     private func fireOrConfirm(repo: Repo, agent: Agent, mode: RunMode,
                                _ fire: @escaping () -> Void) {
@@ -1323,22 +1368,23 @@ final class PaletteModel: ObservableObject {
     }
 
     /// The terminal launch itself, with everything already resolved, so a
-    /// retry from the error line runs exactly the same launch.
+    /// retry from the error line runs exactly the same launch, a continue
+    /// included.
     private func launch(repo: Repo, agent: Agent, mode: RunMode,
-                        prompt: String?, worktreePath: String? = nil) {
+                        prompt: String?, worktreePath: String? = nil, continuing: Bool = false) {
         let retry: () -> Void = { [weak self] in
             self?.fireOrConfirm(repo: repo, agent: agent, mode: mode) { [weak self] in
-                self?.launch(repo: repo, agent: agent, mode: mode,
-                             prompt: prompt, worktreePath: worktreePath)
+                self?.launch(repo: repo, agent: agent, mode: mode, prompt: prompt,
+                             worktreePath: worktreePath, continuing: continuing)
             }
         }
         let held = HeldLaunch(repoID: repo.id, agentID: agent.id, modeID: mode.id,
-                              prompt: prompt, worktreePath: worktreePath)
+                              prompt: prompt, worktreePath: worktreePath, continuing: continuing)
         beginLaunch(opening: LaunchService.terminalName(store: store), repo: repo, held: held,
                     retry: retry) { [store] completion in
             LaunchService.launchAgent(repo: repo, agent: agent, mode: mode, prompt: prompt,
                                       store: store, worktreePath: worktreePath,
-                                      completion: completion)
+                                      continuing: continuing, completion: completion)
         }
     }
 }
@@ -1398,7 +1444,8 @@ final class NotchAnchor: ObservableObject {
 ///    beats, so a re-summon cancels every stale beat and springs retarget
 ///    mid-flight. Reduce Motion replaces the film with a crossfade.
 /// 4. **Keyboard first, mouse honest.** ←/→ (or ↑/↓) move through tokens
-///    while the field is empty, ⏎ launches, ⌘1–⌘9 jump, ⌘0 resumes, ⇥/⇧⇥
+///    while the field is empty, ⏎ launches, ⌃R continues the conversation,
+///    ⌘1–⌘9 jump, ⌘0 continues the last session, ⇥/⇧⇥
 ///    cycle agent/mode — the contract's words are the clickable counterparts.
 struct PaletteView: View {
     @ObservedObject private var model: PaletteModel
