@@ -166,6 +166,35 @@ final class MiddleLineBudgetTests: XCTestCase {
     }
 }
 
+/// The drop's reshape curve and its honest empty strip.
+final class ReshapeAndEmptyStateTests: XCTestCase {
+    /// One curve for every reshape, the content arrival's length.
+    func testReshapeIsTheArrivalLength() {
+        XCTAssertEqual(DropTimeline.reshapeDuration, 0.22)
+    }
+
+    func testNoMatchSaysSoWithoutSellingARescan() {
+        XCTAssertEqual(DropCopy.emptyState(query: "xyz", storeEmpty: false), "No repo matches “xyz”")
+        XCTAssertFalse(DropCopy.emptyState(query: "xyz", storeEmpty: false).contains("⌘R"))
+    }
+
+    func testEmptyStoreOffersTheScan() {
+        XCTAssertEqual(DropCopy.emptyState(query: "", storeEmpty: true),
+                       "No repos yet, ⌘R scans your folders, or add roots in Settings")
+    }
+
+    func testLongQueryIsCutSoTheLineStaysOneStorey() {
+        let line = DropCopy.emptyState(query: String(repeating: "a", count: 200), storeEmpty: false)
+        XCTAssertLessThanOrEqual(line.count, DropCopy.maxLineCharacters)
+        XCTAssertTrue(line.hasSuffix("…”"), line)
+        assertHouseStyle([line, DropCopy.emptyState(query: "", storeEmpty: true)])
+    }
+
+    func testScanNoteHoldsLikeALaunchNote() {
+        XCTAssertEqual(PaletteModel.noteHold, 1.6)
+    }
+}
+
 /// An available update, said once in the menu and once in About.
 final class UpdateCopyTests: XCTestCase {
     func testMenuNamesThePendingVersion() {

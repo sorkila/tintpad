@@ -128,10 +128,23 @@ enum DropCopy {
         return lead + middleCut(path, to: maxLineCharacters - lead.count - keys.count) + keys
     }
 
-    /// ⌘R's answer.
+    /// ⌘R's answer. A note: it gives the strip back on its own after
+    /// `PaletteModel.noteHold`.
     static func scanned(_ n: Int) -> String {
         "Scanned, \(n) new repo\(n == 1 ? "" : "s")"
     }
+
+    /// The strip with nothing to show. A typo is not fixed by a rescan, so
+    /// only the empty store offers ⌘R and Settings. A long query is cut so
+    /// the line, which sizes the capsule, stays one storey.
+    static func emptyState(query: String, storeEmpty: Bool) -> String {
+        if storeEmpty { return "No repos yet, ⌘R scans your folders, or add roots in Settings" }
+        let q = query.trimmingCharacters(in: .whitespaces)
+        let shown = q.count > maxQueryEcho ? String(q.prefix(maxQueryEcho - 1)) + "…" : q
+        return "No repo matches “\(shown)”"
+    }
+
+    static let maxQueryEcho = 24
 
     /// Keeps the first and last characters of `s`, joined by an ellipsis.
     static func middleCut(_ s: String, to limit: Int) -> String {

@@ -526,10 +526,28 @@ final class PaletteModel: ObservableObject {
         launchNote = note
         status = note
         let noteGen = noteGeneration, summonGen = summonGeneration
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.noteHold) { [weak self] in
             guard let self, noteGeneration == noteGen, summonGeneration == summonGen,
                   noteShown else { return }
             requestDismiss(.launch)
+        }
+    }
+
+    /// How long a note (a launch's, a scan's) holds the middle region before
+    /// the drop moves on by itself.
+    nonisolated static let noteHold: TimeInterval = 1.6
+
+    /// ⌘R's answer, a note about nothing in particular: it gives the strip
+    /// back on its own after `noteHold`, unless something has replaced it.
+    private func showScanResult(_ n: Int) {
+        let line = DropCopy.scanned(n)
+        status = line
+        noteGeneration += 1
+        let noteGen = noteGeneration, summonGen = summonGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.noteHold) { [weak self] in
+            guard let self, noteGeneration == noteGen, summonGeneration == summonGen,
+                  status == line, !isDismissing else { return }
+            status = nil
         }
     }
 
@@ -851,7 +869,7 @@ final class PaletteModel: ObservableObject {
             // The scan result replaces a resume offer, which declines it.
             if resumeOffer != nil { clearTransient() }
             launchRepo = nil
-            status = DropCopy.scanned(n)
+            showScanResult(n)
             return true
         }
         if mods.contains(.command), chars == "p" { cyclePrompt(); return true }
@@ -1646,7 +1664,13 @@ struct PaletteView: View {
                 .reveal(contentB, rise: !exiting)
         }
         // The middle-region swap is a crossfade, never a hard cut.
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.16), value: middleToken)
+        .animation(reduceMotion ? nil : DropTimeline.reshape, value: middleToken)
+        // Nor is a query that empties the results: with no repo there is
+        // honestly no contract, and the chips fade out (and back) on the
+        // drop's one reshape curve instead of popping on the keystroke. The
+        // hidden measuring copy shares the condition, and the ratchet holds
+        // the width while text is in the field, so nothing shrinks under it.
+        .animation(reduceMotion ? nil : DropTimeline.reshape, value: model.selectedRepo == nil)
         // Optical law: the first chip's margin reads equal to the vertical
         // inset. The scroll clip's 3pt protection already supplies the
         // round-end breath — adding more made the left visibly heavier
@@ -1677,8 +1701,10 @@ struct PaletteView: View {
                 .focused($searchFocused)
                 .tint(model.isPendingDangerous ? dangerTint : .white)
                 .accessibilityLabel(fieldAccessibilityLabel)
-            if !model.query.isEmpty, model.worktreeRepo == nil, model.promptRepo == nil {
-                // Shown only while filtering — "11 of 11" is not information.
+            if !model.query.isEmpty, model.worktreeRepo == nil, model.promptRepo == nil,
+               !model.filtered.isEmpty {
+                // Shown only while filtering — "11 of 11" is not information,
+                // and nor is a "0" beside a line that already says no match.
                 Text("\(model.filtered.count)")
                     .font(.system(size: metaSize))
                     .foregroundStyle(.tertiary)
@@ -1688,8 +1714,8 @@ struct PaletteView: View {
         .frame(width: searchRegionWidth, alignment: .leading)
         .padding(.trailing, searchRegionTrailing)
         .opacity(resting ? 0 : 1)
-        .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.85),
-                   value: resting)
+        // The hug's curve, so the field and the capsule widen as one.
+        .animation(reduceMotion ? nil : DropTimeline.reshape, value: resting)
     }
 
     private var capturing: Bool { model.worktreeRepo != nil || model.promptRepo != nil }
@@ -2034,19 +2060,19 @@ struct PaletteView: View {
                                    queryEmpty: model.query.isEmpty && middleToken == 0)
         guard next != hugWidth else { return }
         if animated && !reduceMotion && phase == .spread && contentA {
-            withAnimation(.smooth(duration: 0.2)) { hugWidth = next }
+            withAnimation(DropTimeline.reshape) { hugWidth = next }
         } else {
             snap { hugWidth = next }
         }
     }
 
     private var emptyState: some View {
-        Text(model.allRepos.isEmpty
-             ? "No repos yet, ⌘R scans your folders, or add roots in Settings"
-             : "No match for “\(model.query)”, ⌘R rescans your folders")
+        Text(DropCopy.emptyState(query: model.query, storeEmpty: model.allRepos.isEmpty))
             .font(.system(size: fieldSize))
             .foregroundStyle(.secondary)
             .lineLimit(1)
+            // Fades in and out with the contract, under `content`'s reshape.
+            .transition(.opacity)
     }
 
     private func accessibilityText(repo: Repo, agent: Agent?, mode: RunMode?, index: Int) -> String {
@@ -2070,8 +2096,10 @@ struct PaletteView: View {
     /// hardware labels its controls: a micro-label eyebrow (AGENT, MODE) and
     /// the value. The drop speaks one object language: every element is a
     /// capsule of one height. White = where you are, gray = what ⏎ does,
-    /// red = it skips permissions. Always present (a contract that sometimes
-    /// hides reads as a bug), and quietly clickable (the visible counterpart
+    /// red = it skips permissions. Always present while there is a repo (a
+    /// contract that sometimes hides reads as a bug; with no match there is
+    /// honestly nothing to contract, and it fades out on the reshape curve
+    /// rather than popping), and quietly clickable (the visible counterpart
     /// of ⇥/⇧⇥, real flags in the tooltip). No branch chip: where you are
     /// launching *from* is the tile's business, not the contract's.
     ///
@@ -2109,7 +2137,7 @@ struct PaletteView: View {
             help = "Starting prompt, ⌘P cycles"
             action = { model.cyclePrompt() }
         case .agent:
-            help = "Agent, click or ⇥ to switch"
+            help = "Click or ⇥ to switch"
             action = { model.cycleAgent() }
         case .mode:
             help = modeHelp(model.previewMode(agent: agent, repo: repo))
@@ -2301,7 +2329,10 @@ private struct ChipButton: View {
         }
         .buttonStyle(.plain)
         .help(help)
-        .accessibilityLabel("\(tag): \(label). \(help)")
+        // "Agent, Claude Code", then the hint: the tag said once, not again
+        // at the head of the help text.
+        .accessibilityLabel("\(tag.prefix(1).uppercased() + tag.dropFirst()), \(label)")
+        .accessibilityHint(help)
         .onHover { hovering = $0 }
     }
 }

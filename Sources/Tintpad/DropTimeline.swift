@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 /// Why the drop is leaving. Each reason gets its own exit.
 enum DismissReason: Equatable, CaseIterable {
@@ -63,6 +64,15 @@ enum DropTimeline {
         let at: TimeInterval
         let step: Step
     }
+
+    /// The drop changing shape while it is up: the query field
+    /// materializing, the capsule hugging its content, the middle region
+    /// swapping, the contract leaving when nothing matches. One curve for
+    /// all of them, critically damped (an underdamped field overshot the
+    /// room the hug gave it), and the same length as the content's arrival,
+    /// so everything that moves on a keystroke breathes at one rate.
+    static let reshapeDuration: TimeInterval = 0.22
+    static var reshape: Animation { .smooth(duration: reshapeDuration) }
 
     static func arrival(reduceMotion: Bool) -> [Beat] {
         if reduceMotion { return [Beat(at: 0, step: .crossfadeIn)] }
