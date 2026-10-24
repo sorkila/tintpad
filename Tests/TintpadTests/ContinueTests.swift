@@ -557,6 +557,15 @@ final class ContinueSurfaceTests: XCTestCase {
         XCTAssertEqual(KeyboardShortcuts.Name.continueLast.rawValue, "resumeLast")
     }
 
+    // A blocked Recents row's tooltip is the blocker's description, which
+    // must be the drop's own line for the same reason.
+    func testBlockerTooltipsAreTheDropLines() {
+        XCTAssertEqual(LaunchService.ContinueError.unavailable.description, DropCopy.sessionGone)
+        XCTAssertEqual(LaunchService.ContinueError.worktreeGone.description, DropCopy.worktreeGone)
+        XCTAssertEqual(LaunchService.ContinueError.noContinueForm("Codex").description,
+                       DropCopy.noContinueForm(agent: "Codex"))
+    }
+
     func testSettingsCopyKeepsHouseStyle() {
         for text in [SettingsTab.recents.subtitle, DropCopy.noContinueForm(agent: "Codex")] {
             XCTAssertFalse(text.contains("—"), text)

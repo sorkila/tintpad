@@ -113,7 +113,13 @@ struct RecentsSettingsView: View {
                 .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
-            Button("Continue") { continueSession(s) }.controlSize(.small)
+            // Disabled the way the menu item is, with the drop's own reason
+            // as the tooltip, so a row never offers a continue that says no.
+            let blocker = LaunchService.continueBlocker(for: s, store: store)
+            Button("Continue") { continueSession(s) }
+                .controlSize(.small)
+                .disabled(blocker != nil)
+                .help(blocker?.description ?? "Continue this conversation")
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
     }
