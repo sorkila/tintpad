@@ -31,8 +31,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
             w.setContentSize(hosting.fittingSize)   // fit the window to the content
             window = w
         }
-        NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
+        AppPresence.claim(.onboarding)
         window?.center()
         window?.makeKeyAndOrderFront(nil)
         window?.orderFrontRegardless()
@@ -65,7 +64,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
         AppStore.shared.settings.hasOnboarded = true
         AppStore.shared.save()
-        NSApp.setActivationPolicy(.accessory)
+        AppPresence.release(.onboarding)
     }
 }
 

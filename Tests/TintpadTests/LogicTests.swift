@@ -925,6 +925,64 @@ final class DismissSequencerTests: XCTestCase {
         XCTAssertEqual(s.state, .hidden)
         XCTAssertEqual(s.handle(.summon), [.restoreAndOrderIn])
     }
+
+    // The 0.4.1 update alert: clicking it took key from the drop, the focus-loss
+    // dismissal hid the app, and the alert went with it. Focus that moved to one
+    // of our own windows orders the drop out but leaves the app where it is.
+    func testFocusMovedWithinAppSkipsTheAppHide() {
+        var s = shown()
+        XCTAssertEqual(s.handle(.focusMovedWithinApp), [])
+        _ = s.handle(.dismiss)
+        XCTAssertEqual(s.handle(.blankCommitted(generation: s.generation)), [.orderOut])
+    }
+
+    func testSummonRestoresTheAppHide() {
+        var s = shown()
+        _ = s.handle(.focusMovedWithinApp)
+        _ = s.handle(.dismiss)
+        _ = s.handle(.blankCommitted(generation: s.generation))
+        _ = s.handle(.summon)
+        _ = s.handle(.dismiss)
+        XCTAssertEqual(s.handle(.blankCommitted(generation: s.generation)), [.orderOut, .hideAppNextTurn],
+                       "an Esc on the next summon returns focus as always")
+    }
+
+    func testFocusMovedWithinAppDoesNotMoveTheGeneration() {
+        var s = shown()
+        _ = s.handle(.dismiss)
+        let pending = s.generation
+        _ = s.handle(.focusMovedWithinApp)
+        XCTAssertEqual(s.generation, pending, "the queued blank commit must still land")
+        XCTAssertEqual(s.handle(.blankCommitted(generation: pending)), [.orderOut])
+    }
+}
+
+final class DockPresenceTests: XCTestCase {
+    func testAccessoryWhenNothingClaims() {
+        XCTAssertEqual(DockPresence().policy, .accessory)
+    }
+
+    // Closing Settings must not pull the Dock icon out from under an update
+    // alert still waiting for its click.
+    func testRegularUntilTheLastClaimLetsGo() {
+        var p = DockPresence()
+        p.claim(.update)
+        p.claim(.settings)
+        p.release(.settings)
+        XCTAssertEqual(p.policy, .regular)
+        p.release(.update)
+        XCTAssertEqual(p.policy, .accessory)
+    }
+
+    func testClaimsAreIdempotent() {
+        var p = DockPresence()
+        p.claim(.update)
+        p.claim(.update)
+        p.release(.update)
+        XCTAssertEqual(p.policy, .accessory)
+        p.release(.onboarding)
+        XCTAssertEqual(p.policy, .accessory, "releasing an unheld reason is harmless")
+    }
 }
 
 final class DropGeometryTests: XCTestCase {

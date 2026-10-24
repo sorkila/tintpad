@@ -13,7 +13,9 @@ import Foundation
 ///      server keeps from here on is fully transparent.
 ///   2. **Order out**, one runloop turn later, once the blank is committed.
 ///   3. **Hide the app**, one more turn later, returning focus to whatever
-///      was frontmost before the summon.
+///      was frontmost before the summon. Skipped when the drop lost focus to
+///      another Tintpad window (an update alert, Settings): hiding the app
+///      would take the window the user just clicked away with the drop.
 ///
 /// A summon at any point cancels what hasn't happened yet: the generation
 /// moves, so a blank commit still queued for the old dismissal is ignored.
@@ -26,6 +28,9 @@ struct DismissSequencer: Equatable {
         /// The panel was ordered out outside the sequence (opening Settings),
         /// so the next summon must still restore it.
         case orderedOut
+        /// Key moved from the drop to another of the app's own windows, so
+        /// this dismissal leaves the app active.
+        case focusMovedWithinApp
     }
     enum Effect: Equatable { case blank, orderOut, hideAppNextTurn, restoreAndOrderIn }
 
@@ -33,6 +38,8 @@ struct DismissSequencer: Equatable {
     /// Moves on every dismissal and every summon. Anything deferred captures
     /// it and stands down if it changed in the meantime.
     private(set) var generation = 0
+    /// Whether the current dismissal hides the app. Reset by every summon.
+    private(set) var returnsFocus = true
 
     var isDismissing: Bool {
         if case .blanking = state { return true } else { return false }
@@ -46,15 +53,20 @@ struct DismissSequencer: Equatable {
             return [.blank]
         case (.blanking(let g), .blankCommitted(let committed)) where g == committed:
             state = .hidden
-            return [.orderOut, .hideAppNextTurn]
+            return returnsFocus ? [.orderOut, .hideAppNextTurn] : [.orderOut]
         case (.blanking, .summon), (.hidden, .summon):
             generation += 1
             state = .visible
+            returnsFocus = true
             return [.restoreAndOrderIn]
         case (.visible, .summon):
             // Already up, but the generation still moves, so a focus-loss hide
             // deferred by the controller stands down when a summon lands on top.
             generation += 1
+            returnsFocus = true
+            return []
+        case (.visible, .focusMovedWithinApp), (.blanking, .focusMovedWithinApp):
+            returnsFocus = false
             return []
         case (_, .orderedOut):
             generation += 1
