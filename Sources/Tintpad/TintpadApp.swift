@@ -62,12 +62,8 @@ struct TintpadApp: App {
             }
             // A scheduled update waits here rather than in an alert behind the
             // user's work (see UpdaterController), so the item names it.
-            if let version = updater.pendingVersion {
-                Button("Update to \(version)…") { updater.checkForUpdates() }
-            } else {
-                Button("Check for Updates…") { updater.checkForUpdates() }
-                    .disabled(!updater.canCheckForUpdates)
-            }
+            Button(UpdateCopy.menuTitle(pending: updater.pendingVersion)) { updater.checkForUpdates() }
+                .disabled(updater.pendingVersion == nil && !updater.canCheckForUpdates)
             Divider()
             Button("Quit Tintpad") { NSApp.terminate(nil) }
                 .keyboardShortcut("q")

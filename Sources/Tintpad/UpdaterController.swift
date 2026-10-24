@@ -90,6 +90,20 @@ final class UpdaterController: NSObject, ObservableObject {
     }
 }
 
+/// What an update says in the menu and in Settings → About. Pure so the copy
+/// is tested, and one place so the two surfaces say the same thing.
+enum UpdateCopy {
+    /// The menu item, verb first like the "Check for Updates…" it stands in for.
+    static func menuTitle(pending: String?) -> String {
+        pending.map { "Update to \($0)…" } ?? "Check for Updates…"
+    }
+
+    /// About's button. The version is already named on the row above it.
+    static func buttonTitle(pending: String?) -> String {
+        pending.map { "Install \($0)…" } ?? "Check for Updates…"
+    }
+}
+
 extension UpdaterController: @preconcurrency SPUStandardUserDriverDelegate {
     var supportsGentleScheduledUpdateReminders: Bool { true }
 

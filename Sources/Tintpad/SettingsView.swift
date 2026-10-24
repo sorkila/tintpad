@@ -240,13 +240,19 @@ struct AboutSettingsView: View {
 
             VStack(spacing: 6) {
                 LabeledContent("Version", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.0")
+                // A scheduled update waits here as well as in the menu bar,
+                // said once, quietly, in the mono of the version beside it.
+                if let pending = updater.pendingVersion {
+                    LabeledContent("Available", value: pending)
+                        .foregroundStyle(.secondary)
+                }
                 LabeledContent("Data", value: "~/Library/Application Support/Tintpad")
             }
             .font(.monoStyle(.callout)).frame(maxWidth: 420)
 
             HStack(spacing: 12) {
-                Button("Check for Updates…") { updater.checkForUpdates() }
-                    .disabled(!updater.canCheckForUpdates)
+                Button(UpdateCopy.buttonTitle(pending: updater.pendingVersion)) { updater.checkForUpdates() }
+                    .disabled(updater.pendingVersion == nil && !updater.canCheckForUpdates)
                 // A link earns its affordance from ink and a rule, not from
                 // blue: the root tint would otherwise sink these to gray and
                 // they would stop reading as clickable at all.
