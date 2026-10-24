@@ -7,3 +7,6 @@ secrets/
 
 # Internal strategy docs — kept local, never public
 private/
+
+# Agent build worktrees
+.claude/worktrees/

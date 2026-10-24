@@ -58,6 +58,8 @@ All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepac
   dismissed. Focus that moves from the drop to another Tintpad window now
   leaves the app up, and an update alert comes forward with a Dock icon like
   Settings does.
+  On 0.4.1, if the alert for this update won't take clicks, open Settings
+  from the menu bar first, then click Install and Relaunch.
 - **Agents are found on your real PATH** even when your shell config prints a
   greeting or notice, fish users get their full PATH, and a config that ends
   in `exec tmux` or `exec fish` no longer hides your agents (Tintpad retries
