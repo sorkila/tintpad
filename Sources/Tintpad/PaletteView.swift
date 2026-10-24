@@ -303,6 +303,9 @@ final class PaletteModel: ObservableObject {
     /// The offer line while a summon is offering `pendingRetry`. Return runs
     /// it, Esc forgets it.
     @Published private(set) var resumeOffer: String?
+    /// The offer as VoiceOver hears it, with the repo the line leaves to its
+    /// subject token. Set with `resumeOffer`, read only while it shows.
+    private(set) var resumeOfferAnnouncement = ""
 
     /// Whether the panel is on screen. Set by the controller: Settings orders
     /// the panel out without a dismissal, so `isDismissing` alone can't tell.
@@ -526,10 +529,28 @@ final class PaletteModel: ObservableObject {
         launchNote = note
         status = note
         let noteGen = noteGeneration, summonGen = summonGeneration
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.noteHold) { [weak self] in
             guard let self, noteGeneration == noteGen, summonGeneration == summonGen,
                   noteShown else { return }
             requestDismiss(.launch)
+        }
+    }
+
+    /// How long a note (a launch's, a scan's) holds the middle region before
+    /// the drop moves on by itself.
+    nonisolated static let noteHold: TimeInterval = 1.6
+
+    /// ⌘R's answer, a note about nothing in particular: it gives the strip
+    /// back on its own after `noteHold`, unless something has replaced it.
+    private func showScanResult(_ n: Int) {
+        let line = DropCopy.scanned(n)
+        status = line
+        noteGeneration += 1
+        let noteGen = noteGeneration, summonGen = summonGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.noteHold) { [weak self] in
+            guard let self, noteGeneration == noteGen, summonGeneration == summonGen,
+                  status == line, !isDismissing else { return }
+            status = nil
         }
     }
 
@@ -787,8 +808,9 @@ final class PaletteModel: ObservableObject {
             // user where the launch was. Named as the store has them now.
             select(filtered.firstIndex { $0.id == repo.id } ?? 0, animated: false)
             launchRepo = repo
-            resumeOffer = PermissionEscalation.grantedLine(
+            resumeOfferAnnouncement = PermissionEscalation.grantedAnnouncement(
                 pane: retry.pane, repo: repo.name, agent: agent.name)
+            resumeOffer = PermissionEscalation.grantedLine(pane: retry.pane, agent: agent.name)
         }
     }
 
@@ -851,7 +873,7 @@ final class PaletteModel: ObservableObject {
             // The scan result replaces a resume offer, which declines it.
             if resumeOffer != nil { clearTransient() }
             launchRepo = nil
-            status = "Scanned, \(n) new repo\(n == 1 ? "" : "s")"
+            showScanResult(n)
             return true
         }
         if mods.contains(.command), chars == "p" { cyclePrompt(); return true }
@@ -993,7 +1015,7 @@ final class PaletteModel: ObservableObject {
             status = nil   // the "Opening …" line has had its turn
             let retry = context.held.map { PendingRetry(launch: $0, pane: pane) }
             pendingPermission = PendingPermission(
-                summary: summary, pane: pane,
+                summary: summary.text, pane: pane,
                 failures: max(permissionFailures[pane] ?? 0, 1), retry: retry)
             return
         }
@@ -1289,7 +1311,7 @@ final class PaletteModel: ObservableObject {
     private func openInEditor(repo: Repo) {
         let editor = EditorRegistry.preferred(settings: store.settings)
         beginLaunch(opening: editor?.name, repo: repo, retry: nil,
-                    failureLine: { _ in "No editor detected, set one in Settings" }) { [store] completion in
+                    failureLine: { _ in DropCopy.noEditor }) { [store] completion in
             LaunchService.openInEditor(repo: repo, store: store, completion: completion)
         }
     }
@@ -1543,7 +1565,7 @@ struct PaletteView: View {
         // (Dynamic Type is clamped at the hosting root, see CommandPanel, so
         // the geometry's own `typeScale` metric is clamped too.)
         .environment(\.colorScheme, .dark)
-        .onAppear { model.startMonitoring(); model.reset(); searchFocused = true; animateIn(); pushHeight() }
+        .onAppear { model.startMonitoring(); resetForSummon(); searchFocused = true; animateIn(); pushHeight() }
         // Typing always lands in the field — no one should ever have to click
         // it first. Exception: when VoiceOver/Full Keyboard Access owns focus
         // traversal, forcing it back would trap the user (a11y #1).
@@ -1566,8 +1588,8 @@ struct PaletteView: View {
             if let announcement { AccessibilityNotification.Announcement(announcement).post() }
         }
         .onChange(of: model.resumeOffer) { _, offer in
-            if let offer {
-                AccessibilityNotification.Announcement("\(offer), or press escape to cancel.").post()
+            if offer != nil {
+                AccessibilityNotification.Announcement(model.resumeOfferAnnouncement).post()
             }
         }
         // The panel is being dismissed and is already transparent: put the
@@ -1583,7 +1605,7 @@ struct PaletteView: View {
             play(DropTimeline.exit(reason, reduceMotion: reduceMotion), reason: reason)
         }
         .onReceive(NotificationCenter.default.publisher(for: .tintpadPanelDidShow)) { _ in
-            model.reset()
+            resetForSummon()
             searchFocused = true
             animateIn()
             pushHeight()
@@ -1646,7 +1668,13 @@ struct PaletteView: View {
                 .reveal(contentB, rise: !exiting)
         }
         // The middle-region swap is a crossfade, never a hard cut.
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.16), value: middleToken)
+        .animation(reduceMotion ? nil : DropTimeline.reshape, value: middleToken)
+        // Nor is a query that empties the results: with no repo there is
+        // honestly no contract, and the chips fade out (and back) on the
+        // drop's one reshape curve instead of popping on the keystroke. The
+        // hidden measuring copy shares the condition, and the ratchet holds
+        // the width while text is in the field, so nothing shrinks under it.
+        .animation(reduceMotion ? nil : DropTimeline.reshape, value: model.selectedRepo == nil)
         // Optical law: the first chip's margin reads equal to the vertical
         // inset. The scroll clip's 3pt protection already supplies the
         // round-end breath — adding more made the left visibly heavier
@@ -1677,8 +1705,10 @@ struct PaletteView: View {
                 .focused($searchFocused)
                 .tint(model.isPendingDangerous ? dangerTint : .white)
                 .accessibilityLabel(fieldAccessibilityLabel)
-            if !model.query.isEmpty, model.worktreeRepo == nil, model.promptRepo == nil {
-                // Shown only while filtering — "11 of 11" is not information.
+            if !model.query.isEmpty, model.worktreeRepo == nil, model.promptRepo == nil,
+               !model.filtered.isEmpty {
+                // Shown only while filtering — "11 of 11" is not information,
+                // and nor is a "0" beside a line that already says no match.
                 Text("\(model.filtered.count)")
                     .font(.system(size: metaSize))
                     .foregroundStyle(.tertiary)
@@ -1688,8 +1718,8 @@ struct PaletteView: View {
         .frame(width: searchRegionWidth, alignment: .leading)
         .padding(.trailing, searchRegionTrailing)
         .opacity(resting ? 0 : 1)
-        .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.85),
-                   value: resting)
+        // The hug's curve, so the field and the capsule widen as one.
+        .animation(reduceMotion ? nil : DropTimeline.reshape, value: resting)
     }
 
     private var capturing: Bool { model.worktreeRepo != nil || model.promptRepo != nil }
@@ -1736,8 +1766,10 @@ struct PaletteView: View {
     }
 
     @ViewBuilder private var middleLine: some View {
-        if model.isPendingDangerous {
-            middleLine("\(model.pendingDangerousDescription ?? ""), Return confirms, Esc cancels",
+        if let pending = model.pendingDangerous {
+            // The repo is the subject token on the left, the line names what
+            // runs (VoiceOver's announcement still names the repo).
+            middleLine(DropCopy.confirm(mode: pending.mode.name, agent: pending.agent.name),
                        color: dangerTint)
         } else if let permission = model.pendingPermission {
             middleLine(permission.line, color: dangerTint)
@@ -1753,25 +1785,27 @@ struct PaletteView: View {
         } else if model.worktreeRepo != nil {
             middleLine(worktreeExplainer)
         } else if model.promptRepo != nil {
-            middleLine("Handed to \(model.promptRepo.flatMap { model.activeAgent(for: $0) }?.name ?? "the agent") as its first message, Return launches, Esc goes back")
+            middleLine(DropCopy.prompt(
+                agent: model.promptRepo.flatMap { model.activeAgent(for: $0) }?.name ?? "the agent"))
         }
     }
 
     private var worktreeExplainer: String {
-        if let path = model.worktreePreviewPath() {
-            return "New worktree at \(displayPath(path)), Return creates and launches"
-        }
-        return "An isolated checkout on a new branch, Return creates and launches"
+        DropCopy.worktree(path: model.worktreePreviewPath().map(displayPath))
     }
 
+    /// One storey. The copy is written to `DropCopy.maxLineCharacters`, and
+    /// the tail cut is only the safety net: every line leads with its reason
+    /// and ends with its keys, so an overflow costs the keys, not the reason.
+    /// Not selectable: a click in a keyboard-first capsule would take the
+    /// field's focus, and VoiceOver reads the line without it.
     private func middleLine(_ text: String, color: Color? = nil) -> some View {
         Text(text)
             .font(.system(size: fieldSize))
             .foregroundStyle(color.map(AnyShapeStyle.init) ?? AnyShapeStyle(.secondary))
             .lineLimit(1)
-            .truncationMode(.middle)
+            .truncationMode(.tail)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .textSelection(.enabled)
     }
 
     /// The token strip — ⌘Tab, but for repos, as words on black. Gray at
@@ -2030,19 +2064,19 @@ struct PaletteView: View {
                                    queryEmpty: model.query.isEmpty && middleToken == 0)
         guard next != hugWidth else { return }
         if animated && !reduceMotion && phase == .spread && contentA {
-            withAnimation(.smooth(duration: 0.2)) { hugWidth = next }
+            withAnimation(DropTimeline.reshape) { hugWidth = next }
         } else {
             snap { hugWidth = next }
         }
     }
 
     private var emptyState: some View {
-        Text(model.allRepos.isEmpty
-             ? "No repos yet, ⌘R scans your folders, or add roots in Settings"
-             : "No match for “\(model.query)”, ⌘R rescans your folders")
+        Text(DropCopy.emptyState(query: model.query, storeEmpty: model.allRepos.isEmpty))
             .font(.system(size: fieldSize))
             .foregroundStyle(.secondary)
             .lineLimit(1)
+            // Fades in and out with the contract, under `content`'s reshape.
+            .transition(.opacity)
     }
 
     private func accessibilityText(repo: Repo, agent: Agent?, mode: RunMode?, index: Int) -> String {
@@ -2066,8 +2100,10 @@ struct PaletteView: View {
     /// hardware labels its controls: a micro-label eyebrow (AGENT, MODE) and
     /// the value. The drop speaks one object language: every element is a
     /// capsule of one height. White = where you are, gray = what ⏎ does,
-    /// red = it skips permissions. Always present (a contract that sometimes
-    /// hides reads as a bug), and quietly clickable (the visible counterpart
+    /// red = it skips permissions. Always present while there is a repo (a
+    /// contract that sometimes hides reads as a bug; with no match there is
+    /// honestly nothing to contract, and it fades out on the reshape curve
+    /// rather than popping), and quietly clickable (the visible counterpart
     /// of ⇥/⇧⇥, real flags in the tooltip). No branch chip: where you are
     /// launching *from* is the tile's business, not the contract's.
     ///
@@ -2102,10 +2138,10 @@ struct PaletteView: View {
         let action: () -> Void
         switch c.kind {
         case .prompt:
-            help = "Starting prompt, ⌘P cycles"
+            help = DropCopy.promptHelp
             action = { model.cyclePrompt() }
         case .agent:
-            help = "Agent, click or ⇥ to switch"
+            help = DropCopy.agentHelp
             action = { model.cycleAgent() }
         case .mode:
             help = modeHelp(model.previewMode(agent: agent, repo: repo))
@@ -2126,10 +2162,7 @@ struct PaletteView: View {
 
     /// The tooltip carries the truth: the exact flags this mode passes.
     private func modeHelp(_ mode: RunMode) -> String {
-        let flags = mode.flags.isEmpty ? "no flags" : mode.flags
-        return mode.isDangerous
-            ? "Skips permissions (\(flags)), click or ⇧⇥ to switch"
-            : "Mode (\(flags)), click or ⇧⇥ to switch"
+        DropCopy.modeHelp(flags: mode.flags, dangerous: mode.isDangerous)
     }
 
     private func chip(_ tag: String, _ label: String, key: String? = nil, danger: Bool = false,
@@ -2168,6 +2201,14 @@ struct PaletteView: View {
         play(DropTimeline.arrival(reduceMotion: reduceMotion), reason: nil)
     }
 
+    /// A summon's model reset, committed with no animation. Clearing the last
+    /// visit's query, line or capture flips the content's animation keys
+    /// (`middleToken`, the field's `resting`, `selectedRepo == nil`), and
+    /// none of them may play while the capsule is still a bead.
+    private func resetForSummon() {
+        snap { model.reset() }
+    }
+
     /// The drop at rest: nothing drawn.
     private func rest() {
         phase = .hidden
@@ -2200,9 +2241,9 @@ struct PaletteView: View {
         case .spread:
             withAnimation(.spring(duration: 0.34, bounce: 0.12)) { phase = .spread }
         case .contentA:
-            withAnimation(.smooth(duration: 0.22)) { contentA = true }
+            withAnimation(DropTimeline.contentArrival) { contentA = true }
         case .contentB:
-            withAnimation(.smooth(duration: 0.22)) { contentB = true }
+            withAnimation(DropTimeline.contentArrival) { contentB = true }
         case .crossfadeIn:
             withAnimation(.easeInOut(duration: 0.12)) { faded = false }
         case .contentOut:
@@ -2297,7 +2338,10 @@ private struct ChipButton: View {
         }
         .buttonStyle(.plain)
         .help(help)
-        .accessibilityLabel("\(tag): \(label). \(help)")
+        // "Agent, Claude Code", then the hint: the tag said once, not again
+        // at the head of the help text.
+        .accessibilityLabel("\(tag.prefix(1).uppercased() + tag.dropFirst()), \(label)")
+        .accessibilityHint(help)
         .onHover { hovering = $0 }
     }
 }

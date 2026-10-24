@@ -83,8 +83,8 @@ struct OnboardingView: View {
     /// A test launch is underway: its line is gray waiting, not a red error.
     @State private var testInFlight = false
     // Monochrome, like everything the drop introduces: gray at rest, white
-    // where the eye should land, and red only when something is wrong.
-    private let errorRed = Color(red: 1, green: 0.42, blue: 0.32)
+    // where the eye should land (success is ink, never green), and the
+    // product's one red, `dangerTint`, only when something is wrong.
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
@@ -97,9 +97,10 @@ struct OnboardingView: View {
                     }
                 }
                 .frame(width: 60, height: 60)
+                // SF Pro speaks the product, as in the drop and Settings.
                 Text("Welcome to Tintpad")
-                    .font(.monoStyle(.title2, .bold))
-                Text("Summon a coding agent into your terminal at the right repo, in under two seconds, without the mouse.")
+                    .font(.title2.weight(.semibold))
+                Text("Summon a coding agent into your terminal at the right repo, without the mouse.")
                     .font(.callout).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -128,12 +129,12 @@ struct OnboardingView: View {
                             .disabled(testInFlight)
                         if testOK {
                             Label("Working", systemImage: "checkmark.circle.fill")
-                                .font(.callout).foregroundStyle(.green)
+                                .font(.callout).foregroundStyle(.primary)
                         }
                     }
                     if let s = testStatus, !testOK {
                         Text(s)
-                            .font(.caption).foregroundStyle(testInFlight ? Color.secondary : errorRed)
+                            .font(.caption).foregroundStyle(testInFlight ? Color.secondary : dangerTint)
                             .fixedSize(horizontal: false, vertical: true)
                         if !testInFlight { permissionsControl }
                     }
@@ -157,7 +158,8 @@ struct OnboardingView: View {
         .padding(28)
         .frame(width: 440, alignment: .topLeading)
         .fixedSize(horizontal: false, vertical: true)
-        .background(Color(red: 0.07, green: 0.07, blue: 0.07))
+        // The Settings sidebar's black, so the first-run surfaces are one black.
+        .background(Color(white: 0.055))
         .onAppear {
             // Default to Terminal.app — it's the most reliable handoff (one
             // Automation prompt, no Accessibility/relaunch dance).
@@ -220,7 +222,7 @@ struct OnboardingView: View {
         case "com.mitchellh.ghostty":
             if axTrusted {
                 Label("Accessibility granted", systemImage: "checkmark.circle.fill")
-                    .font(.callout).foregroundStyle(.green)
+                    .font(.callout).foregroundStyle(.primary)
             } else {
                 Button("Grant Accessibility…") { requestAccessibility() }
             }
@@ -294,16 +296,16 @@ struct OnboardingView: View {
     @ViewBuilder
     private func step<C: View>(_ n: Int, _ title: String, _ subtitle: String,
                                @ViewBuilder control: () -> C) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            // Step index in the palette's monospace voice, gray so the titles
-            // lead. Two mono digits self-align across steps, so no fixed frame
-            // is needed at accessibility sizes (a11y #3/#4).
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            // The step index is an instrument label, the chip eyebrow's
+            // family: small tracked mono, gray so the SF Pro titles lead. Two
+            // mono digits self-align across steps, so no fixed frame is
+            // needed at accessibility sizes (a11y #3/#4).
             Text(String(format: "%02d", n))
-                .font(.monoStyle(.body, .semibold))
+                .font(.monoStyle(.caption, .semibold)).tracking(0.6)
                 .foregroundStyle(.secondary)
-                .padding(.top, 1)
             VStack(alignment: .leading, spacing: 6) {
-                Text(title).font(.monoStyle(.headline))
+                Text(title).font(.headline)
                 Text(subtitle).font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 control()

@@ -1,10 +1,11 @@
 import Foundation
 
 /// Every key the palette answers to, in README order, for the menu bar's
-/// "Palette keys" menu. The README's Keys table is the source: a test reads
-/// it and pins this list to it row for row, so the two cannot drift. The
-/// summon hotkey is the one README row left out, it is global and
-/// configurable, and the menu already lists it as "Summon palette".
+/// "Palette keys" menu and the "In the drop" list in Settings → Keys. The
+/// README's Keys table is the source: a test reads it and pins this list to
+/// it row for row, so the two cannot drift. The summon hotkey is the one
+/// README row left out, it is global and configurable, and both surfaces
+/// already show it with its recorded chord.
 ///
 /// Each row must name a key `PaletteModel.handle(_:)` really handles.
 enum PaletteKeys {

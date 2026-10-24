@@ -1,4 +1,5 @@
 import AppKit
+import KeyboardShortcuts
 import SwiftUI
 
 @main
@@ -36,8 +37,22 @@ struct TintpadApp: App {
 
     var body: some Scene {
         MenuBarExtra {
+            // Actions first, reference second, as Apple's status menus are
+            // ordered. The two global shortcuts show the chords the user
+            // actually recorded (the library's own modifier follows a rebind
+            // and goes quiet while a recorder is active), never a literal.
             Button("Summon palette") { delegate.panelController.show() }
-                .keyboardShortcut(.space, modifiers: [.option, .command])
+                .globalKeyboardShortcut(.summon)
+            // The resume affordance lives here, not as palette chrome. Menus
+            // are where macOS teaches shortcuts (⌘0 also works in the palette).
+            Button("Resume last session") {
+                LaunchService.resumeLast(store: store) { result in
+                    if case .failure(let error) = result, !LaunchService.isInFlight(error) { NSSound.beep() }
+                }
+            }
+            .globalKeyboardShortcut(.resumeLast)
+            .disabled(!LaunchService.canResumeLast(store: store))
+            Divider()
             // Every key the palette answers to, where macOS teaches shortcuts.
             // Rows are text, not commands: they only work inside the drop.
             Menu("Palette keys") {
@@ -45,15 +60,6 @@ struct TintpadApp: App {
                     Text("\(row.keys)    \(row.action)")
                 }
             }
-            // The resume affordance lives here, not as palette chrome — menus
-            // are where macOS teaches shortcuts (⌘0 also works in the palette).
-            Button("Resume last session") {
-                LaunchService.resumeLast(store: store) { result in
-                    if case .failure(let error) = result, !LaunchService.isInFlight(error) { NSSound.beep() }
-                }
-            }
-            .disabled(!LaunchService.canResumeLast(store: store))
-            Divider()
             Button("Settings…") { delegate.panelController.openSettings() }
                 .keyboardShortcut(",", modifiers: .command)
             Button("Re-scan repos") {
@@ -62,12 +68,8 @@ struct TintpadApp: App {
             }
             // A scheduled update waits here rather than in an alert behind the
             // user's work (see UpdaterController), so the item names it.
-            if let version = updater.pendingVersion {
-                Button("Update to \(version)…") { updater.checkForUpdates() }
-            } else {
-                Button("Check for Updates…") { updater.checkForUpdates() }
-                    .disabled(!updater.canCheckForUpdates)
-            }
+            Button(UpdateCopy.menuTitle(pending: updater.pendingVersion)) { updater.checkForUpdates() }
+                .disabled(updater.pendingVersion == nil && !updater.canCheckForUpdates)
             Divider()
             Button("Quit Tintpad") { NSApp.terminate(nil) }
                 .keyboardShortcut("q")

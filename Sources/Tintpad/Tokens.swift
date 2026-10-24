@@ -1,8 +1,10 @@
 import SwiftUI
 
-/// The product's typeface is SF Mono, reached only through `Font.mono` and
-/// `Font.monoStyle` — one place defines the voice, so a future face swap is
-/// two function bodies (we test-drove IBM Plex Mono and came home).
+/// The machine voice, SF Mono, reached only through `Font.mono` and
+/// `Font.monoStyle`: paths, flags, keys and instrument labels, never product
+/// prose (SF Pro speaks the product, see `TypeRamp`). One place defines it,
+/// so a future face swap is two function bodies (we test-drove IBM Plex Mono
+/// and came home).
 extension Font {
     /// The one voice at an exact size. Sizes arrive pre-scaled through
     /// `@ScaledMetric`.

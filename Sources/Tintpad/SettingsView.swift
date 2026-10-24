@@ -95,7 +95,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .general: "General"; case .hotkeys: "Hotkeys"; case .repos: "Repos"
+        case .general: "General"; case .hotkeys: "Keys"; case .repos: "Repos"
         case .agents: "Agents"; case .prompts: "Prompts"; case .recents: "Recents"
         case .github: "GitHub"; case .about: "About"
         }
@@ -104,7 +104,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     var subtitle: String {
         switch self {
         case .general:    "Startup, terminal, and editor"
-        case .hotkeys:    "Global keyboard shortcuts"
+        case .hotkeys:    "Two global shortcuts, and every key the drop answers to"
         case .repos:      "Repositories, scan roots, and ranking"
         case .agents:     "Agents, command templates, and run modes"
         case .prompts:    "Reusable starting prompts"
@@ -240,13 +240,19 @@ struct AboutSettingsView: View {
 
             VStack(spacing: 6) {
                 LabeledContent("Version", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.0")
+                // A scheduled update waits here as well as in the menu bar,
+                // said once, quietly, in the mono of the version beside it.
+                if let pending = updater.pendingVersion {
+                    LabeledContent("Available", value: pending)
+                        .foregroundStyle(.secondary)
+                }
                 LabeledContent("Data", value: "~/Library/Application Support/Tintpad")
             }
             .font(.monoStyle(.callout)).frame(maxWidth: 420)
 
             HStack(spacing: 12) {
-                Button("Check for Updates…") { updater.checkForUpdates() }
-                    .disabled(!updater.canCheckForUpdates)
+                Button(UpdateCopy.buttonTitle(pending: updater.pendingVersion)) { updater.checkForUpdates() }
+                    .disabled(updater.pendingVersion == nil && !updater.canCheckForUpdates)
                 // A link earns its affordance from ink and a rule, not from
                 // blue: the root tint would otherwise sink these to gray and
                 // they would stop reading as clickable at all.

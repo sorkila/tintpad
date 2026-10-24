@@ -1,26 +1,48 @@
 import KeyboardShortcuts
 import SwiftUI
 
-/// The hotkey settings centerpiece. Uses the KeyboardShortcuts `Recorder` as
-/// the engine, wrapped in a premium-feeling row with a caption.
+/// Every key Tintpad answers to: the two global shortcuts, recorded with the
+/// KeyboardShortcuts `Recorder` (which reports clashes itself), and the
+/// drop's own keys from `PaletteKeys.all`, the list a test pins to the
+/// README, so this pane cannot drift from it.
 struct HotkeysSettingsView: View {
     var body: some View {
         Form {
             Section {
                 HotkeyRow(
                     title: "Summon Tintpad",
-                    caption: "Open the command palette from anywhere.",
+                    caption: "Open the drop from anywhere.",
                     name: .summon
                 )
                 HotkeyRow(
                     title: "Resume last session",
-                    caption: "Instantly re-launch your most recent repo + agent + mode.",
+                    caption: "Launch your last repo, agent and mode again.",
                     name: .resumeLast
                 )
             } header: {
                 Text("Global shortcuts")
             } footer: {
-                Text("Set a combo that won't clash with other apps. Conflicts are flagged inline.")
+                Text("Pick a chord no other app uses.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            Section {
+                // Keys are machine values, the one place mono belongs here.
+                // A Grid, so the key column sizes to its widest key at any
+                // Dynamic Type size.
+                Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 16, verticalSpacing: 7) {
+                    ForEach(PaletteKeys.all) { row in
+                        GridRow {
+                            Text(row.keys).font(.monoStyle(.callout))
+                            Text(row.action).font(.callout).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .padding(.vertical, 4)
+            } header: {
+                Text("In the drop")
+            } footer: {
+                Text("Hold ⌘ in the drop to see each repo's number and each chip's key.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }

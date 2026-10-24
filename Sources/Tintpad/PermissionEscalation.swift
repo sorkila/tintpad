@@ -24,27 +24,52 @@ enum PermissionEscalation {
 
     /// The permission line for the `failures`th failure on `pane` this
     /// session (1 is the first). Return opens the pane either way.
+    ///
+    /// Both lines fit `DropCopy.maxLineCharacters`: the escalated one is the
+    /// moment the remedy must be read in full, so it is written short rather
+    /// than left to the truncation. A first-failure summary keeps to
+    /// `maxSummary` (see `PermissionSummary`).
     static func line(pane: PrivacyPane, summary: String, failures: Int) -> String {
         if failures <= 1 {
-            return "\(summary), Return opens System Settings, Esc cancels"
+            return summary + firstFailureKeys
         }
         switch pane {
         case .accessibility:
-            return "Still no Accessibility, if Tintpad is listed, remove it and add it back, Return opens the pane"
+            return "Still no Accessibility, remove and re-add Tintpad, Return opens the pane"
         case .automation:
             // Automation lists apps as toggles, there is nothing to add.
-            return "Still no Automation access, if Tintpad is listed, switch it off and on, Return opens the pane"
+            return "Still no Automation, switch Tintpad off and on, Return opens the pane"
         }
     }
 
+    static let firstFailureKeys = ", Return opens System Settings, Esc cancels"
+
+    /// The longest summary a first-failure line has room for.
+    static var maxSummary: Int { DropCopy.maxLineCharacters - firstFailureKeys.count }
+
     /// The offer a summon makes once the held launch may run. Accessibility
     /// was checked and is granted, Automation could not be checked.
-    static func grantedLine(pane: PrivacyPane, repo: String, agent: String) -> String {
+    ///
+    /// The repo is the line's subject token, so the line names only the
+    /// agent and stays inside `DropCopy.maxLineCharacters` whatever the
+    /// repo is called. VoiceOver, which can't see the token, hears
+    /// `grantedAnnouncement` instead.
+    static func grantedLine(pane: PrivacyPane, agent: String) -> String {
         switch pane {
         case .accessibility:
-            return "\(noun(pane)) granted, Return launches \(repo) with \(agent)"
+            return "\(noun(pane)) granted, Return launches \(agent)"
         case .automation:
-            return "Return retries the launch in \(repo) with \(agent)"
+            return "Return retries the launch with \(agent)"
+        }
+    }
+
+    /// `grantedLine` with the repo named, for VoiceOver.
+    static func grantedAnnouncement(pane: PrivacyPane, repo: String, agent: String) -> String {
+        switch pane {
+        case .accessibility:
+            return "\(noun(pane)) granted. Return launches \(repo) with \(agent), or press escape to cancel."
+        case .automation:
+            return "Return retries the launch in \(repo) with \(agent), or press escape to cancel."
         }
     }
 
