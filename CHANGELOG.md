@@ -62,6 +62,14 @@ All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepac
   another slot's name (a Continue form of `resume --last {prompt}`) is kept
   literally, where it used to depend on a random per-run order.
 
+## [0.4.4] - 2026-10-25
+
+### Fixed
+- **Tintpad no longer spins at launch.** 0.4.3 held a full CPU core from the
+  moment it opened and could neither quit nor update itself. If you installed
+  0.4.3, force quit Tintpad (⌥⌘⎋) and download this version, it can't update
+  on its own.
+
 ## [0.4.3] - 2026-10-25
 
 ### Added

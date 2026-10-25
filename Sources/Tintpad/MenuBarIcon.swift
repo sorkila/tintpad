@@ -17,6 +17,16 @@ enum MenuBarIcon {
         setting || pendingUpdate
     }
 
+    /// What a write to the status item's `isInserted` should store, nil for
+    /// nothing. Only a removal while the setting is on counts (the user
+    /// ⌘-dragged the icon out). SwiftUI also writes the binding back during
+    /// scene updates, and storing those echoes republished the store, which
+    /// re-ran the scene, which wrote again: 0.4.3 spun the main thread at
+    /// launch. Showing the icon again is the toggle's job, never this path's.
+    static func settingAfterWrite(_ inserted: Bool, setting: Bool) -> Bool? {
+        !inserted && setting ? false : nil
+    }
+
     /// Drawn on a 20×16 canvas in both states, so the dot appearing never
     /// shifts the item, and the capsule stops short of the dot's corner.
     private static func make(pendingUpdate: Bool) -> NSImage {

@@ -10,6 +10,14 @@ Hands off to *your* terminal, it isn't one. Accessory app (`LSUIElement`), local
 no accounts. **Free & open source (MIT), nothing to unlock.** A GitHub Sponsors link only (Buy me a coffee until 2026-10-13).
 
 ## Status (shipped)
+**v0.4.4 is live** (2026-10-25): the menu bar icon is the app icon as a template glyph
+(`MenuBarIcon`, capsule above the pad), and it can be hidden (Settings → General, or
+⌘-drag it out), coming back only while an update waits. Reopening the app opens
+Settings, the way back. **0.4.3 shipped the same feature and was pulled within
+minutes**: it pinned the main thread at launch (see the `isInserted` gotcha), and a
+copy stuck on it can't update itself. Its GitHub release is left a draft. Like
+0.4.2, both went out alone from a `release/X.Y.Z` branch off the last tag, and
+main's `[Unreleased]` waits for 0.4.5.
 **v0.4.1 is live** (2026-09-17): the new Icon Composer icon (glass capsule above a navy
 pad, one export feeds `Scripts/make-icon.swift`), the Supporter tip removed (free with
 nothing to unlock, Buy me a coffee only), and the strip's left fade made honest.
@@ -98,7 +106,7 @@ in `Resources/Info.plist` then run `./Scripts/release.sh` to cut the next one.
 ## Commands
 ```sh
 swift build              # debug build
-swift test               # 264 unit tests (pure logic, keep green)
+swift test               # 265 unit tests (pure logic, keep green)
 swift run                # run from source (dev; unsigned)
 ./Scripts/package.sh     # assemble + sign .app/DMG in a TMPDIR scratch (signs if SIGN_IDENTITY set)
 ./Scripts/dev-install.sh # build → Developer ID sign → install to /Applications (local dev)
@@ -359,6 +367,13 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   row, so the rest offset was really -3pt and the first chip sat against the hard
   clip. Index 0 now scrolls to `PaletteView.stripStart`, an id on the padded row
   itself (`scrollStrip(_:to:)`), so the resting offset is truly 0.
+- **A `MenuBarExtra(isInserted:)` setter must not store echoes.** SwiftUI writes
+  the binding back during scene updates, so a setter that stores every write into
+  an `ObservableObject` republishes, re-runs the scene, and is written again, a loop
+  that pinned the main thread at 100% CPU from launch, unable to quit or update
+  (0.4.3, pulled). `MenuBarIcon.settingAfterWrite` stores only a removal while the
+  setting is on. Unit tests can't see a scene loop: before publishing a release,
+  launch the built app and check it idles.
 - **Frecency comparator must be transitive**, no epsilon "≈ tie" band, it breaks strict
   weak ordering and makes `sort()` reshuffle the list every render.
 - **New-SDK symbols need a compiler gate, not just `#available`.** Liquid Glass APIs

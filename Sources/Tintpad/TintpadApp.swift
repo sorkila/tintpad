@@ -49,11 +49,18 @@ struct TintpadApp: App {
 
     /// Settings → General decides, a waiting update overrides. ⌘-dragging the
     /// icon out of the menu bar writes the same setting the toggle does.
+    /// SwiftUI writes this binding back on scene updates too, so the setter
+    /// stores only a real removal (see `MenuBarIcon.settingAfterWrite`).
     private var menuBarIconShown: Binding<Bool> {
         Binding(
             get: { MenuBarIcon.isShown(setting: store.settings.showMenuBarIcon,
                                        pendingUpdate: updater.pendingVersion != nil) },
-            set: { store.settings.showMenuBarIcon = $0; store.saveSoon() }
+            set: { inserted in
+                guard let setting = MenuBarIcon.settingAfterWrite(
+                    inserted, setting: store.settings.showMenuBarIcon) else { return }
+                store.settings.showMenuBarIcon = setting
+                store.saveSoon()
+            }
         )
     }
 }

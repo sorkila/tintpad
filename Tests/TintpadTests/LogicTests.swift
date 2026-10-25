@@ -748,6 +748,16 @@ final class SettingsDecodeTests: XCTestCase {
                       "the dot on the icon is where a waiting update says so")
     }
 
+    // 0.4.3 stored every write SwiftUI made to `isInserted`, and each store
+    // write re-ran the scene that made it. Echoes must store nothing.
+    func testMenuBarIconStoresOnlyARemoval() {
+        XCTAssertEqual(MenuBarIcon.settingAfterWrite(false, setting: true), false)
+        XCTAssertNil(MenuBarIcon.settingAfterWrite(true, setting: true), "an echo of shown")
+        XCTAssertNil(MenuBarIcon.settingAfterWrite(false, setting: false), "an echo of hidden")
+        XCTAssertNil(MenuBarIcon.settingAfterWrite(true, setting: false),
+                     "a waiting update shows the icon, it must not turn the setting back on")
+    }
+
     func testRetiredAndUnknownKeysDecodeAndDoNotDisturbTheRest() throws {
         // Keys from a future build, and from features since retired, must ride
         // along harmlessly rather than throwing the whole store away.
