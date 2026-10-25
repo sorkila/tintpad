@@ -10,6 +10,7 @@ import SwiftUI
 final class OnboardingWindowController: NSObject, NSWindowDelegate {
     static let shared = OnboardingWindowController()
     private var window: NSWindow?
+    var isVisible: Bool { window?.isVisible == true }
 
     func show() {
         if window == nil {

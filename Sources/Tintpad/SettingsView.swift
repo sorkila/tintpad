@@ -132,6 +132,12 @@ struct GeneralSettingsView: View {
                     .onChange(of: launchAtLogin) { _, v in LaunchAtLogin.set(v) }
             }
 
+            Section("Menu bar") {
+                Toggle("Show Tintpad in the menu bar", isOn: store.bind(\.showMenuBarIcon))
+                Text("Hidden, the hotkey still summons the drop. Press ⌘, in the drop or open Tintpad again to get back here. The icon returns while an update waits.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
             Section("Terminal") {
                 LabeledContent("Open agents in") {
                     PopUpPicker(options: [("", "Auto (first detected)")] + installed.map { ($0.bundleID, $0.displayName) },

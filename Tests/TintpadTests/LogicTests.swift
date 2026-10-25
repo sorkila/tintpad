@@ -737,6 +737,15 @@ final class SettingsDecodeTests: XCTestCase {
         XCTAssertEqual(s.tintedChips, true)
         XCTAssertEqual(s.rootScanFolders, [])
         XCTAssertNil(s.licenseKey)
+        XCTAssertTrue(s.showMenuBarIcon, "a store from before the toggle keeps its icon")
+    }
+
+    func testMenuBarIconHidesUnlessAnUpdateWaits() throws {
+        XCTAssertFalse(try decode(#"{"showMenuBarIcon":false}"#).showMenuBarIcon)
+        XCTAssertTrue(MenuBarIcon.isShown(setting: true, pendingUpdate: false))
+        XCTAssertFalse(MenuBarIcon.isShown(setting: false, pendingUpdate: false))
+        XCTAssertTrue(MenuBarIcon.isShown(setting: false, pendingUpdate: true),
+                      "the dot on the icon is where a waiting update says so")
     }
 
     func testRetiredAndUnknownKeysDecodeAndDoNotDisturbTheRest() throws {

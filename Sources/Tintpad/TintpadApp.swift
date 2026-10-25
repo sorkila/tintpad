@@ -8,35 +8,8 @@ struct TintpadApp: App {
     @ObservedObject private var store = AppStore.shared
     @ObservedObject private var updater = UpdaterController.shared
 
-    /// The brand caret as a template glyph: the menu bar tints it like every
-    /// native status item (the old hard-orange ⌘ ignored appearance and
-    /// looked like a sticker next to the system's monochrome icons).
-    private static let menuIcon = makeMenuIcon(pendingUpdate: false)
-    /// The caret with a small dot, while an update waits in the menu. Still a
-    /// template, the product's one signal stays monochrome.
-    private static let menuIconPendingUpdate = makeMenuIcon(pendingUpdate: true)
-
-    private static func makeMenuIcon(pendingUpdate: Bool) -> NSImage {
-        let img = NSImage(size: NSSize(width: 16, height: 15), flipped: false) { rect in
-            let caret = NSAttributedString(string: "❯", attributes: [
-                .font: NSFont.monospacedSystemFont(ofSize: 12.5, weight: .bold),
-                .foregroundColor: NSColor.black,
-            ])
-            let s = caret.size()
-            caret.draw(at: NSPoint(x: (rect.width - s.width) / 2,
-                                   y: (rect.height - s.height) / 2))
-            if pendingUpdate {
-                NSColor.black.setFill()
-                NSBezierPath(ovalIn: NSRect(x: rect.maxX - 4, y: rect.maxY - 4, width: 4, height: 4)).fill()
-            }
-            return true
-        }
-        img.isTemplate = true
-        return img
-    }
-
     var body: some Scene {
-        MenuBarExtra {
+        MenuBarExtra(isInserted: menuBarIconShown) {
             // Actions first, reference second, as Apple's status menus are
             // ordered. The two global shortcuts show the chords the user
             // actually recorded (the library's own modifier follows a rebind
@@ -70,8 +43,18 @@ struct TintpadApp: App {
             Button("Quit Tintpad") { NSApp.terminate(nil) }
                 .keyboardShortcut("q")
         } label: {
-            Image(nsImage: updater.pendingVersion == nil ? Self.menuIcon : Self.menuIconPendingUpdate)
+            Image(nsImage: updater.pendingVersion == nil ? MenuBarIcon.plain : MenuBarIcon.pendingUpdate)
         }
+    }
+
+    /// Settings → General decides, a waiting update overrides. ⌘-dragging the
+    /// icon out of the menu bar writes the same setting the toggle does.
+    private var menuBarIconShown: Binding<Bool> {
+        Binding(
+            get: { MenuBarIcon.isShown(setting: store.settings.showMenuBarIcon,
+                                       pendingUpdate: updater.pendingVersion != nil) },
+            set: { store.settings.showMenuBarIcon = $0; store.saveSoon() }
+        )
     }
 }
 
@@ -231,6 +214,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             LaunchService.continueLast(store: store, completion: done)
         }
+    }
+
+    /// Opening Tintpad while it runs (Finder, Spotlight, the Dock) opens
+    /// Settings, the way back when the menu bar icon is hidden. First-run
+    /// setup, while it is up, comes forward instead.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if OnboardingWindowController.shared.isVisible {
+            OnboardingWindowController.shared.show()
+        } else {
+            panelController.openSettings()
+        }
+        return false
     }
 
     func applicationWillTerminate(_ notification: Notification) {
