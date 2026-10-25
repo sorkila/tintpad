@@ -4,15 +4,7 @@ All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
-### Added
-- **The menu bar icon can be hidden**, in Settings → General or by
-  ⌘-dragging it out of the menu bar. The hotkey still summons the drop, and
-  opening Tintpad again opens Settings. The icon comes back on its own while an
-  update waits.
-
 ### Changed
-- **A new menu bar icon**, the app icon drawn as a glyph: the glass capsule
-  above the pad, in place of the ❯ caret.
 - **⌘0 and the new ⌃R continue the conversation instead of starting it
   again.** ⌘0 picks up the last session in the repo or worktree it ran in,
   with its agent and mode and without resending its first prompt. ⌃R
@@ -69,6 +61,18 @@ All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepac
 - **A command template fills its slots in one pass.** A value that holds
   another slot's name (a Continue form of `resume --last {prompt}`) is kept
   literally, where it used to depend on a random per-run order.
+
+## [0.4.3] - 2026-10-25
+
+### Added
+- **The menu bar icon can be hidden**, in Settings → General or by
+  ⌘-dragging it out of the menu bar. The hotkey still summons the drop, and
+  opening Tintpad again opens Settings. The icon comes back on its own while an
+  update waits.
+
+### Changed
+- **A new menu bar icon**, the app icon drawn as a glyph: the glass capsule
+  above the pad, in place of the ❯ caret.
 
 ## [0.4.2] - 2026-10-24
 
