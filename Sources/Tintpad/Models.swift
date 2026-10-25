@@ -168,6 +168,9 @@ struct Settings: Codable {
     var worktreeRoot: String?
     /// First-run onboarding completed.
     var hasOnboarded: Bool = false
+    /// The status item. Hidden, the hotkey still summons the drop, and
+    /// reopening the app opens Settings (see `MenuBarIcon.isShown`).
+    var showMenuBarIcon: Bool = true
 
     // MARK: Retired
     //
@@ -205,6 +208,7 @@ struct Settings: Codable {
         alsoOpenEditor = g(.alsoOpenEditor, false)
         openInNewTab = g(.openInNewTab, false)
         hasOnboarded = g(.hasOnboarded, false)
+        showMenuBarIcon = g(.showMenuBarIcon, true)
         // Retired, read only so they survive the round-trip.
         tintAccent = g(.tintAccent, .orange)
         appearance = g(.appearance, .dark)
