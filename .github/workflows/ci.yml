@@ -33,7 +33,7 @@ jobs:
           - os: macos-26
             experimental: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Toolchain
         run: |

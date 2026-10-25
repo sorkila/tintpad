@@ -37,7 +37,7 @@ jobs:
       HAS_NOTARY_KEY: ${{ secrets.NOTARY_KEY != '' }}
       HAS_SPARKLE_KEY: ${{ secrets.SPARKLE_ED_KEY != '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Swift version
         run: swift --version
