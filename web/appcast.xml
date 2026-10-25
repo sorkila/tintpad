@@ -4,12 +4,12 @@
     <title>Tintpad</title>
     <link>https://tintpad.com/appcast.xml</link>
     <item>
-      <title>0.4.3</title>
-      <pubDate>Sun, 25 Oct 2026 06:42:28 +0000</pubDate>
-      <sparkle:version>14</sparkle:version>
-      <sparkle:shortVersionString>0.4.3</sparkle:shortVersionString>
+      <title>0.4.2</title>
+      <pubDate>Sat, 24 Oct 2026 13:10:29 +0000</pubDate>
+      <sparkle:version>13</sparkle:version>
+      <sparkle:shortVersionString>0.4.2</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-      <enclosure url="https://github.com/sorkila/tintpad/releases/download/v0.4.3/Tintpad.dmg" sparkle:edSignature="1Eg5MCxsyhuAOAtmc2u/X5xE5ROIYmtl/SG0sAABWhyxPQQkZ6wQR1fLdOKrSfv5dg0r//4eBbgmCWQ0lgZ1Dg==" length="4966461" type="application/octet-stream"/>
+      <enclosure url="https://github.com/sorkila/tintpad/releases/download/v0.4.2/Tintpad.dmg" sparkle:edSignature="UOVeVUP7GCRt69uAvkXeatSJX+/fJXE5iArqU0PxHVjwfmeSBtoBYdplqHnUrYW5ytl6OZAdgBrASooNsS/XBw==" length="4962827" type="application/octet-stream"/>
     </item>
   </channel>
 </rss>
