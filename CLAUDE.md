@@ -115,6 +115,7 @@ swift run                # run from source (dev; unsigned)
 ./Scripts/check-release.sh [--ci]  # release preflight (CI runs --ci)
 ./Scripts/test-release.sh          # self-test for the release scripts
 ./Scripts/check-bundle.sh          # checks an assembled .app bundle
+./Scripts/check-idle.sh            # launches a built .app, checks it idles, always quits it
 ./Scripts/uitest.sh      # synthetic-input GUI smoke test (needs Accessibility/Automation)
 ./Scripts/record-demo.sh # self-recording demo film: seeds portfolio repos, records the
                          # scripted take, cuts demo.mp4/poster/og/hero, restores the store
@@ -372,8 +373,17 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   an `ObservableObject` republishes, re-runs the scene, and is written again, a loop
   that pinned the main thread at 100% CPU from launch, unable to quit or update
   (0.4.3, pulled). `MenuBarIcon.settingAfterWrite` stores only a removal while the
-  setting is on. Unit tests can't see a scene loop: before publishing a release,
-  launch the built app and check it idles.
+  setting is on. Unit tests can't see a scene loop, so `release.sh` runs
+  `Scripts/check-idle.sh` on the signed app before anything is published (it quits
+  the copy it launches and relaunches whatever Tintpad was running before).
+- **Launches silently stopped working? Check which Tintpad is running first**
+  (`ps -axo pid,command | grep '[T]intpad.app'`, unsandboxed, the sandbox's view of
+  processes lies). A release-day idle check once launched `.build/release/Tintpad.app`
+  by hand and left it running. The `.build` folder was later deleted under it, and that
+  orphan kept answering the hotkey for three days (the single-instance guard turned the
+  real `/Applications` copy away), bringing Ghostty forward but typing nothing, with no
+  error line. Quitting it and opening the installed app fixed it. `check-idle.sh` now
+  owns that launch so it can't outlive the check.
 - **Frecency comparator must be transitive**, no epsilon "≈ tie" band, it breaks strict
   weak ordering and makes `sort()` reshuffle the list every render.
 - **New-SDK symbols need a compiler gate, not just `#available`.** Liquid Glass APIs

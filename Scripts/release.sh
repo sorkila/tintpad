@@ -138,6 +138,10 @@ fi
 # 1. Build, sign, notarize, staple, DMG.
 ./Scripts/package.sh
 [[ -f "$DMG" ]] || die "package.sh did not produce ${DMG}"
+
+# 1b. The signed app must idle before anything is public. 0.4.3 spun the main
+# thread at launch, invisible to unit tests. check-idle.sh quits what it starts.
+./Scripts/check-idle.sh .build/release/Tintpad.app || die "the built app does not idle, nothing was published"
 SHA="$(shasum -a 256 "$DMG" | cut -d' ' -f1)"
 SIZE="$(stat -f '%z' "$DMG")"
 echo "▸ DMG sha256: ${SHA} (${SIZE} bytes)"
