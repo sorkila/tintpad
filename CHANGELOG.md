@@ -5,6 +5,13 @@ All notable changes to Tintpad. Format follows [Keep a Changelog](https://keepac
 ## [Unreleased]
 
 ### Changed
+- **Ghostty opens repos through its own AppleScript.** On Ghostty 1.3 and
+  later, Tintpad asks Ghostty for a window or tab that starts in the repo with
+  the command already running, instead of pressing ⌘N and typing it. Nothing
+  can land in the wrong window, and a failure shows as a line in the drop
+  instead of Ghostty coming forward with nothing typed. macOS asks once for
+  Automation (Tintpad controlling Ghostty), and Accessibility is no longer
+  needed. Ghostty before 1.3 keeps the typed path.
 - **⌘0 and the new ⌃R continue the conversation instead of starting it
   again.** ⌘0 picks up the last session in the repo or worktree it ran in,
   with its agent and mode and without resending its first prompt. ⌃R

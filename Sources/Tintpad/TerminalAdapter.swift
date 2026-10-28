@@ -153,31 +153,40 @@ private func openApp(bundleID: String, args: [String]) throws {
     try run("/usr/bin/open", ["-nb", bundleID, "--args"] + args)
 }
 
-// MARK: - Ghostty (CLI via `open`)
+// MARK: - Ghostty (AppleScript, keystrokes before 1.3)
 
 /// Ghostty is single-instance on macOS: `+new-window` is unsupported, `open -n`
 /// runs the command in a window-less second instance, and `open` without `-n`
-/// ignores args. The only reliable way to drive a *running* Ghostty is to open a
-/// new window (⌘N) and type the command — via System Events (needs Accessibility
-/// permission, prompted on first use).
+/// ignores args.
 ///
-/// A cold start is different: `activate` *launches* Ghostty, which opens its own
-/// initial window, so sending ⌘N on top of that leaves a second, blank window
-/// (the "two Ghosttys on the day's first launch" bug). When Ghostty wasn't
-/// already running, the script instead types into the window the launch itself
-/// produces, polling for the process and window (a cold start takes seconds
-/// where a warm activate is instant), with ⌘N only as a fallback for
+/// Ghostty 1.3+ ships its own AppleScript dictionary, so a launch asks Ghostty
+/// for a window (or tab) whose surface configuration carries the directory and
+/// the command as initial input. Nothing is typed, focus doesn't matter, and a
+/// failure is an AppleScript error rather than silence. It needs Automation.
+///
+/// Older Ghostty has no command-open API, so the only way to drive it is to
+/// open a new window (⌘N) and type the command via System Events, which needs
+/// Accessibility and fails *silently* when the grant doesn't apply: Ghostty
+/// comes forward and nothing is typed. That path stays for those versions.
+///
+/// A cold start is different on both paths: `activate` *launches* Ghostty,
+/// which opens its own initial window, so a new window on top of that leaves a
+/// second, blank one (the "two Ghosttys on the day's first launch" bug). When
+/// Ghostty wasn't already running, the command goes into the window the launch
+/// itself produces, polling for it (a cold start takes seconds where a warm
+/// activate is instant), with a new window only as a fallback for
 /// `initial-window = false` configs.
 struct GhosttyAdapter: TerminalAdapter {
     let displayName = "Ghostty"
     let bundleID = "com.mitchellh.ghostty"
 
     @MainActor func prepare(_ launch: TerminalLaunch) throws -> TerminalHandoff {
-        guard isInstalled else { throw TerminalLaunchError.notInstalled }
-        // Ghostty handoff types the command via System Events, which needs
-        // Accessibility. Without it the keystrokes silently no-op — so fail loudly
-        // instead. (Rebuilding an unsigned app resets this grant in macOS.)
-        guard AXIsProcessTrusted() else {
+        guard let app = appURL else { throw TerminalLaunchError.notInstalled }
+        let scriptable = Self.isScriptable(appAt: app)
+        // The keystroke path types via System Events, which needs Accessibility.
+        // Without it the keystrokes silently no-op, so fail loudly instead.
+        // (Rebuilding an unsigned app resets this grant in macOS.)
+        guard scriptable || AXIsProcessTrusted() else {
             throw TerminalLaunchError.permissionNeeded(
                 summary: .ghostty,
                 remedy: "Grant Tintpad in System Settings → Privacy & Security → Accessibility. If Tintpad is already listed, the grant has gone stale, remove it and add it back, then relaunch Tintpad.",
@@ -190,14 +199,92 @@ struct GhosttyAdapter: TerminalAdapter {
         let wasRunning = NSRunningApplication
             .runningApplications(withBundleIdentifier: bundleID)
             .contains(where: \.isFinishedLaunching)
-        let script = Self.handoffScript(command: cmd, openInTab: launch.openInTab, wasRunning: wasRunning)
+        let script = scriptable
+            ? Self.scriptingHandoffScript(command: cmd, directory: launch.workingDirectory,
+                                          openInTab: launch.openInTab, wasRunning: wasRunning)
+            : Self.handoffScript(command: cmd, openInTab: launch.openInTab, wasRunning: wasRunning)
         return .blocking {
             try AppleScriptRunner.run(script)
             return LaunchOutcome()
         }
     }
 
-    /// The System Events script for each entry state. Pure so the branch is
+    /// Whether the installed Ghostty opens windows through its own AppleScript
+    /// (1.3+), which decides the permission it needs: Automation, not
+    /// Accessibility. Onboarding asks this too.
+    @MainActor var isScriptable: Bool {
+        appURL.map(Self.isScriptable(appAt:)) ?? false
+    }
+
+    /// Reads Info.plist from disk on every call, never through `Bundle`, which
+    /// caches per URL for the life of the process and would keep answering for
+    /// the Ghostty that was installed before an update.
+    static func isScriptable(appAt url: URL) -> Bool {
+        let plist = NSDictionary(contentsOf: url.appendingPathComponent("Contents/Info.plist"))
+        return isScriptable(infoPlist: plist as? [String: Any])
+    }
+
+    /// Pure: a scripting dictionary is declared by `OSAScriptingDefinition`,
+    /// which Ghostty gained with its AppleScript support in 1.3.
+    static func isScriptable(infoPlist: [String: Any]?) -> Bool {
+        infoPlist?["OSAScriptingDefinition"] != nil
+    }
+
+    /// The Ghostty-dictionary script for each entry state. Pure so the branch
+    /// is testable. Warm: a new window, or a tab in the front window, whose
+    /// surface starts in the repo with the command as initial input (a
+    /// trailing linefeed submits it). Cold: the launch's own initial window
+    /// gets the command through `input text`, which arrives as a paste, so
+    /// Return is sent as a key rather than as a pasted newline (bracketed
+    /// paste would hold it in the line editor).
+    static func scriptingHandoffScript(command: String, directory: String,
+                                       openInTab: Bool, wasRunning: Bool) -> String {
+        let configure = """
+            set cfg to new surface configuration
+            set initial working directory of cfg to "\(appleScriptEscape(directory))"
+            set initial input of cfg to "\(appleScriptEscape(command))" & linefeed
+        """
+        if wasRunning {
+            let make = openInTab
+                ? """
+                    if (count of windows) is 0 then
+                        new window with configuration cfg
+                    else
+                        new tab in front window with configuration cfg
+                    end if
+                """
+                : "    new window with configuration cfg"
+            return """
+            tell application "Ghostty"
+            \(configure)
+            \(make)
+                activate
+            end tell
+            """
+        }
+        // Cold start: bounded poll (~5s) for the initial window. The script
+        // runs off main through `osascript`, and `AppleScriptRunner` bounds the
+        // whole run too, so a hung launch fails rather than sitting forever.
+        return """
+        tell application "Ghostty"
+            activate
+            repeat 20 times
+                if (count of windows) > 0 then exit repeat
+                delay 0.25
+            end repeat
+            if (count of windows) is 0 then
+            \(configure)
+                new window with configuration cfg
+            else
+                set t to focused terminal of selected tab of front window
+                input text "\(appleScriptEscape(command))" to t
+                send key "enter" to t
+            end if
+        end tell
+        """
+    }
+
+    /// The System Events script for each entry state, for Ghostty before 1.3. Pure so the branch is
     /// testable; the frontmost checks pin the target — if focus moved during
     /// the delays, the command must NOT be typed into whatever stole it.
     static func handoffScript(command: String, openInTab: Bool, wasRunning: Bool) -> String {

@@ -151,7 +151,8 @@ chosen precisely so the wallpaper could not tint a monochrome room.
   on an external monitor before a release.
 - **The adapter matrix.** Actual terminal handoff to all seven adapters,
   exercised by launching each at least once before a release. Terminal.app and
-  iTerm2 need Automation, Ghostty needs Accessibility, the CLI terminals need
+  iTerm2 need Automation, Ghostty 1.3+ needs Automation (before 1.3,
+  Accessibility), the CLI terminals need
   neither, and Warp falls back to the clipboard.
 - **The permission-failure line.** A launch with a missing Accessibility or
   Automation grant must show the red one-liner in the drop, and ⏎ must open the
