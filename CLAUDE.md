@@ -106,7 +106,7 @@ in `Resources/Info.plist` then run `./Scripts/release.sh` to cut the next one.
 ## Commands
 ```sh
 swift build              # debug build
-swift test               # 265 unit tests (pure logic, keep green)
+swift test               # 270 unit tests (pure logic, keep green)
 swift run                # run from source (dev; unsigned)
 ./Scripts/package.sh     # assemble + sign .app/DMG in a TMPDIR scratch (signs if SIGN_IDENTITY set)
 ./Scripts/dev-install.sh # build → Developer ID sign → install to /Applications (local dev)
@@ -394,7 +394,12 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
 - **Agent CLI flags are version-specific.** Verify against the installed CLI's `--help`.
   Codex: yolo = `--dangerously-bypass-approvals-and-sandbox` (NOT `--full-auto`),
   safe = `--ask-for-approval untrusted` (needs a value). Claude: `--dangerously-skip-permissions`.
-- **Terminal permissions (TCC):** Terminal.app/iTerm2 use AppleScript → **Automation**, Ghostty types the command → **Accessibility**, CLI terminals (kitty/Alacritty/WezTerm) need neither.
+- **Terminal permissions (TCC):** Terminal.app/iTerm2 use AppleScript → **Automation**, Ghostty 1.3+ uses its own
+  AppleScript dictionary → **Automation**, Ghostty before 1.3 types the command → **Accessibility**, CLI terminals
+  (kitty/Alacritty/WezTerm) need neither. `GhosttyAdapter.isScriptable` decides per launch from Ghostty's
+  Info.plist on disk (`OSAScriptingDefinition`), never through `Bundle`, which caches across a Ghostty update.
+  **Prefer the terminal's own API to System Events keystrokes**: a keystroke whose grant doesn't apply is
+  dropped silently (Ghostty comes forward, nothing is typed, no error), an Apple event fails out loud.
   Surfaced with actionable errors. Open-in-tab is honored by Ghostty/iTerm2/Terminal/WezTerm.
   AppleScript runs in a child `osascript` (stdin script, scrubbed spawn env), and TCC attributes
   that child to Tintpad as the responsible process, so existing grants carry over and no new
@@ -405,11 +410,18 @@ Swift 6, macOS 14+. Deps (SPM): KeyboardShortcuts, Sparkle.
   (`PendingRetry`, by repo/agent/mode identity, re-resolved on Return) for the next summon, which offers it back (Accessibility only once
   `AXIsProcessTrusted()` is true, checked on summon, Automation unchecked) and never fires it without a Return.
 - **Ghostty cold start:** `activate` on a not-running Ghostty *launches* it, and Ghostty
-  opens its own initial window, so an unconditional ⌘N doubles the windows (one blank at
-  home, one correct). `GhosttyAdapter` branches on `NSRunningApplication` (finished-launching
-  instances only, a mid-launch instance is about to open its window too): warm keeps
-  activate → ⌘N → type, cold types into the initial window with bounded polls instead of
-  fixed delays. The script runs off main through `osascript` with a 60s bound (long enough
+  opens its own initial window, so an unconditional new window doubles them. The scripting
+  path (1.3+) sends the command into that window's focused terminal with `input text` and
+  then `send key "enter"`: `input text` is a paste, and under bracketed paste a pasted
+  newline sits in the line editor instead of running. A warm launch puts the command in the
+  new surface's `initial input` with a trailing linefeed, which does run.
+  `GhosttyHandoffTests` compiles every scripting variant with `osacompile` against the
+  installed Ghostty's dictionary (skipped where Ghostty isn't installed), the only test that
+  sees a misspelled dictionary term. Both paths branch on `NSRunningApplication`
+  (finished-launching instances only, a mid-launch instance is about to open its window
+  too), and both poll for the initial window instead of fixed delays. The keystroke path
+  (before 1.3) keeps activate → ⌘N → type when warm and types into the initial window when
+  cold, ⌘N only as the `initial-window = false` fallback. The script runs off main through `osascript` with a 60s bound (long enough
   for a first Automation consent prompt, which holds the Apple event), while the
   `NSRunningApplication` check stays on main in `prepare`. The drop stays live meanwhile:
   `launchInFlight` holds until the handoff answers, so Return is ignored, Esc still works,

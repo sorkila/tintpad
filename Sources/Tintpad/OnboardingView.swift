@@ -216,10 +216,13 @@ struct OnboardingView: View {
         _ = store.runAutoDiscovery()
     }
 
-    /// The actionable part of step 2: grant Accessibility (Ghostty) or open the
-    /// Automation pane (AppleScript terminals). CLI terminals need nothing.
+    /// The actionable part of step 2: grant Accessibility (Ghostty before 1.3)
+    /// or open the Automation pane (AppleScript terminals, Ghostty 1.3+). CLI
+    /// terminals need nothing.
     @ViewBuilder private var permissionsControl: some View {
         switch resolvedTerminalID {
+        case "com.mitchellh.ghostty" where GhosttyAdapter().isScriptable:
+            Button("Open Privacy Settings…") { openPrivacy("Privacy_Automation") }
         case "com.mitchellh.ghostty":
             if axTrusted {
                 Label("Accessibility granted", systemImage: "checkmark.circle.fill")
@@ -280,15 +283,16 @@ struct OnboardingView: View {
     }
 
     /// Permission copy scoped to the chosen terminal — Accessibility is only ever
-    /// mentioned for Ghostty (which has no command-open API), not as a blanket ask.
+    /// mentioned for Ghostty before 1.3 (no command-open API), not as a blanket ask.
     private var permissionsBlurb: String {
         switch resolvedTerminalID {
-        case "com.mitchellh.ghostty":
-            return "Ghostty has no command-open API on macOS, so Tintpad types the command for you. That needs Accessibility, so macOS will ask once on first launch. No other terminal needs it."
-        case "com.googlecode.iterm2", "com.apple.Terminal":
+        case "com.mitchellh.ghostty" where GhosttyAdapter().isScriptable,
+             "com.googlecode.iterm2", "com.apple.Terminal":
             return "Tintpad opens your terminal with AppleScript, so macOS asks for Automation once, on first launch. That's the only prompt."
+        case "com.mitchellh.ghostty":
+            return "This Ghostty is older than 1.3 and has no command-open API, so Tintpad types the command for you. That needs Accessibility, so macOS will ask once on first launch. Updating Ghostty avoids it."
         case "":
-            return "Depending on your terminal, macOS may ask once for Automation (iTerm2/Terminal) or Accessibility (Ghostty). Nothing is asked up front."
+            return "Depending on your terminal, macOS may ask once for Automation (Ghostty, iTerm2, Terminal) or Accessibility (Ghostty before 1.3). Nothing is asked up front."
         default:
             return "No extra permissions needed, Tintpad launches your terminal directly."
         }

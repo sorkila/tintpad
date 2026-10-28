@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 @testable import Tintpad
 
@@ -322,6 +323,71 @@ final class GhosttyHandoffTests: XCTestCase {
                                                openInTab: true, wasRunning: true)
         XCTAssertTrue(tab.contains("keystroke \"t\" using command down"))
         XCTAssertTrue(tab.contains("keystroke \"cd /x && claude\""))
+    }
+
+    func testScriptableGhosttyIsReadFromItsInfoPlist() {
+        XCTAssertTrue(GhosttyAdapter.isScriptable(infoPlist: ["OSAScriptingDefinition": "Ghostty.sdef"]))
+        XCTAssertFalse(GhosttyAdapter.isScriptable(infoPlist: ["CFBundleShortVersionString": "1.2.3"]))
+        XCTAssertFalse(GhosttyAdapter.isScriptable(infoPlist: nil))
+    }
+
+    func testScriptableWarmLaunchTypesNothing() {
+        // Ghostty 1.3+ opens the surface with the command as initial input:
+        // no System Events, so no keystroke can land in whatever has focus.
+        let window = GhosttyAdapter.scriptingHandoffScript(command: "cd /x && claude", directory: "/x",
+                                                           openInTab: false, wasRunning: true)
+        XCTAssertTrue(window.contains("set initial working directory of cfg to \"/x\""))
+        XCTAssertTrue(window.contains("set initial input of cfg to \"cd /x && claude\" & linefeed"))
+        XCTAssertTrue(window.contains("new window with configuration cfg"))
+        XCTAssertFalse(window.contains("new tab"))
+        let tab = GhosttyAdapter.scriptingHandoffScript(command: "cd /x && claude", directory: "/x",
+                                                        openInTab: true, wasRunning: true)
+        XCTAssertTrue(tab.contains("new tab in front window with configuration cfg"))
+        XCTAssertTrue(tab.contains("if (count of windows) is 0 then"))
+        for script in [window, tab] {
+            XCTAssertFalse(script.contains("System Events"))
+            XCTAssertFalse(script.contains("keystroke"))
+        }
+    }
+
+    func testScriptableColdLaunchUsesTheInitialWindow() {
+        // The cold launch's own window takes the command (no second window),
+        // sent as a paste with Return as a key, since a pasted newline sits in
+        // the line editor under bracketed paste.
+        let cold = GhosttyAdapter.scriptingHandoffScript(command: "cd /x && claude", directory: "/x",
+                                                         openInTab: true, wasRunning: false)
+        XCTAssertTrue(cold.contains("input text \"cd /x && claude\" to t"))
+        XCTAssertTrue(cold.contains("send key \"enter\" to t"))
+        XCTAssertFalse(cold.contains("new tab"))
+        XCTAssertTrue(cold.contains("new window with configuration cfg"), "initial-window = false fallback")
+        XCTAssertFalse(cold.contains("System Events"))
+    }
+
+    func testScriptableScriptEscapesItsValues() {
+        let script = GhosttyAdapter.scriptingHandoffScript(command: #"cd '/a"b' && say "hi""#, directory: #"/a"b\c"#,
+                                                           openInTab: false, wasRunning: true)
+        XCTAssertTrue(script.contains(#"set initial working directory of cfg to "/a\"b\\c""#))
+        XCTAssertTrue(script.contains(#"set initial input of cfg to "cd '/a\"b' && say \"hi\"" & linefeed"#))
+    }
+
+    func testScriptableScriptsCompileAgainstGhosttysDictionary() throws {
+        // Unit assertions can't see a misspelled dictionary term, osacompile
+        // can: it resolves every term against the installed Ghostty's sdef
+        // without running anything. Skipped where Ghostty isn't installed (CI).
+        guard let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.mitchellh.ghostty"),
+              GhosttyAdapter.isScriptable(appAt: app) else {
+            throw XCTSkip("no scriptable Ghostty installed")
+        }
+        let out = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tintpad-ghostty-\(UUID().uuidString).scpt")
+        defer { try? FileManager.default.removeItem(at: out) }
+        for (tab, running) in [(false, true), (true, true), (true, false)] {
+            let script = GhosttyAdapter.scriptingHandoffScript(command: "cd '/x' && claude", directory: "/x",
+                                                               openInTab: tab, wasRunning: running)
+            let result = try ProcessRunner.run("/usr/bin/osacompile", arguments: ["-o", out.path, "-"],
+                                               input: Data(script.utf8), timeout: 30)
+            XCTAssertEqual(result.status, 0, "tab \(tab), running \(running): \(result.stderr)")
+        }
     }
 }
 
